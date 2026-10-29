@@ -86,6 +86,33 @@ public enum OverlayPlan {
     }
 }
 
+public extension OverlayPlan {
+    /// Each narrated line as a caption while it plays. A subtitle takes the caption's place: a `Caption` showing at the
+    /// same time is cut around it.
+    static func adding(subtitles clips: [Soundtrack.Clip], to overlays: [Overlay]) -> [Overlay] {
+        let spoken = clips.filter { $0.end > $0.start }.map { ($0.start, $0.end) }
+        var result: [Overlay] = []
+        for overlay in overlays {
+            guard case .caption = overlay.kind else {
+                result.append(overlay)
+                continue
+            }
+            // What is left of the caption around every line.
+            var pieces = [(overlay.start, overlay.end)]
+            for (start, end) in spoken {
+                pieces = pieces.flatMap { piece -> [(Double, Double)] in
+                    guard start < piece.1, end > piece.0 else { return [piece] }
+                    return [(piece.0, start), (end, piece.1)].filter { $0.1 - $0.0 > 0.05 }
+                }
+            }
+            result += pieces.map { Overlay(kind: overlay.kind, start: $0.0, end: $0.1) }
+        }
+        result += clips.filter { $0.end > $0.start }
+            .map { Overlay(kind: .caption($0.text), start: $0.start, end: $0.end) }
+        return result.sorted { $0.start < $1.start }
+    }
+}
+
 extension Duration {
     var seconds: Double {
         Double(components.seconds) + Double(components.attoseconds) / 1e18

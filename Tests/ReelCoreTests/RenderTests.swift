@@ -21,7 +21,7 @@ struct RenderTests {
         ]
         let take = Take(width: 320, height: 200, scale: 2, frameRate: 30, audio: false, durationMs: 2000, events: [])
         let output = Output(url: dir.appending(path: "out.mp4"), format: .mp4)
-        try await Renderer.render(movie, take: take, overlays: overlays, to: output)
+        try await Renderer.render(movie, take: take, overlays: overlays, soundtrack: .none, to: output)
 
         let video = AVURLAsset(url: output.url)
         // Just inside the bottom of each pill (its padding, so the dark background rather than text), and the
@@ -60,7 +60,7 @@ struct RenderTests {
         try await writer.writeTake(to: movie, seconds: 1, audio: false, shade: 128)
         let take = Take(width: 320, height: 200, scale: 2, frameRate: 30, audio: false, durationMs: 1000, events: [])
         let output = Output(url: dir.appending(path: "out.mov"), format: .mov)
-        try await Renderer.render(movie, take: take, overlays: [], to: output)
+        try await Renderer.render(movie, take: take, overlays: [], soundtrack: .none, to: output)
         let values = try await pixels(AVURLAsset(url: output.url), at: 0.5, [(x: width / 2, y: height - 10)])
         // 128 grey, give or take the export's colour conversion.
         #expect(abs(values[0] - 134) < 12)

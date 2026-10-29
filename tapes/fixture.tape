@@ -4,14 +4,21 @@ Output ../build/fixture.mp4
 Output ../build/fixture.gif
 Set Size 640x480
 Set TypingSpeed 30ms
+Set Voice system
+Set Ducking 20%
+Set Subtitles on
 
 Launch ../build/ReelFixture.app
 
 Caption "reel drives the fixture"
 Wait "Play"
-Sleep 500ms
+Say "This is the reel fixture."
+Say@over "Now click [play] Play, and a tone starts."
+Wait [play]
 Caption "Click Play and the tone starts"
 Click "Play"
+Sleep 1s
+Say "The tone keeps playing under the voice."
 Sleep 1s
 Caption "Type, select all, type again"
 Click #name
