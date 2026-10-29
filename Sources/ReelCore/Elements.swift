@@ -36,7 +36,7 @@ public enum ElementSearch {
         switch target {
         case let .label(text): node.labels.contains { $0.trimmingCharacters(in: .whitespacesAndNewlines) == text }
         case let .identifier(id): node.identifier == id
-        case .point: false
+        case .point, .css: false
         }
     }
 }

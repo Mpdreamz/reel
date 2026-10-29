@@ -16,6 +16,9 @@
    stretches, narration kept at its pace; `Hide` … `Show` cuts (see "Zoom, speed and trim").
 7. **Intro and outro.** Title cards before and after the demo, over a colour, an image or a video (its sound kept),
    with transitions into and out of the demo (see "Intro and outro").
+8. **Web pages.** `Open <url>` instead of `Launch`: a Chromium-based browser reel starts and drives over DevTools,
+   only the page recorded, with a drawn cursor (see "Web pages"). macOS only, tapes only; Playwright journeys and other
+   platforms are still to be discussed.
 
 ## The tape
 
@@ -31,7 +34,10 @@ after them. Durations are `500ms`, `2s`, `1.5s`, `1m` or a bare number of second
 | `Set Size <w>x<h>` | The window's size in points, before recording. |
 | `Set TypingSpeed <duration>` | The pause after each typed character, default 50ms. |
 | `Set WaitTimeout <duration>` | How long `Wait` and `Click` look for an element, default 10s. |
-| `Launch <bundle id or .app path>` | The app to record. Exactly one. Reel waits for its first window. |
+| `Launch <bundle id or .app path>` | The app to record. Exactly one (or `Open`). Reel waits for its first window. |
+| `Open <url>` | A web page to record instead of an app: `https://…`, `file://…` or an `.html` path. Later in the tape, goes to another page. |
+| `Set Browser <app>` | A Chromium-based browser; by default Chrome, Chromium, Brave or Edge, then Playwright's download. |
+| `Set Viewport <w>x<h>` | The page's size in points, default 1280x800. |
 | `Sleep <duration>` | Wait. |
 | `Wait <element>` | Wait until the element shows. |
 | `Click <element or @x,y>` | Glide the cursor there and click. |
@@ -126,6 +132,25 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 - **Time.** The edit (`.reel/<tape>/edit.json`) lists what is kept of the take and how fast; everything timed
   (overlays, narration, ducking, zoom) is mapped through it. A sped-up stretch carries no app sound; narration is
   never sped up, and a `Hide` that would cut a narrated line is refused.
+
+## Web pages
+
+- **The browser.** reel starts a Chromium-based browser as an app window (no tabs, no address bar) on a fresh,
+  temporary profile with a DevTools port (`--remote-debugging-port=0`, read from `DevToolsActivePort`), sizes the
+  window until the page itself is `Viewport`, and quits it and removes the profile when the take ends. No Node, no
+  Playwright, no agent-browser: DevTools is a WebSocket of JSON.
+- **Driving.** Steps go to the page over DevTools (`Input.dispatchMouseEvent`, `dispatchKeyEvent`, `Runtime.evaluate`),
+  so a web tape needs no Accessibility and takes neither the mouse nor the keyboard. Elements: `"Label"` matches an
+  element's accessible name, placeholder, title, alt, button value or text exactly, controls before other elements,
+  then the smallest; `#id` an id or `data-testid`; `css:<selector>` the first visible match. A click scrolls its
+  element into the middle first. macOS editing shortcuts (cmd+a, c, x, v, z, shift+cmd+z) are sent as the commands
+  DevTools needs for them.
+- **Recording.** ScreenCaptureKit, as for an app, cropped to the page under the title bar; the sound kept includes
+  the browser's helper processes (where a page's audio plays). The real cursor is hidden: the driver keeps a cursor
+  of its own, glides it as the native driver does (the page sees the moves, so hovers show), and render draws an
+  arrow along its path, through edits and zooms.
+- `mise run live-web` records `tapes/web.tape` against `tapes/web/fixture.html`: the page logs what happened and the
+  tape waits for each entry, so a step that did not work stops the take.
 
 ## Intro and outro
 

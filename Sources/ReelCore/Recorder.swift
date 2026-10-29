@@ -11,7 +11,7 @@ public enum Recorder {
     static let firstFrameTimeout: Duration = .seconds(5)
 
     public static func record(_ tape: Tape, into location: TakeLocation, log: (String) -> Void) async throws -> Take {
-        if tape.drivesTheApp, !AXIsProcessTrusted() {
+        if tape.drivesTheApp, !tape.launch.isWeb, !AXIsProcessTrusted() {
             throw ReelError(
                 "this tape drives the app, which needs Accessibility for this terminal: System Settings → "
                     + "Privacy & Security → Accessibility, then run reel again"
@@ -21,40 +21,27 @@ public enum Recorder {
         let narration = try await Narration.prepare(
             tape, into: location.directory, with: tape.voice.synthesizer(), log: log
         )
-        let pid = try await launch(tape.launch)
-        log("waiting for a window of pid \(pid)")
-        var (window, display, content) = try await firstWindow(of: pid)
-
-        // Only a tape that drives the app needs Accessibility; one that only sleeps records without it.
-        var driver: Driver?
-        if tape.drivesTheApp {
-            let found = try Driver(pid: pid, windowFrame: window.frame, tape: tape)
-            found.activate()
-            if let size = tape.size {
-                try found.resize(to: size)
-                try await Task.sleep(for: settle)
-                (window, display, content) = try await firstWindow(of: pid, id: window.windowID)
-                let actual = window.frame.size
-                if abs(actual.width - size.width) > 1 || abs(actual.height - size.height) > 1 {
-                    log(
-                        "warning: the window is \(Int(actual.width))x\(Int(actual.height)), not "
-                            + "\(Int(size.width))x\(Int(size.height)): the app limits its size, or a window manager "
-                            + "(yabai, Rectangle) tiles it; let the app's windows float to record at Set Size"
-                    )
-                }
-            }
-            driver = found
+        let stage = if case let .web(url) = tape.launch {
+            try await webStage(tape, opening: url, log: log)
+        } else {
+            try await appStage(tape, log: log)
         }
+        defer { stage.close() }
+        let (window, display, content, driver) = (stage.window, stage.display, stage.content, stage.driver)
         try await Task.sleep(for: settle)
 
         // The display without every other app, rather than `including: [app]`: scoped to the app, macOS draws a
-        // sharing indicator over the window's buttons. Sound follows the same filter, so it is the app's alone.
-        // Apps that start after this are not excluded; the crop to the window keeps most of them out.
-        let others = content.applications.filter { $0.processID != pid }
+        // sharing indicator over the window's buttons. Sound follows the same filter, so it is the app's alone (with
+        // its helpers, where a browser plays a page's sound). Apps that start after this are not excluded; the crop
+        // to the window keeps most of them out.
+        let others = content.applications.filter { !stage.owns($0) }
         let filter = SCContentFilter(display: display, excludingApplications: others, exceptingWindows: [])
         let scale = Double(filter.pointPixelScale)
-        // sourceRect is in the display's points; window frames are global.
-        let rect = window.frame.offsetBy(dx: -display.frame.minX, dy: -display.frame.minY)
+        // sourceRect is in the display's points; window frames are global. What is recorded is the stage's crop of
+        // the window: all of it for an app, the page for a browser.
+        let rect = stage.crop.offsetBy(
+            dx: window.frame.minX - display.frame.minX, dy: window.frame.minY - display.frame.minY
+        )
         let width = even(rect.width * scale), height = even(rect.height * scale)
 
         let config = SCStreamConfiguration()
@@ -64,7 +51,8 @@ public enum Recorder {
         config.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(tape.frameRate))
         config.pixelFormat = kCVPixelFormatType_32BGRA
         config.colorSpaceName = CGColorSpace.sRGB
-        config.showsCursor = true
+        // A web page's cursor is drawn at render time: the real one never moves there.
+        config.showsCursor = stage.web == nil
         config.queueDepth = 6
         config.capturesAudio = tape.audio
         config.sampleRate = 48000
@@ -92,9 +80,11 @@ public enum Recorder {
             // The element a zoom is locked on: its frame is read again after every step, so render can follow it.
             var focus: Target?
             var focusTrack: [Take.Sample] = []
-            let cursor = CursorSampler(window: window.frame)
-            cursor.start(at: start)
+            let cursor = CursorSampler(window: window.frame.offsetBy(dx: stage.crop.minX, dy: stage.crop.minY))
+            if stage.web == nil { cursor.start(at: start) }
             defer { cursor.stop() }
+            stage.web?.clock = { milliseconds(since: start) }
+            stage.web?.startTrack()
             for step in tape.steps {
                 // Any other zoom (a point, the cursor, off) releases the lock.
                 if case let .zoom(target, _, _) = step.command, !target.isElement { focus = nil }
@@ -123,7 +113,7 @@ public enum Recorder {
                     w: landed.flatMap { $0.isEmpty ? nil : Double($0.width) },
                     h: landed.flatMap { $0.isEmpty ? nil : Double($0.height) }, clip: clip
                 ))
-                if let focus, let frame = driver?.currentFrame(of: focus) {
+                if let focus, let frame = await driver?.currentFrame(of: focus) {
                     focusTrack.append(Take.Sample(ms: milliseconds(since: start), frame: frame))
                 }
             }
@@ -138,7 +128,8 @@ public enum Recorder {
                 width: width, height: height, scale: scale, frameRate: tape.frameRate, audio: tape.audio,
                 durationMs: Int(((end - start).seconds * 1000).rounded()), events: events
             )
-            take.cursor = cursor.stop()
+            take.cursor = stage.web?.track ?? cursor.stop()
+            take.drawnCursor = stage.web != nil ? true : nil
             take.focus = focusTrack
             try location.write(take)
             return take
@@ -149,10 +140,81 @@ public enum Recorder {
     }
 
     /// Without a driver the tape only sleeps (`drivesTheApp` is false).
-    private static func perform(_ command: Command, with driver: Driver?) async throws -> CGRect? {
+    private static func perform(_ command: Command, with driver: (any Driving)?) async throws -> CGRect? {
         if let driver { return try await driver.perform(command) }
         if case let .sleep(duration) = command { try await Task.sleep(for: duration) }
         return nil
+    }
+
+    /// What a take records: a window, the part of it to keep, and how the tape's steps are played on it.
+    struct Stage {
+        var window: SCWindow
+        var display: SCDisplay
+        var content: SCShareableContent
+        /// The part of the window recorded, in points from its top left.
+        var crop: CGRect
+        var driver: (any Driving)?
+        var web: WebDriver?
+        /// Whether a running app is part of what is recorded (its sound kept).
+        var owns: (SCRunningApplication) -> Bool
+        var close: () -> Void = {}
+    }
+
+    /// An app, launched and driven through Accessibility, its whole window recorded.
+    private static func appStage(_ tape: Tape, log: (String) -> Void) async throws -> Stage {
+        let pid = try await launch(tape.launch)
+        log("waiting for a window of pid \(pid)")
+        var (window, display, content) = try await firstWindow(of: pid)
+
+        // Only a tape that drives the app needs Accessibility; one that only sleeps records without it.
+        var driver: Driver?
+        if tape.drivesTheApp {
+            let found = try Driver(pid: pid, windowFrame: window.frame, tape: tape)
+            found.activate()
+            if let size = tape.size {
+                try found.resize(to: size)
+                try await Task.sleep(for: settle)
+                (window, display, content) = try await firstWindow(of: pid, id: window.windowID)
+                let actual = window.frame.size
+                if abs(actual.width - size.width) > 1 || abs(actual.height - size.height) > 1 {
+                    log(
+                        "warning: the window is \(Int(actual.width))x\(Int(actual.height)), not "
+                            + "\(Int(size.width))x\(Int(size.height)): the app limits its size, or a window manager "
+                            + "(yabai, Rectangle) tiles it; let the app's windows float to record at Set Size"
+                    )
+                }
+            }
+            driver = found
+        }
+        return Stage(
+            window: window, display: display, content: content, crop: CGRect(origin: .zero, size: window.frame.size),
+            driver: driver, owns: { $0.processID == pid }
+        )
+    }
+
+    /// A web page in a browser reel starts, driven over DevTools: only the page is recorded, below the title bar.
+    private static func webStage(_ tape: Tape, opening url: URL, log: (String) -> Void) async throws -> Stage {
+        let browser = try await Browser.launch(
+            Browser.find(tape.web.browser), viewport: tape.web.viewport, opening: url, log: log
+        )
+        do {
+            let (window, display, content) = try await firstWindow(of: browser.pid)
+            let viewport = try await browser.viewport()
+            let driver = WebDriver(browser: browser, tape: tape, viewport: viewport)
+            // The page fills the window under its title bar.
+            let crop = CGRect(
+                x: 0, y: window.frame.height - viewport.height, width: viewport.width, height: viewport.height
+            )
+            let family = browser.bundleID
+            return Stage(
+                window: window, display: display, content: content, crop: crop, driver: driver, web: driver,
+                owns: { $0.processID == browser.pid || $0.bundleIdentifier.hasPrefix(family) },
+                close: { browser.close() }
+            )
+        } catch {
+            browser.close()
+            throw error
+        }
     }
 
     private static func launch(_ target: LaunchTarget) async throws -> pid_t {
@@ -168,6 +230,8 @@ public enum Recorder {
                 throw ReelError("no app at \(path.path)")
             }
             url = path
+        case .web:
+            preconditionFailure("a web page is opened by its stage")
         }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true

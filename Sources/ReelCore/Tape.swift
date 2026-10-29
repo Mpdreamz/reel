@@ -27,6 +27,8 @@ public struct Tape: Equatable, Sendable {
     /// A title card before the demo and one after it, each moving into the next with its own transition.
     public var intro: Section?
     public var outro: Section?
+    /// For a tape that `Open`s a web page.
+    public var web: WebSettings
     public var launch: LaunchTarget
     /// The commands after setup, in order. Recording starts before the first one.
     public var steps: [Step]
@@ -72,6 +74,22 @@ public struct Output: Equatable, Sendable {
 public enum LaunchTarget: Equatable, Sendable {
     case bundleID(String)
     case app(URL)
+    /// `Open <url>`: a web page, in a browser reel drives over the DevTools protocol.
+    case web(URL)
+
+    public var isWeb: Bool {
+        if case .web = self { true } else { false }
+    }
+}
+
+/// How a web page is shown: in which browser, and how big the page is.
+public struct WebSettings: Equatable, Sendable {
+    /// A Chromium-based browser's `.app`; nil finds one (Chrome, Chromium, Brave, Edge, then Playwright's).
+    public var browser: URL?
+    /// The page's size in points (CSS pixels).
+    public var viewport = CGSize(width: 1280, height: 800)
+
+    public init() {}
 }
 
 public struct Step: Equatable, Sendable {
@@ -105,6 +123,8 @@ public enum Command: Equatable, Sendable {
     case speed(Double?)
     /// `Hide` (true) until `Show` (false): left out of the render.
     case hide(Bool)
+    /// `Open <url>` after the tape has started: goes to another page.
+    case open(URL)
 
     /// Drawn or edited at render time only: recording skips it, so it can change without a new take.
     public var isRenderOnly: Bool {
@@ -112,6 +132,16 @@ public enum Command: Equatable, Sendable {
         case .caption, .speed, .hide: true
         case let .zoom(target, _, _): !target.isElement
         default: false
+        }
+    }
+
+    /// The elements a step names.
+    var targets: [Target] {
+        switch self {
+        case let .click(target), let .wait(target): [target]
+        case let .scroll(_, _, over): over.map { [$0] } ?? []
+        case let .zoom(.element(target), _, _): [target]
+        default: []
         }
     }
 
@@ -128,12 +158,15 @@ public enum Target: Equatable, Sendable, CustomStringConvertible {
     case identifier(String)
     /// `@120,80`: points from the window's top left. Not an element, so only `Click` takes it.
     case point(CGPoint)
+    /// `css:.pricing`: the first visible element a CSS selector matches, on a web page.
+    case css(String)
 
     public var description: String {
         switch self {
         case let .label(text): "\"\(text)\""
         case let .identifier(id): "#\(id)"
         case let .point(p): "@\(formatted(p.x)),\(formatted(p.y))"
+        case let .css(selector): "css:\(selector)"
         }
     }
 
@@ -198,6 +231,7 @@ public extension Tape {
         var markers: [String: (line: Int, over: Bool)] = [:]
         var hidden = false
         var zoomTransition = Transition.standard
+        var web = WebSettings()
         var intro: Section?, outro: Section?
         var introBackground: Background?, outroBackground: Background?
         var launch: (target: LaunchTarget, line: Int)?
@@ -285,6 +319,17 @@ public extension Tape {
                         throw fail("GifWidth must be a whole number of pixels from 100 to 4000, not '\(value)'")
                     }
                     gifWidth = width
+                case "Browser":
+                    let app = resolve(value, against: directory)
+                    guard app.pathExtension == "app" else {
+                        throw fail("Browser is a Chromium-based .app, such as /Applications/Brave Browser.app")
+                    }
+                    web.browser = app
+                case "Viewport":
+                    guard let parsed = parseSize(value) else {
+                        throw fail("Viewport must be <width>x<height> in points, such as 1280x800, not '\(value)'")
+                    }
+                    web.viewport = parsed
                 case "Size":
                     guard let parsed = parseSize(value) else {
                         throw fail("Size must be <width>x<height> in points, such as 1280x800, not '\(value)'")
@@ -333,15 +378,27 @@ public extension Tape {
                         "unknown setting '\(words[0])'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, "
                             + "KeyBadges, ClickRipples, GifFrameRate, GifWidth, Voice, VoiceServer, VoiceSeed, "
                             + "VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, "
-                            + "IntroBackground or OutroBackground"
+                            + "IntroBackground, OutroBackground, Browser or Viewport"
                     )
+                }
+
+            case "Open":
+                let value = try single(words, usage: "Open <url>", fail: fail)
+                let url = try webAddress(value, relativeTo: directory, fail: fail)
+                if steps.isEmpty, launch == nil {
+                    launch = (.web(url), line)
+                } else {
+                    guard case .web = launch?.target else {
+                        throw fail("Open after the tape has started goes to another page, which needs a web tape")
+                    }
+                    step(.open(url))
                 }
 
             case "Launch":
                 try setup(name)
                 let target = try single(words, usage: "Launch <bundle id or .app path>", fail: fail)
                 if let earlier = launch {
-                    throw fail("a tape launches one app; line \(earlier.line) already does")
+                    throw fail("a tape launches one app or opens one page; line \(earlier.line) already does")
                 }
                 let isPath = target.hasSuffix(".app") || target.contains("/")
                 launch = (isPath ? .app(resolve(target, against: directory)) : .bundleID(target), line)
@@ -478,7 +535,7 @@ public extension Tape {
             default:
                 let known = [
                     "Output", "Set", "Launch", "Sleep", "Click", "Wait", "Type", "Key", "Scroll", "Caption", "Say",
-                    "Zoom", "Speed", "Hide", "Show", "Intro", "Outro",
+                    "Zoom", "Speed", "Hide", "Show", "Intro", "Outro", "Open",
                 ]
                 let hint = known.first { $0.lowercased() == name.lowercased() }.map { "; did you mean \($0)?" }
                 throw fail("unknown command '\(name)'" + (hint ?? "; expected one of \(known.joined(separator: ", "))"))
@@ -486,6 +543,13 @@ public extension Tape {
         }
 
         guard !outputs.isEmpty else { throw TapeError(message: "the tape has no Output") }
+        if let launch, !launch.target.isWeb {
+            for step in steps
+                where step.command.targets.contains(where: { if case .css = $0 { true } else { false } })
+            {
+                throw TapeError(line: step.line, message: "css: targets are for web pages; Open one instead of Launch")
+            }
+        }
         guard let launch else { throw TapeError(message: "the tape has no Launch") }
         return Tape(
             outputs: outputs,
@@ -510,6 +574,7 @@ public extension Tape {
                 section.background = outroBackground ?? section.background
                 return section
             },
+            web: web,
             launch: launch.target,
             steps: steps
         )
@@ -570,6 +635,10 @@ private func count(_ text: String?, fail: (String) -> TapeError) throws -> Int {
 private func target(_ token: Token, fail: (String) -> TapeError) throws -> Target {
     let text = token.text
     if token.quoted { return .label(text) }
+    if text.hasPrefix("css:") {
+        guard text.count > 4 else { throw fail("css: needs a selector after it, such as css:.pricing") }
+        return .css(String(text.dropFirst(4)))
+    }
     // A `#` on its own is a comment, so an unquoted `#` here always has an identifier after it.
     if text.hasPrefix("#") { return .identifier(String(text.dropFirst())) }
     if text.hasPrefix("@") {
@@ -580,6 +649,15 @@ private func target(_ token: Token, fail: (String) -> TapeError) throws -> Targe
         return .point(CGPoint(x: x, y: y))
     }
     return .label(text)
+}
+
+/// `https://…`, `http://…`, `file://…`, or a path to an `.html` file relative to the tape.
+private func webAddress(_ value: String, relativeTo directory: URL, fail: (String) -> TapeError) throws -> URL {
+    if let url = URL(string: value), let scheme = url.scheme, ["http", "https", "file"].contains(scheme) {
+        return url
+    }
+    if value.hasSuffix(".html") || value.hasSuffix(".htm") { return resolve(value, against: directory) }
+    throw fail("'\(value)' is not a web address; write https://…, http://…, file://… or a path to an .html file")
 }
 
 private func parseSize(_ text: String) -> CGSize? {

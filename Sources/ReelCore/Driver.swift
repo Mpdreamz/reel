@@ -7,7 +7,16 @@ import Foundation
 /// the app forward first, and nobody should touch the mouse or keyboard while a tape plays.
 ///
 /// Needs Accessibility, to find elements and to post input.
-final class Driver {
+/// Plays a tape's steps against what it records: an app through Accessibility, or a web page over DevTools.
+protocol Driving: AnyObject {
+    /// Performs one step. Returns, for the timeline, where a click landed (an empty rect) or what a zoom framed, in
+    /// points from the top left of what is recorded.
+    func perform(_ command: Command) async throws -> CGRect?
+    /// The element's frame now, without waiting; nil when it is gone.
+    func currentFrame(of target: Target) async -> CGRect?
+}
+
+final class Driver: Driving {
     /// How long the cursor takes to reach what it clicks.
     static let glide: Duration = .milliseconds(350)
     /// Between a click's press and release, and between keys of a combo.
@@ -70,7 +79,7 @@ final class Driver {
     /// points from the window's top left.
     func perform(_ command: Command) async throws -> CGRect? {
         switch command {
-        case .sleep, .wait, .caption, .say, .reach, .zoom, .speed, .hide: break
+        case .sleep, .wait, .caption, .say, .reach, .zoom, .speed, .hide, .open: break
         default: try await ensureInFront()
         }
         switch command {
@@ -79,6 +88,8 @@ final class Driver {
         case .caption, .say, .reach, .speed, .hide:
             // Narration runs on the recorder's speech clock; the rest is render's.
             break
+        case .open:
+            throw ReelError("Open goes to a web page; this tape launched an app")
         case let .zoom(target, _, _):
             if case let .element(element) = target { return try await frame(of: element) }
         case let .wait(target):

@@ -184,7 +184,8 @@ public enum Renderer {
             session.audioMix = audioMix
         }
         let zoomed = cut.zoom.map { !$0.states.isEmpty } ?? false
-        if let videoTrack, let picture, !overlays.isEmpty || zoomed {
+        let drawsCursor = take.drawnCursor == true && !(take.cursor ?? []).isEmpty
+        if let videoTrack, let picture, !overlays.isEmpty || zoomed || drawsCursor {
             let size = try await picture.load(.naturalSize)
             let video = AVMutableVideoComposition()
             video.renderSize = size
@@ -196,7 +197,7 @@ public enum Renderer {
             if let zoom = cut.zoom, zoomed { apply(zoom, to: layer, edit: edit, scale: take.scale) }
             instruction.layerInstructions = [layer]
             video.instructions = [instruction]
-            if !overlays.isEmpty {
+            if !overlays.isEmpty || drawsCursor {
                 let picture = CALayer()
                 picture.frame = CGRect(origin: .zero, size: size)
                 let parent = CALayer()
@@ -204,6 +205,13 @@ public enum Renderer {
                 parent.addSublayer(picture)
                 for overlay in OverlayPlan.mapped(overlays, through: edit, zoom: cut.zoom) {
                     parent.addSublayer(OverlayLayers.layer(for: overlay, in: size, scale: take.scale))
+                }
+                // Over the captions, as a real cursor would be.
+                if drawsCursor, let samples = take.cursor {
+                    parent.addSublayer(OverlayLayers.cursor(
+                        samples, edit: edit, zoom: cut.zoom, size: size, scale: take.scale,
+                        length: whole.duration.seconds
+                    ))
                 }
                 video.animationTool = AVVideoCompositionCoreAnimationTool(
                     postProcessingAsVideoLayer: picture, in: parent
@@ -384,6 +392,79 @@ enum OverlayLayers {
             options: [.usesLineFragmentOrigin, .usesFontLeading]
         )
         NSGraphicsContext.restoreGraphicsState()
+        layer.contents = context.makeImage()
+        return layer
+    }
+
+    /// The arrow cursor along the path a take kept for it, 30 times a second of the take, in the output's time and
+    /// where it shows under the zoom; its tip on the point.
+    static func cursor(
+        _ samples: [Take.Sample], edit: Edit, zoom: ZoomPlan?, size: CGSize, scale: Double, length: Double
+    ) -> CALayer {
+        let layer = arrowLayer(scale: scale)
+        func point(at time: Double) -> CGPoint {
+            let at = samples.last(where: { Double($0.ms) / 1000 <= time }) ?? samples[0]
+            var p = CGPoint(x: at.x, y: at.y)
+            if let zoom { p = zoom.project(p, through: zoom.region(at: time)) }
+            return CGPoint(x: p.x * scale, y: size.height - p.y * scale)
+        }
+        var times: [Double] = [], positions: [NSValue] = []
+        for segment in edit.segments {
+            var source = segment.start
+            while source <= segment.end {
+                times.append(edit.map(source))
+                positions.append(NSValue(point: point(at: source)))
+                source += segment.rate / 30
+            }
+        }
+        layer.position = positions.first?.pointValue ?? .zero
+        guard length > 0, times.count > 1 else { return layer }
+        let move = CAKeyframeAnimation(keyPath: "position")
+        move.values = positions
+        move.keyTimes = times.map { NSNumber(value: min(1, $0 / length)) }
+        move.calculationMode = .linear
+        move.beginTime = AVCoreAnimationBeginTimeAtZero
+        move.duration = length
+        move.fillMode = .forwards
+        move.isRemovedOnCompletion = false
+        layer.add(move, forKey: "move")
+        return layer
+    }
+
+    /// The classic arrow, black with a white edge, drawn rather than taken from `NSCursor`, whose image is not always
+    /// there to draw (it was blank in a test process): the same on every Mac. Anchored at its tip.
+    static func arrowLayer(scale: Double) -> CALayer {
+        // The arrow in points, from its tip, y down.
+        let outline: [CGPoint] = [
+            CGPoint(x: 0, y: 0), CGPoint(x: 0, y: 17), CGPoint(x: 4, y: 13), CGPoint(x: 7, y: 20),
+            CGPoint(x: 10, y: 19), CGPoint(x: 7, y: 12), CGPoint(x: 12, y: 12),
+        ]
+        let margin = 2.0, size = CGSize(width: 16, height: 24)
+        let pixels = CGSize(width: size.width * scale, height: size.height * scale)
+        let layer = CALayer()
+        layer.bounds = CGRect(origin: .zero, size: pixels)
+        layer.anchorPoint = CGPoint(x: margin / size.width, y: 1 - margin / size.height)
+        guard let context = CGContext(
+            data: nil, width: Int(pixels.width), height: Int(pixels.height), bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return layer }
+        // Core Graphics' y runs up: flip so the outline's y runs down from the top.
+        context.translateBy(x: 0, y: pixels.height)
+        context.scaleBy(x: scale, y: -scale)
+        context.translateBy(x: margin, y: margin)
+        let path = CGMutablePath()
+        path.addLines(between: outline)
+        path.closeSubpath()
+        context.setShadow(offset: CGSize(width: 0, height: -0.6), blur: 1.2, color: CGColor(gray: 0, alpha: 0.5))
+        context.addPath(path)
+        context.setFillColor(CGColor(gray: 0, alpha: 1))
+        context.fillPath()
+        context.setShadow(offset: .zero, blur: 0)
+        context.addPath(path)
+        context.setStrokeColor(CGColor(gray: 1, alpha: 1))
+        context.setLineWidth(1.2)
+        context.setLineJoin(.round)
+        context.strokePath()
         layer.contents = context.makeImage()
         return layer
     }

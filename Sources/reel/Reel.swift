@@ -72,6 +72,8 @@ struct Check: AsyncParsableCommand {
         switch parsed.launch {
         case let .bundleID(id): say("launch \(id)")
         case let .app(url): say("launch \(url.path)")
+        case let .web(url):
+            say("open \(url.absoluteString) at \(Int(parsed.web.viewport.width))x\(Int(parsed.web.viewport.height))")
         }
         say("capture at \(parsed.frameRate) fps, audio \(parsed.audio ? "on" : "off")")
         let lines = parsed.steps.count(where: { if case .say = $0.command { true } else { false } })

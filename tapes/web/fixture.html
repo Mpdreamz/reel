@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>reel web fixture</title>
+<style>
+  body { font: 16px -apple-system, system-ui, sans-serif; background: #1e1f22; color: #e8e8ea; margin: 0; padding: 32px; }
+  h1 { font-size: 40px; margin: 0 0 24px; }
+  .row { display: flex; gap: 12px; align-items: center; margin-bottom: 16px; }
+  button, input { font: inherit; border-radius: 8px; border: 1px solid #4a4c52; background: #2b2d31; color: inherit; padding: 8px 14px; }
+  button:hover { background: #3a3d44; }
+  #list { height: 220px; overflow: auto; border: 1px solid #4a4c52; border-radius: 8px; padding: 4px 12px; width: 420px; }
+  #list div { padding: 6px 0; }
+  #log { margin-top: 16px; color: #9fd39f; font-family: ui-monospace, monospace; }
+  a { color: #8ab4f8; }
+</style>
+</head>
+<body>
+<!-- The page reel's web tape drives: what happens is written to #log, so the tape can Wait for it. -->
+<h1>reel web fixture</h1>
+<div class="row">
+  <button id="play">Play</button>
+  <input id="name" placeholder="Name">
+  <a href="second.html">Next page</a>
+</div>
+<div id="list"></div>
+<div id="log"></div>
+<script>
+  // One element an entry, so a tape's Wait "<entry>" matches it exactly.
+  const log = text => { const entry = document.createElement('div'); entry.textContent = text; document.getElementById('log').append(entry); };
+  const list = document.getElementById('list');
+  for (let i = 1; i <= 100; i++) { const row = document.createElement('div'); row.textContent = 'Row ' + i; list.append(row); }
+  let scrolled = false;
+  list.addEventListener('scroll', () => { if (!scrolled) { scrolled = true; log('scrolled'); } });
+  // A quiet 440 Hz tone once Play is clicked: silence before the click, a tone after it.
+  document.getElementById('play').addEventListener('click', () => {
+    const audio = new AudioContext();
+    const tone = audio.createOscillator(), level = audio.createGain();
+    tone.frequency.value = 440; level.gain.value = 0.1;
+    tone.connect(level).connect(audio.destination); tone.start();
+    log('played');
+  });
+  document.getElementById('name').addEventListener('keydown', event => {
+    if (event.key === 'Enter') log('submitted ' + event.target.value);
+  });
+</script>
+</body>
+</html>

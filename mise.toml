@@ -29,3 +29,7 @@ run = "scripts/fixture.sh"
 [tasks.live]
 description = "Record tapes/fixture.tape for real and check the take (needs Screen Recording and Accessibility)"
 run = "scripts/live.sh"
+
+[tasks.live-web]
+description = "Record tapes/web.tape against a local page in a browser and check the take (needs Screen Recording)"
+run = "scripts/live-web.sh"
