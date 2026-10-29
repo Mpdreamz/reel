@@ -12,6 +12,7 @@ Sleep 4s
 ```
 
 ```sh
+reel check demo.tape    # parse it and say what it would do
 reel demo.tape          # record, then render every Output
 reel record demo.tape   # only capture the take (.reel/demo/)
 reel render demo.tape   # only render the outputs from the last take
@@ -19,7 +20,7 @@ reel doctor             # Screen Recording and Accessibility
 ```
 
 Status: milestone 1 of [PLAN.md](PLAN.md). Recording a window with its audio works; driving the app, overlays and
-GIFs are next.
+GIFs are next. `mise run live` records the fixture app (a ticking counter and a tone) into `build/fixture.mp4`.
 
 ## Install
 

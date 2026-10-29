@@ -21,3 +21,12 @@ run = ["swiftformat Sources Tests Package.swift --lint", "swiftlint lint --quiet
 [tasks.install]
 description = "Release build, copied to ~/.local/bin/reel"
 run = ["swift build -c release", "install -m 755 .build/release/reel ~/.local/bin/reel"]
+
+[tasks.fixture]
+description = "Build build/ReelFixture.app, the app tapes/fixture.tape records"
+run = "scripts/fixture.sh"
+
+[tasks.live]
+description = "Record the fixture for real (needs Screen Recording): build/fixture.mp4"
+depends = ["fixture"]
+run = ["swift build", ".build/debug/reel tapes/fixture.tape", "pkill -x ReelFixture || true"]
