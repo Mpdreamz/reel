@@ -43,7 +43,7 @@ struct TakeWriterTests {
         let writer = try TakeWriter(
             url: movie, width: width, height: height, frameRate: fps, audio: true, realTime: false
         )
-        await writer.onQueue {
+        await writer.perform {
             writer.append(audio: tone(at: CMTime(value: 0, timescale: 48000), frames: 48000))
             writer.append(video: frame(at: CMTime(value: 2, timescale: 1), shade: 0))
         }
@@ -94,7 +94,7 @@ struct TakeWriterTests {
         )
         let frames = Int(seconds * Double(fps))
         let chunk = 4800
-        await writer.onQueue {
+        await writer.perform {
             var sent = 0
             for i in 0 ..< frames {
                 let time = CMTime(value: CMTimeValue(i), timescale: CMTimeScale(fps))
@@ -203,18 +203,5 @@ struct TakeWriterTests {
         let url = FileManager.default.temporaryDirectory.appending(path: "reel-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
-    }
-}
-
-extension TakeWriter {
-    /// Runs `work` on the writer's queue and waits for it without blocking a thread of Swift's pool: writing a take
-    /// waits on the encoder, and tests running in parallel that each block a pool thread can starve the rest.
-    func onQueue(_ work: @escaping @Sendable () -> Void) async {
-        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
-            queue.async {
-                work()
-                done.resume()
-            }
-        }
     }
 }

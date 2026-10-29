@@ -63,6 +63,17 @@ public final class TakeWriter: @unchecked Sendable {
         }
     }
 
+    /// Runs `work` on the writer's queue and waits for it without holding a thread of Swift's pool: writing waits on
+    /// the encoder, and pool threads held while it does can starve everything else.
+    public func perform(_ work: @escaping @Sendable () -> Void) async {
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            queue.async {
+                work()
+                done.resume()
+            }
+        }
+    }
+
     public func append(video buffer: CMSampleBuffer) {
         dispatchPrecondition(condition: .onQueue(queue))
         let time = CMSampleBufferGetPresentationTimeStamp(buffer)

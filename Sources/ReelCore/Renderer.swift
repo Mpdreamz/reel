@@ -27,10 +27,31 @@ public enum Renderer {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(edit).write(to: location.directory.appending(path: "edit.json"))
         var movie: URL?
-        for output in tape.outputs where output.format != .gif {
+        // With an intro or an outro, the demo is rendered once, losslessly, and each output assembled from it.
+        let sectioned = tape.intro != nil || tape.outro != nil
+        let demo = location.directory.appending(path: "demo.mov")
+        if sectioned {
             try await render(
-                location.movie, take: take, overlays: overlays, soundtrack: soundtrack, cut: cut, to: output
+                location.movie, take: take, overlays: overlays, soundtrack: soundtrack, cut: cut,
+                to: Output(url: demo, format: .mov), lossless: true
             )
+        }
+        for output in tape.outputs where output.format != .gif {
+            if sectioned {
+                let arrangement = try await Assembler.assemble(
+                    main: demo, intro: tape.intro, outro: tape.outro, frameRate: take.frameRate,
+                    in: location.directory, to: output
+                )
+                // Where the demo sits in the finished movie, next to the take, for anyone matching the two up.
+                try JSONSerialization.data(
+                    withJSONObject: ["demoStart": arrangement.main.start, "duration": arrangement.duration],
+                    options: [.prettyPrinted, .sortedKeys]
+                ).write(to: location.directory.appending(path: "sections.json"))
+            } else {
+                try await render(
+                    location.movie, take: take, overlays: overlays, soundtrack: soundtrack, cut: cut, to: output
+                )
+            }
             movie = movie ?? output.url
             log("wrote \(output.url.path)")
         }
@@ -38,10 +59,17 @@ public enum Renderer {
         guard !gifs.isEmpty else { return }
         let source = movie ?? location.directory.appending(path: "rendered.mov")
         if movie == nil {
-            try await render(
-                location.movie, take: take, overlays: overlays, soundtrack: .none, cut: cut,
-                to: Output(url: source, format: .mov)
-            )
+            if sectioned {
+                try await Assembler.assemble(
+                    main: demo, intro: tape.intro, outro: tape.outro, frameRate: take.frameRate,
+                    in: location.directory, to: Output(url: source, format: .mov)
+                )
+            } else {
+                try await render(
+                    location.movie, take: take, overlays: overlays, soundtrack: .none, cut: cut,
+                    to: Output(url: source, format: .mov)
+                )
+            }
         }
         for gif in gifs {
             let result = try await GifWriter.write(
@@ -64,7 +92,8 @@ public enum Renderer {
 
     /// The take, with times in `overlays` and `soundtrack` those of the take: they are mapped through the cut here.
     public static func render(
-        _ movie: URL, take: Take, overlays: [Overlay], soundtrack: Soundtrack, cut: Cut = Cut(), to output: Output
+        _ movie: URL, take: Take, overlays: [Overlay], soundtrack: Soundtrack, cut: Cut = Cut(), to output: Output,
+        lossless: Bool = false
     ) async throws {
         precondition(output.format != .gif, "a GIF is written from a rendered movie by GifWriter")
         let source = AVURLAsset(url: movie)
@@ -144,8 +173,9 @@ public enum Renderer {
             mix.append(voice)
         }
 
-        guard let session = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality)
-        else {
+        // Lossless (ProRes and PCM) for a demo that is assembled again, so the second encode is the only one.
+        let preset = lossless ? AVAssetExportPresetAppleProRes422LPCM : AVAssetExportPresetHighestQuality
+        guard let session = AVAssetExportSession(asset: composition, presetName: preset) else {
             throw ReelError("cannot export \(movie.path)")
         }
         if !mix.isEmpty {
@@ -314,6 +344,43 @@ enum OverlayLayers {
         NSBezierPath(roundedRect: bounds, xRadius: radius, yRadius: radius).fill()
         string.draw(
             with: CGRect(origin: CGPoint(x: padX, y: padY), size: textSize),
+            options: [.usesLineFragmentOrigin, .usesFontLeading]
+        )
+        NSGraphicsContext.restoreGraphicsState()
+        layer.contents = context.makeImage()
+        return layer
+    }
+
+    /// White centred text with a soft shadow, wrapped to `width`, as an image: a section's title or subtitle.
+    static func text(_ text: String, fontSize: CGFloat, weight: NSFont.Weight, width: CGFloat) -> CALayer {
+        let style = NSMutableParagraphStyle()
+        style.alignment = .center
+        let shadow = NSShadow()
+        shadow.shadowColor = NSColor(white: 0, alpha: 0.6)
+        shadow.shadowBlurRadius = fontSize * 0.15
+        shadow.shadowOffset = NSSize(width: 0, height: -fontSize * 0.04)
+        let string = NSAttributedString(string: text, attributes: [
+            .font: NSFont.systemFont(ofSize: fontSize, weight: weight),
+            .foregroundColor: NSColor.white,
+            .paragraphStyle: style,
+            .shadow: shadow,
+        ])
+        let fits = string.boundingRect(
+            with: CGSize(width: width, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading]
+        )
+        let pad = fontSize * 0.3
+        let bounds = CGRect(x: 0, y: 0, width: ceil(fits.width) + 2 * pad, height: ceil(fits.height) + 2 * pad)
+        let layer = CALayer()
+        layer.bounds = bounds
+        guard let context = CGContext(
+            data: nil, width: Int(bounds.width), height: Int(bounds.height), bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return layer }
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: context, flipped: false)
+        string.draw(
+            with: CGRect(x: pad, y: pad, width: ceil(fits.width), height: ceil(fits.height)),
             options: [.usesLineFragmentOrigin, .usesFontLeading]
         )
         NSGraphicsContext.restoreGraphicsState()

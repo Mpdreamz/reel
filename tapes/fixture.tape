@@ -8,6 +8,9 @@ Set Voice system
 Set Ducking 20%
 Set Subtitles on
 Set ZoomEasing smooth
+Intro@slide-up,ease-out,700ms "reel" "the fixture, driven by a tape" 2.5s
+Outro@wipe-left,600ms "That's reel" "mise run live"
+Set OutroBackground #1d2b3a
 
 Launch ../build/ReelFixture.app
 

@@ -97,7 +97,7 @@ struct TapeTests {
         (
             "Output a.mp4\nLaunch x\nTypo",
             3,
-            "unknown command 'Typo'; expected one of Output, Set, Launch, Sleep, Click, Wait, Type, Key, Scroll, Caption, Say, Zoom, Speed, Hide, Show"
+            "unknown command 'Typo'; expected one of Output, Set, Launch, Sleep, Click, Wait, Type, Key, Scroll, Caption, Say, Zoom, Speed, Hide, Show, Intro, Outro"
         ),
         ("Launch x\nSleep 1s\nOutput a.mp4", 3, "Output is setup and must come before the first step (line 2)"),
         ("Output a.mp4\nSleep 1s\nLaunch x", 3, "Launch is setup and must come before the first step (line 2)"),
@@ -114,7 +114,7 @@ struct TapeTests {
         (
             "Set Speed 2",
             1,
-            "unknown setting 'Speed'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, KeyBadges, ClickRipples, GifFrameRate, GifWidth, Voice, VoiceServer, VoiceSeed, VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing or ZoomDuration"
+            "unknown setting 'Speed'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, KeyBadges, ClickRipples, GifFrameRate, GifWidth, Voice, VoiceServer, VoiceSeed, VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, IntroBackground or OutroBackground"
         ),
         ("Set Audio", 1, "expected Set <setting> <value>"),
         (
