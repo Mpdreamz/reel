@@ -27,6 +27,5 @@ description = "Build build/ReelFixture.app, the app tapes/fixture.tape records"
 run = "scripts/fixture.sh"
 
 [tasks.live]
-description = "Record the fixture for real (needs Screen Recording): build/fixture.mp4"
-depends = ["fixture"]
-run = ["swift build", ".build/debug/reel tapes/fixture.tape", "pkill -x ReelFixture || true"]
+description = "Record tapes/fixture.tape for real and check the take (needs Screen Recording and Accessibility)"
+run = "scripts/live.sh"

@@ -6,8 +6,12 @@ of terminals, and with the app's sound.
 ```
 # demo.tape
 Output demo.mp4
+Set Size 1280x800
 
 Launch com.example.musicbox
+Wait "Library"
+Click "Midnight City"
+Key space
 Sleep 4s
 ```
 
@@ -19,8 +23,10 @@ reel render demo.tape   # only render the outputs from the last take
 reel doctor             # Screen Recording and Accessibility
 ```
 
-Status: milestone 1 of [PLAN.md](PLAN.md). Recording a window with its audio works; driving the app, overlays and
-GIFs are next. `mise run live` records the fixture app (a ticking counter and a tone) into `build/fixture.mp4`.
+Status: milestones 1 and 2 of [PLAN.md](PLAN.md): recording a window with its sound, and driving the app with
+clicks, typing, keys and scrolling. Overlays and GIFs are next. The tape language is in PLAN.md.
+
+While a tape plays it takes the mouse and keyboard; it stops rather than type into another app.
 
 ## Install
 
@@ -28,4 +34,5 @@ GIFs are next. `mise run live` records the fixture app (a ticking counter and a 
 mise run install        # ~/.local/bin/reel
 ```
 
-Requires macOS 15. The first recording asks for Screen Recording for your terminal.
+Requires macOS 15. The first recording asks for Screen Recording for your terminal; a tape that drives the app
+needs Accessibility too (`reel doctor`).

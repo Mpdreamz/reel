@@ -23,12 +23,17 @@ public struct Take: Codable, Equatable, Sendable {
         /// Milliseconds from the first frame.
         public var startMs: Int
         public var endMs: Int
+        /// Where a click landed, in points from the window's top left.
+        public var x: Double?
+        public var y: Double?
 
-        public init(line: Int, command: String, startMs: Int, endMs: Int) {
+        public init(line: Int, command: String, startMs: Int, endMs: Int, x: Double? = nil, y: Double? = nil) {
             self.line = line
             self.command = command
             self.startMs = startMs
             self.endMs = endMs
+            self.x = x
+            self.y = y
         }
     }
 

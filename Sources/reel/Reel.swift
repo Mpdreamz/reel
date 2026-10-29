@@ -90,7 +90,9 @@ struct Doctor: AsyncParsableCommand {
         let screen = CGPreflightScreenCaptureAccess()
         let accessibility = AXIsProcessTrusted()
         say("Screen Recording: \(screen ? "granted" : "not granted (needed to record)")")
-        say("Accessibility:    \(accessibility ? "granted" : "not granted (needed to drive apps, from milestone 2)")")
+        say(
+            "Accessibility:    \(accessibility ? "granted" : "not granted (needed by tapes that click, type or scroll)")"
+        )
         if !screen {
             say("Grant them to this terminal in System Settings → Privacy & Security.")
             throw ExitCode(1)

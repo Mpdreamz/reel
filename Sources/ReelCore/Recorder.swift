@@ -11,9 +11,36 @@ public enum Recorder {
     static let firstFrameTimeout: Duration = .seconds(5)
 
     public static func record(_ tape: Tape, into location: TakeLocation, log: (String) -> Void) async throws -> Take {
+        if tape.drivesTheApp, !AXIsProcessTrusted() {
+            throw ReelError(
+                "this tape drives the app, which needs Accessibility for this terminal: System Settings → "
+                    + "Privacy & Security → Accessibility, then run reel again"
+            )
+        }
         let pid = try await launch(tape.launch)
         log("waiting for a window of pid \(pid)")
-        let (window, display, content) = try await firstWindow(of: pid)
+        var (window, display, content) = try await firstWindow(of: pid)
+
+        // Only a tape that drives the app needs Accessibility; one that only sleeps records without it.
+        var driver: Driver?
+        if tape.drivesTheApp {
+            let found = try Driver(pid: pid, windowFrame: window.frame, tape: tape)
+            found.activate()
+            if let size = tape.size {
+                try found.resize(to: size)
+                try await Task.sleep(for: settle)
+                (window, display, content) = try await firstWindow(of: pid, id: window.windowID)
+                let actual = window.frame.size
+                if abs(actual.width - size.width) > 1 || abs(actual.height - size.height) > 1 {
+                    log(
+                        "warning: the window is \(Int(actual.width))x\(Int(actual.height)), not "
+                            + "\(Int(size.width))x\(Int(size.height)): the app limits its size, or a window manager "
+                            + "(yabai, Rectangle) tiles it; let the app's windows float to record at Set Size"
+                    )
+                }
+            }
+            driver = found
+        }
         try await Task.sleep(for: settle)
 
         // The display without every other app, rather than `including: [app]`: scoped to the app, macOS draws a
@@ -59,10 +86,11 @@ public enum Recorder {
             var events: [Take.Event] = []
             for step in tape.steps {
                 let begin = milliseconds(since: start)
-                try await perform(step.command)
+                let point = try await perform(step.command, with: driver)
                 if let error = sink.error { throw error }
                 events.append(Take.Event(
-                    line: step.line, command: step.source, startMs: begin, endMs: milliseconds(since: start)
+                    line: step.line, command: step.source, startMs: begin, endMs: milliseconds(since: start),
+                    x: point.map { Double($0.x) }, y: point.map { Double($0.y) }
                 ))
             }
             try await stream.stopCapture()
@@ -82,10 +110,11 @@ public enum Recorder {
         }
     }
 
-    private static func perform(_ command: Command) async throws {
-        switch command {
-        case let .sleep(duration): try await Task.sleep(for: duration)
-        }
+    /// Without a driver the tape only sleeps (`drivesTheApp` is false).
+    private static func perform(_ command: Command, with driver: Driver?) async throws -> CGPoint? {
+        if let driver { return try await driver.perform(command) }
+        if case let .sleep(duration) = command { try await Task.sleep(for: duration) }
+        return nil
     }
 
     private static func launch(_ target: LaunchTarget) async throws -> pid_t {
@@ -108,13 +137,17 @@ public enum Recorder {
         return app.processIdentifier
     }
 
-    /// The largest normal window of `pid` once it is on screen, the display it is on, and what else was running.
-    private static func firstWindow(of pid: pid_t) async throws -> (SCWindow, SCDisplay, SCShareableContent) {
+    /// The largest normal window of `pid` (or the one with `id`) once it is on screen, the display it is on, and what
+    /// else was running.
+    private static func firstWindow(
+        of pid: pid_t, id: CGWindowID? = nil
+    ) async throws -> (SCWindow, SCDisplay, SCShareableContent) {
         let deadline = ContinuousClock.now + windowTimeout
         while true {
             let content = try await shareableContent()
             let windows = content.windows.filter {
                 $0.owningApplication?.processID == pid && $0.windowLayer == 0 && $0.isOnScreen
+                    && (id == nil || $0.windowID == id)
                     && $0.frame.width >= 50 && $0.frame.height >= 50
             }
             if let window = windows.max(by: { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height }) {
