@@ -232,3 +232,15 @@ struct BrowserLocatorTests {
         #expect(Browser.locate(applications: [], home: home) == nil, "nothing installed, nothing downloaded")
     }
 }
+
+struct WindowPlacementTests {
+    @Test func aResizedWindowIsCentredOnItsDisplayBelowTheMenuBar() {
+        let display = CGRect(x: 0, y: 0, width: 1920, height: 1080)
+        #expect(Recorder.centred(CGSize(width: 1440, height: 900), on: display) == CGPoint(x: 240, y: 90))
+        // Taller than leaves room: below the menu bar, not under it.
+        #expect(Recorder.centred(CGSize(width: 1000, height: 1060), on: display).y == 40)
+        // A second display to the right: centred on that one.
+        let right = CGRect(x: 1920, y: 0, width: 2560, height: 1440)
+        #expect(Recorder.centred(CGSize(width: 1440, height: 900), on: right) == CGPoint(x: 2480, y: 270))
+    }
+}

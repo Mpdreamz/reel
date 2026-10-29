@@ -68,6 +68,14 @@ final class Driver: Driving {
         }
     }
 
+    /// Moves the window's top left corner to `origin`, in global points.
+    func move(to origin: CGPoint) throws {
+        var value = origin
+        guard let ax = AXValueCreate(.cgPoint, &value), window.set("AXPosition", ax) else {
+            throw ReelError("the window cannot be moved")
+        }
+    }
+
     var windowFrame: CGRect {
         get throws {
             guard let frame = window.frame else { throw ReelError("the window is gone") }
