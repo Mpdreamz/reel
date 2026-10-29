@@ -23,4 +23,6 @@ or both. Read `PLAN.md` first.
 - `mise run test` and `mise run lint` before committing; `mise run fmt` fixes formatting.
 - Capturing needs Screen Recording for the terminal reel runs in, and driving an app (from milestone 2) needs
   Accessibility. `reel doctor` reports both without asking for them.
+- `mise run live` records `tapes/fixture.tape` against the fixture app for real: the check that capture, sound and
+  render work together, which CI cannot run. It plays a quiet tone.
 - Branch names: `feature/`, `fix/`, `docs/`, `chore/`, `ci/`. Pull requests are squash-merged.

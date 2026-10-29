@@ -28,9 +28,13 @@ starts at the first command after them.
 
 ## How a take is captured
 
-- The filter is the app on its display (`SCContentFilter(display:including:)`), cropped to the window with
-  `sourceRect`: menus, popovers and sheets are separate windows of the same app and still show; other apps do not.
+- The filter is the window's display without every other running app (`excludingApplications:`), cropped to the
+  window with `sourceRect`: menus, popovers and sheets are separate windows of the same app and still show; other
+  apps do not. Scoping it with `including: [app]` instead makes macOS draw a sharing indicator over the window's
+  buttons, so the take would show it.
 - Audio is ScreenCaptureKit's own, scoped by the same filter to the app: no loopback driver.
+- Known gaps: the window's rounded corners show what is behind them (the wallpaper), the window keeps the size and
+  place it opened with, and an app that starts after the first frame is not excluded.
 - The take lives in `.reel/<tape name>/` next to the tape: `take.mov` (H.264 and AAC) and `take.json` (size, scale,
   and when each command ran, in milliseconds from the first frame).
 
