@@ -24,16 +24,17 @@ struct GifTests {
     @Test func aChangingTakeKeepsEveryFrameAndItsTiming() async throws {
         let dir = try writer.temporaryDirectory()
         let movie = dir.appending(path: "take.mov")
-        try await writer.writeTake(to: movie, seconds: 1, audio: false)
+        // Half a second of fade: about 36 levels between sampled frames, well clear of the noise tolerance (16), so
+        // scaling differences between machines cannot merge two of them.
+        try await writer.writeTake(to: movie, seconds: 0.5, audio: false)
         let gif = dir.appending(path: "fade.gif")
         let result = try await GifWriter.write(from: movie, to: gif, frameRate: 15, width: 160)
-        #expect(result.frames == 15)
+        #expect(result.frames == 7)
         let read = try GifFile(gif)
         #expect(read.size == CGSize(width: 160, height: 100))
-        #expect(read.delays.count == 15)
-        // 1/15 s is 6.67 hundredths: frames of 7 and 6 that add up to exactly one second.
-        #expect(Set(read.delays) == [0.06, 0.07])
-        #expect(abs(read.delays.reduce(0, +) - 1) < 0.001)
+        // Frames start at k/15 s, rounded to hundredths (0, 7, 13, 20, 27, 33, 40) and the last runs to 50.
+        #expect(read.delays == [0.07, 0.06, 0.07, 0.07, 0.06, 0.07, 0.10])
+        #expect(abs(read.delays.reduce(0, +) - 0.5) < 0.001)
     }
 
     @Test func compressionNoiseIsTheSameFrameAndARealChangeIsNot() {
