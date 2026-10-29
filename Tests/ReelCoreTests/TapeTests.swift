@@ -67,6 +67,12 @@ struct TapeTests {
         }
     }
 
+    @Test func aBundleIDMayEndInApp() throws {
+        #expect(try parse("Launch dev.musicbox.app\nOutput a.mp4").launch == .bundleID("dev.musicbox.app"))
+        #expect(try parse("Launch ./Musicbox.app\nOutput a.mp4").launch
+            == .app(URL(fileURLWithPath: "/tmp/demos/Musicbox.app")))
+    }
+
     @Test func launchTakesAnAppPath() throws {
         #expect(try parse("Launch build/Musicbox.app\nOutput a.mp4").launch
             == .app(URL(fileURLWithPath: "/tmp/demos/build/Musicbox.app")))
