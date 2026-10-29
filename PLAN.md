@@ -9,7 +9,7 @@
    label or identifier, points as the last resort. Input is real (see "How a tape drives the app").
 3. **Overlays.** Captions, key badges and click ripples, drawn with Core Animation at render time from the
    timeline (see "Overlays").
-4. **GIF.** `Output demo.gif`, written with ImageIO from the rendered frames (no sound: a GIF has none).
+4. **GIF.** `Output demo.gif`, sampled from the rendered movie and written with ImageIO (see "GIFs").
 5. **Zoom, speed and trim.** Zoom that follows the cursor, sped-up stretches, trimming to scenes.
 
 ## The tape
@@ -20,7 +20,7 @@ after them. Durations are `500ms`, `2s`, `1.5s`, `1m` or a bare number of second
 
 | Command | Meaning |
 | --- | --- |
-| `Output <path>` | A file to render: `.mp4` or `.mov`. Relative to the tape. At least one. |
+| `Output <path>` | A file to render: `.mp4`, `.mov` or `.gif` (no sound). Relative to the tape. At least one. |
 | `Set FrameRate <n>` | Capture rate, 1–120, default 60. |
 | `Set Audio on\|off` | Record the app's sound, default on. |
 | `Set Size <w>x<h>` | The window's size in points, before recording. |
@@ -36,6 +36,8 @@ after them. Durations are `500ms`, `2s`, `1.5s`, `1m` or a bare number of second
 | `Caption "<text>" [duration]`, `Caption off` | A caption from here until the next one, for `duration`, or until `Caption off`. |
 | `Set KeyBadges on\|off` | A badge for each `Key` step (`⌘S`, `↓ ×3`), default on. |
 | `Set ClickRipples on\|off` | A ripple where each click lands, default on. |
+| `Set GifFrameRate <n>` | Frames a second in a GIF, 1–50, default 15. |
+| `Set GifWidth <pixels>` | A GIF's width, 100–4000, default 800, never wider than the video. |
 
 An element is `"Label"` (its title, description or value, exactly; quoted is always a label), `#identifier` (its
 accessibility identifier) or a bare word as a label. `@x,y` is points from the window's top left. Elements are found
@@ -64,6 +66,17 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 - **Drawn by Core Animation** through `AVVideoCompositionCoreAnimationTool` during the export, sized from the
   video. Text is drawn into an image first: a `CATextLayer` draws nothing when AVFoundation renders off screen.
   Animations fill forwards only, since filling backwards would show each overlay's first frame from the start.
+
+## GIFs
+
+- **From the rendered movie**, overlays included: the tape's first `.mp4` or `.mov` Output, or a temporary
+  `rendered.mov` in the take's directory when it has none. Frames are sampled at `GifFrameRate` and scaled to
+  `GifWidth`, then written by ImageIO, looping forever.
+- **Still stretches are one frame.** A frame that looks the same as the one being held (every channel within 16
+  of 255) extends it: a still window decodes with compression noise up to about 13, a real change moves channels by
+  100 or more. On the fixture, 57 of 80 sampled frames are kept; a calmer demo merges more.
+- **Timing does not drift.** GIF delays are hundredths of a second; each frame runs from its start, rounded, to the
+  next one's, rounded, so 15 frames a second alternate 7 and 6 and add up exactly.
 
 ## How a take is captured
 

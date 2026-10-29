@@ -16,6 +16,10 @@ public struct Tape: Equatable, Sendable {
     public var keyBadges: Bool
     /// Draw a ripple where each `Click` lands (render time).
     public var clickRipples: Bool
+    /// Frames a second in a `.gif` Output; still stretches become one frame whatever the rate.
+    public var gifFrameRate: Int
+    /// Pixels wide of a `.gif` Output, at most the video's own width.
+    public var gifWidth: Int
     public var launch: LaunchTarget
     /// The commands after setup, in order. Recording starts before the first one.
     public var steps: [Step]
@@ -23,6 +27,8 @@ public struct Tape: Equatable, Sendable {
     public static let defaultFrameRate = 60
     public static let defaultTypingSpeed = Duration.milliseconds(50)
     public static let defaultWaitTimeout = Duration.seconds(10)
+    public static let defaultGifFrameRate = 15
+    public static let defaultGifWidth = 800
 
     /// Whether playing the tape needs Accessibility: anything that finds, moves or types into the app.
     public var drivesTheApp: Bool {
@@ -42,7 +48,12 @@ public struct Tape: Equatable, Sendable {
 
 public struct Output: Equatable, Sendable {
     public enum Format: String, Equatable, Sendable, CaseIterable {
-        case mp4, mov
+        case mp4, mov, gif
+
+        /// A GIF has no sound.
+        public var hasSound: Bool {
+            self != .gif
+        }
     }
 
     public var url: URL
@@ -134,6 +145,8 @@ public extension Tape {
         var waitTimeout: Duration?
         var keyBadges: Bool?
         var clickRipples: Bool?
+        var gifFrameRate: Int?
+        var gifWidth: Int?
         var launch: (target: LaunchTarget, line: Int)?
         var steps: [Step] = []
 
@@ -162,8 +175,9 @@ public extension Tape {
                 let path = try single(words, usage: "Output <path>", fail: fail)
                 let url = resolve(path, against: directory)
                 guard let format = Output.Format(rawValue: url.pathExtension.lowercased()) else {
-                    let known = Output.Format.allCases.map { ".\($0.rawValue)" }.joined(separator: " or ")
-                    throw fail("unsupported output type '.\(url.pathExtension)'; expected \(known)")
+                    let known = Output.Format.allCases.map { ".\($0.rawValue)" }
+                    let list = known.dropLast().joined(separator: ", ") + " or " + known.last!
+                    throw fail("unsupported output type '.\(url.pathExtension)'; expected \(list)")
                 }
                 if outputs.contains(where: { $0.url == url }) {
                     throw fail("\(path) is already an Output")
@@ -186,6 +200,16 @@ public extension Tape {
                     keyBadges = try onOff("KeyBadges", value, fail: fail)
                 case "ClickRipples":
                     clickRipples = try onOff("ClickRipples", value, fail: fail)
+                case "GifFrameRate":
+                    guard let rate = Int(value), (1 ... 50).contains(rate) else {
+                        throw fail("GifFrameRate must be a whole number from 1 to 50, not '\(value)'")
+                    }
+                    gifFrameRate = rate
+                case "GifWidth":
+                    guard let width = Int(value), (100 ... 4000).contains(width) else {
+                        throw fail("GifWidth must be a whole number of pixels from 100 to 4000, not '\(value)'")
+                    }
+                    gifWidth = width
                 case "Size":
                     guard let parsed = parseSize(value) else {
                         throw fail("Size must be <width>x<height> in points, such as 1280x800, not '\(value)'")
@@ -198,7 +222,7 @@ public extension Tape {
                 default:
                     throw fail(
                         "unknown setting '\(words[0])'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, "
-                            + "KeyBadges or ClickRipples"
+                            + "KeyBadges, ClickRipples, GifFrameRate or GifWidth"
                     )
                 }
 
@@ -287,6 +311,8 @@ public extension Tape {
             waitTimeout: waitTimeout ?? defaultWaitTimeout,
             keyBadges: keyBadges ?? true,
             clickRipples: clickRipples ?? true,
+            gifFrameRate: gifFrameRate ?? defaultGifFrameRate,
+            gifWidth: gifWidth ?? defaultGifWidth,
             launch: launch.target,
             steps: steps
         )
@@ -363,7 +389,9 @@ private func single(_ args: [String], usage: String, fail: (String) -> TapeError
 
 private func resolve(_ path: String, against directory: URL) -> URL {
     let expanded = (path as NSString).expandingTildeInPath
-    return URL(fileURLWithPath: expanded, relativeTo: directory).standardizedFileURL
+    // Appended rather than `relativeTo:`, which resolves against the parent of a directory URL without a slash.
+    let url = expanded.hasPrefix("/") ? URL(fileURLWithPath: expanded) : directory.appending(path: expanded)
+    return url.standardizedFileURL
 }
 
 private struct Token {

@@ -43,11 +43,28 @@ struct TapeTests {
         ])
     }
 
+    @Test func gifs() throws {
+        let tape = try parse("Output a.gif\nSet GifFrameRate 10\nSet GifWidth 640\nLaunch x")
+        #expect(tape.outputs.map(\.format) == [.gif])
+        #expect(tape.gifFrameRate == 10)
+        #expect(tape.gifWidth == 640)
+        #expect(!Output.Format.gif.hasSound)
+    }
+
     @Test func defaults() throws {
         let tape = try parse("Output a.mp4\nLaunch com.example.app")
+        #expect(tape.gifFrameRate == 15)
+        #expect(tape.gifWidth == 800)
         #expect(tape.frameRate == 60)
         #expect(tape.audio == true)
         #expect(tape.steps.isEmpty)
+    }
+
+    @Test func pathsResolveInsideTheDirectoryWithOrWithoutASlash() throws {
+        for directory in ["/tmp/demos", "/tmp/demos/"] {
+            let tape = try Tape.parse("Output out/a.mp4\nLaunch x", relativeTo: URL(fileURLWithPath: directory))
+            #expect(tape.outputs[0].url.path == "/tmp/demos/out/a.mp4")
+        }
     }
 
     @Test func launchTakesAnAppPath() throws {
@@ -85,7 +102,9 @@ struct TapeTests {
         ("Launch x\nSleep 1s\nOutput a.mp4", 3, "Output is setup and must come before the first step (line 2)"),
         ("Output a.mp4\nSleep 1s\nLaunch x", 3, "Launch is setup and must come before the first step (line 2)"),
         ("Output a.mp4\nLaunch x\nLaunch y", 3, "a tape launches one app; line 2 already does"),
-        ("Output a.gif\nLaunch x", 1, "unsupported output type '.gif'; expected .mp4 or .mov"),
+        ("Output a.webm\nLaunch x", 1, "unsupported output type '.webm'; expected .mp4, .mov or .gif"),
+        ("Set GifFrameRate 60", 1, "GifFrameRate must be a whole number from 1 to 50, not '60'"),
+        ("Set GifWidth 50", 1, "GifWidth must be a whole number of pixels from 100 to 4000, not '50'"),
         ("Output a.mp4\nOutput ./a.mp4\nLaunch x", 2, "./a.mp4 is already an Output"),
         ("Output a.mp4 b.mp4", 1, "expected Output <path>"),
         ("Output a.mp4\nLaunch", 2, "expected Launch <bundle id or .app path>"),
@@ -95,7 +114,7 @@ struct TapeTests {
         (
             "Set Speed 2",
             1,
-            "unknown setting 'Speed'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, KeyBadges or ClickRipples"
+            "unknown setting 'Speed'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, KeyBadges, ClickRipples, GifFrameRate or GifWidth"
         ),
         ("Set Audio", 1, "expected Set <setting> <value>"),
         (
