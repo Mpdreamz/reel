@@ -135,6 +135,9 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 
 ## Web pages
 
+- **Which browser.** `Set Browser`, else the first installed of Chrome, Chromium, Brave and Edge, else the newest
+  Chromium Playwright downloaded (`~/Library/Caches/ms-playwright/chromium-<build>`). `reel doctor` says which, its
+  version and where it came from.
 - **The browser.** reel starts a Chromium-based browser as an app window (no tabs, no address bar) on a fresh,
   temporary profile with a DevTools port (`--remote-debugging-port=0`, read from `DevToolsActivePort`), sizes the
   window until the page itself is `Viewport`, and quits it and removes the profile when the take ends. No Node, no

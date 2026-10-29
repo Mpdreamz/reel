@@ -157,3 +157,42 @@ struct DrawnCursorTests {
         }
     }
 }
+
+struct BrowserLocatorTests {
+    /// A made-up app: a bundle with an Info.plist naming it.
+    private func app(_ path: URL, name: String, version: String) throws {
+        let contents = path.appending(path: "Contents")
+        try FileManager.default.createDirectory(at: contents, withIntermediateDirectories: true)
+        let info: [String: Any] = ["CFBundleName": name, "CFBundleShortVersionString": version]
+        try PropertyListSerialization.data(fromPropertyList: info, format: .xml, options: 0)
+            .write(to: contents.appending(path: "Info.plist"))
+    }
+
+    @Test func installedBrowsersComeBeforePlaywrightsNewestDownload() throws {
+        let home = try TakeWriterTests().temporaryDirectory()
+        let cache = home.appending(path: "Library/Caches/ms-playwright")
+        try app(cache.appending(path: "chromium-1100/chrome-mac-arm64/Old.app"), name: "Old", version: "1")
+        try app(cache.appending(path: "chromium-1234/chrome-mac-arm64/New.app"), name: "New", version: "151")
+        try app(cache.appending(path: "chromium_headless_shell-9999/Shell.app"), name: "Shell", version: "9")
+
+        let downloaded = try #require(Browser.locate(applications: [], home: home))
+        #expect(downloaded.app.lastPathComponent == "New.app", "the newest build, not the headless shell")
+        #expect(downloaded.source == .playwright("chromium-1234"))
+        #expect(downloaded.description.hasPrefix("New 151 (Playwright's chromium-1234) at "))
+
+        let installed = home.appending(path: "Applications/Brave Browser.app")
+        try app(installed, name: "Brave Browser", version: "1.80")
+        let found = try #require(Browser.locate(applications: ["/nowhere/Chrome.app", installed.path], home: home))
+        // Compared by path: one URL knows it is a directory (a trailing slash), the other does not.
+        #expect(found.app.path == installed.path && found.source == .installed)
+    }
+
+    @Test func aChosenBrowserIsUsedOrReported() throws {
+        let home = try TakeWriterTests().temporaryDirectory()
+        let chosen = home.appending(path: "Mine.app")
+        try app(chosen, name: "Mine", version: "2")
+        #expect(Browser.locate(chosen, applications: [], home: home)?.source == .chosen)
+        #expect(Browser.locate(home.appending(path: "Gone.app"), applications: [], home: home) == nil)
+        #expect(Browser.locate(applications: [], home: home) == nil, "nothing installed, nothing downloaded")
+    }
+}
