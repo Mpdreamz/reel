@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// A parsed `.tape`: what to launch, how to capture it, what to do once recording, and where the outputs go.
@@ -5,11 +6,24 @@ public struct Tape: Equatable, Sendable {
     public var outputs: [Output]
     public var frameRate: Int
     public var audio: Bool
+    /// The window's size in points, set before recording; nil keeps the size it opened with.
+    public var size: CGSize?
+    /// The pause after each typed character, unless a `Type@<duration>` says otherwise.
+    public var typingSpeed: Duration
+    /// How long `Wait` waits, and how long `Click` looks for its element.
+    public var waitTimeout: Duration
     public var launch: LaunchTarget
     /// The commands after setup, in order. Recording starts before the first one.
     public var steps: [Step]
 
     public static let defaultFrameRate = 60
+    public static let defaultTypingSpeed = Duration.milliseconds(50)
+    public static let defaultWaitTimeout = Duration.seconds(10)
+
+    /// Whether playing the tape needs Accessibility: anything that finds, moves or types into the app.
+    public var drivesTheApp: Bool {
+        size != nil || steps.contains { if case .sleep = $0.command { false } else { true } }
+    }
 }
 
 public struct Output: Equatable, Sendable {
@@ -35,6 +49,39 @@ public struct Step: Equatable, Sendable {
 
 public enum Command: Equatable, Sendable {
     case sleep(Duration)
+    case click(Target)
+    case wait(Target)
+    /// Each character, then the pause after it (`Type@<duration>`), nil for the tape's typing speed.
+    case type(String, pause: Duration?)
+    case key(KeyCombo, count: Int)
+    /// Over the target when there is one, else wherever the cursor is (in the window).
+    case scroll(ScrollDirection, lines: Int, over: Target?)
+}
+
+/// An element of the app, as a tape names it.
+public enum Target: Equatable, Sendable, CustomStringConvertible {
+    /// `"Play"` or `Play`: the element's title, description or value.
+    case label(String)
+    /// `#play`: the element's accessibility identifier.
+    case identifier(String)
+    /// `@120,80`: points from the window's top left. Not an element, so only `Click` takes it.
+    case point(CGPoint)
+
+    public var description: String {
+        switch self {
+        case let .label(text): "\"\(text)\""
+        case let .identifier(id): "#\(id)"
+        case let .point(p): "@\(formatted(p.x)),\(formatted(p.y))"
+        }
+    }
+
+    private func formatted(_ value: CGFloat) -> String {
+        value == value.rounded() ? String(Int(value)) : String(Double(value))
+    }
+}
+
+public enum ScrollDirection: String, Equatable, Sendable, CaseIterable {
+    case up, down, left, right
 }
 
 public struct TapeError: Error, Equatable, CustomStringConvertible, LocalizedError {
@@ -61,25 +108,35 @@ public extension Tape {
         var outputs: [Output] = []
         var frameRate: Int?
         var audio: Bool?
+        var size: CGSize?
+        var typingSpeed: Duration?
+        var waitTimeout: Duration?
         var launch: (target: LaunchTarget, line: Int)?
         var steps: [Step] = []
 
         for (index, raw) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
             let line = index + 1
-            let words = try tokenize(String(raw), line: line)
-            guard let name = words.first else { continue }
-            let args = Array(words.dropFirst())
+            let tokens = try tokenize(String(raw), line: line)
+            guard let first = tokens.first else { continue }
+            let args = Array(tokens.dropFirst())
+            let words = args.map(\.text)
             let fail = { (message: String) in TapeError(line: line, message: message) }
             let setup = { (command: String) throws in
                 if !steps.isEmpty {
                     throw fail("\(command) is setup and must come before the first step (line \(steps[0].line))")
                 }
             }
+            let step = { (command: Command) in
+                steps.append(Step(line: line, source: tokens.map(\.source).joined(separator: " "), command: command))
+            }
+            // `Type@20ms`: a command may carry an option after `@`; only Type takes one.
+            let (name, option) = first.quoted ? (first.text, nil) : split(first.text)
+            if option != nil, name != "Type" { throw fail("\(name) takes no @option") }
 
             switch name {
             case "Output":
                 try setup(name)
-                let path = try single(args, usage: "Output <path>", fail: fail)
+                let path = try single(words, usage: "Output <path>", fail: fail)
                 let url = resolve(path, against: directory)
                 guard let format = Output.Format(rawValue: url.pathExtension.lowercased()) else {
                     let known = Output.Format.allCases.map { ".\($0.rawValue)" }.joined(separator: " or ")
@@ -92,26 +149,38 @@ public extension Tape {
 
             case "Set":
                 try setup(name)
-                guard args.count == 2 else { throw fail("expected Set <setting> <value>") }
-                switch args[0] {
+                guard words.count == 2 else { throw fail("expected Set <setting> <value>") }
+                let value = words[1]
+                switch words[0] {
                 case "FrameRate":
-                    guard let rate = Int(args[1]), (1 ... 120).contains(rate) else {
-                        throw fail("FrameRate must be a whole number from 1 to 120, not '\(args[1])'")
+                    guard let rate = Int(value), (1 ... 120).contains(rate) else {
+                        throw fail("FrameRate must be a whole number from 1 to 120, not '\(value)'")
                     }
                     frameRate = rate
                 case "Audio":
-                    switch args[1] {
+                    switch value {
                     case "on": audio = true
                     case "off": audio = false
-                    default: throw fail("Audio must be on or off, not '\(args[1])'")
+                    default: throw fail("Audio must be on or off, not '\(value)'")
                     }
+                case "Size":
+                    guard let parsed = parseSize(value) else {
+                        throw fail("Size must be <width>x<height> in points, such as 1280x800, not '\(value)'")
+                    }
+                    size = parsed
+                case "TypingSpeed":
+                    typingSpeed = try duration(value, fail: fail)
+                case "WaitTimeout":
+                    waitTimeout = try duration(value, fail: fail)
                 default:
-                    throw fail("unknown setting '\(args[0])'; expected FrameRate or Audio")
+                    throw fail(
+                        "unknown setting '\(words[0])'; expected FrameRate, Audio, Size, TypingSpeed or WaitTimeout"
+                    )
                 }
 
             case "Launch":
                 try setup(name)
-                let target = try single(args, usage: "Launch <bundle id or .app path>", fail: fail)
+                let target = try single(words, usage: "Launch <bundle id or .app path>", fail: fail)
                 if let earlier = launch {
                     throw fail("a tape launches one app; line \(earlier.line) already does")
                 }
@@ -119,14 +188,51 @@ public extension Tape {
                 launch = (isPath ? .app(resolve(target, against: directory)) : .bundleID(target), line)
 
             case "Sleep":
-                let value = try single(args, usage: "Sleep <duration>", fail: fail)
-                guard let duration = parseDuration(value) else {
-                    throw fail("'\(value)' is not a duration; write 500ms, 2s, 1.5s or a number of seconds")
+                let value = try single(words, usage: "Sleep <duration>", fail: fail)
+                try step(.sleep(duration(value, fail: fail)))
+
+            case "Click":
+                guard args.count == 1
+                else { throw fail("expected Click \"<label>\", Click #<identifier> or Click @x,y") }
+                try step(.click(target(args[0], fail: fail)))
+
+            case "Wait":
+                guard args.count == 1 else { throw fail("expected Wait \"<label>\" or Wait #<identifier>") }
+                let target = try target(args[0], fail: fail)
+                if case .point = target { throw fail("Wait needs an element to wait for, not a point") }
+                step(.wait(target))
+
+            case "Type":
+                let text = try single(words, usage: "Type \"<text>\"", fail: fail)
+                try step(.type(text, pause: option.map { try duration($0, fail: fail) }))
+
+            case "Key":
+                guard (1 ... 2).contains(words.count) else { throw fail("expected Key <combo> [count]") }
+                guard let combo = KeyCombo(words[0]) else {
+                    throw fail(
+                        "'\(words[0])' is not a key; write a key name such as return or a, with modifiers: cmd+s"
+                    )
                 }
-                steps.append(Step(line: line, source: words.joined(separator: " "), command: .sleep(duration)))
+                try step(.key(combo, count: count(words.dropFirst().first, fail: fail)))
+
+            case "Scroll":
+                let usage = "expected Scroll <up|down|left|right> [lines] [element or @x,y]"
+                guard (1 ... 3).contains(args.count) else { throw fail(usage) }
+                guard let direction = ScrollDirection(rawValue: words[0]) else {
+                    throw fail("'\(words[0])' is not a direction; expected up, down, left or right")
+                }
+                // A number after the direction is the lines; whatever follows is what to scroll over.
+                var rest = args.dropFirst()
+                let lines = if let next = rest.first, !next.quoted, next.text.first?.isNumber == true {
+                    try count(rest.popFirst()?.text, fail: fail)
+                } else {
+                    1
+                }
+                guard rest.count <= 1 else { throw fail(usage) }
+                try step(.scroll(direction, lines: lines, over: rest.first.map { try target($0, fail: fail) }))
 
             default:
-                let known = ["Output", "Set", "Launch", "Sleep"]
+                let known = ["Output", "Set", "Launch", "Sleep", "Click", "Wait", "Type", "Key", "Scroll"]
                 let hint = known.first { $0.lowercased() == name.lowercased() }.map { "; did you mean \($0)?" }
                 throw fail("unknown command '\(name)'" + (hint ?? "; expected one of \(known.joined(separator: ", "))"))
             }
@@ -138,6 +244,9 @@ public extension Tape {
             outputs: outputs,
             frameRate: frameRate ?? defaultFrameRate,
             audio: audio ?? true,
+            size: size,
+            typingSpeed: typingSpeed ?? defaultTypingSpeed,
+            waitTimeout: waitTimeout ?? defaultWaitTimeout,
             launch: launch.target,
             steps: steps
         )
@@ -155,6 +264,50 @@ public extension Tape {
     }
 }
 
+private func duration(_ text: String, fail: (String) -> TapeError) throws -> Duration {
+    guard let duration = Tape.parseDuration(text) else {
+        throw fail("'\(text)' is not a duration; write 500ms, 2s, 1.5s or a number of seconds")
+    }
+    return duration
+}
+
+private func count(_ text: String?, fail: (String) -> TapeError) throws -> Int {
+    guard let text else { return 1 }
+    guard let count = Int(text), (1 ... 100).contains(count) else {
+        throw fail("the count must be a whole number from 1 to 100, not '\(text)'")
+    }
+    return count
+}
+
+/// A quoted word is always a label; unquoted, `#` starts an identifier and `@` a point.
+private func target(_ token: Token, fail: (String) -> TapeError) throws -> Target {
+    let text = token.text
+    if token.quoted { return .label(text) }
+    // A `#` on its own is a comment, so an unquoted `#` here always has an identifier after it.
+    if text.hasPrefix("#") { return .identifier(String(text.dropFirst())) }
+    if text.hasPrefix("@") {
+        let parts = text.dropFirst().split(separator: ",", omittingEmptySubsequences: false)
+        guard parts.count == 2, let x = Double(parts[0]), let y = Double(parts[1]), x >= 0, y >= 0 else {
+            throw fail("'\(text)' is not a point; write @x,y in points from the window's top left, such as @120,80")
+        }
+        return .point(CGPoint(x: x, y: y))
+    }
+    return .label(text)
+}
+
+private func parseSize(_ text: String) -> CGSize? {
+    let parts = text.split(separator: "x", omittingEmptySubsequences: false)
+    guard parts.count == 2, let width = Int(parts[0]), let height = Int(parts[1]),
+          (100 ... 8000).contains(width), (100 ... 8000).contains(height)
+    else { return nil }
+    return CGSize(width: width, height: height)
+}
+
+private func split(_ command: String) -> (String, String?) {
+    guard let at = command.firstIndex(of: "@") else { return (command, nil) }
+    return (String(command[..<at]), String(command[command.index(after: at)...]))
+}
+
 private func single(_ args: [String], usage: String, fail: (String) -> TapeError) throws -> String {
     guard args.count == 1 else { throw fail("expected \(usage)") }
     return args[0]
@@ -165,37 +318,54 @@ private func resolve(_ path: String, against directory: URL) -> URL {
     return URL(fileURLWithPath: expanded, relativeTo: directory).standardizedFileURL
 }
 
-/// Splits a line into words: whitespace separates, double quotes group, `#` outside quotes starts a comment.
-private func tokenize(_ line: String, line number: Int) throws -> [String] {
-    var words: [String] = []
-    var current = ""
-    var inWord = false
-    var quoted = false
-    var chars = line.makeIterator()
-    while let c = chars.next() {
+private struct Token {
+    var text: String
+    var quoted: Bool
+    /// As written, quotes and all, for the timeline.
+    var source: String
+}
+
+/// Splits a line into tokens: whitespace separates, double quotes group (`\"` and `\\` escape inside them). `#`
+/// starts a comment at the start of a line or followed by a space; `#play` after a command is an identifier.
+private func tokenize(_ line: String, line number: Int) throws -> [Token] {
+    var tokens: [Token] = []
+    var current = "", source = ""
+    var inToken = false, quoted = false, wasQuoted = false
+    var chars = Array(line)[...]
+    func flush() {
+        if inToken { tokens.append(Token(text: current, quoted: wasQuoted, source: source)) }
+        current = ""
+        source = ""
+        inToken = false
+        wasQuoted = false
+    }
+    while let c = chars.popFirst() {
         if quoted {
+            source.append(c)
             switch c {
             case "\"": quoted = false
             case "\\":
-                guard let next = chars.next() else { break }
+                guard let next = chars.popFirst() else { break }
+                source.append(next)
                 current.append(next)
             default: current.append(c)
             }
         } else if c == "\"" {
+            source.append(c)
             quoted = true
-            inWord = true
-        } else if c == "#", !inWord {
+            wasQuoted = true
+            inToken = true
+        } else if c == "#", !inToken, tokens.isEmpty || chars.first?.isWhitespace != false {
             break
         } else if c.isWhitespace {
-            if inWord { words.append(current) }
-            current = ""
-            inWord = false
+            flush()
         } else {
+            source.append(c)
             current.append(c)
-            inWord = true
+            inToken = true
         }
     }
     if quoted { throw TapeError(line: number, message: "unterminated quote") }
-    if inWord { words.append(current) }
-    return words
+    flush()
+    return tokens
 }
