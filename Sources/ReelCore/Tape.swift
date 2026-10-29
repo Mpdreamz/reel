@@ -22,6 +22,8 @@ public struct Tape: Equatable, Sendable {
     public var gifWidth: Int
     /// Who speaks `Say` lines and how they mix with the app's sound.
     public var voice: VoiceSettings
+    /// How a `Zoom` moves when it gives none of its own (`Zoom@ease-out`).
+    public var zoomTransition: Transition
     public var launch: LaunchTarget
     /// The commands after setup, in order. Recording starts before the first one.
     public var steps: [Step]
@@ -37,7 +39,7 @@ public struct Tape: Equatable, Sendable {
         size != nil || steps.contains {
             switch $0.command {
             case .sleep, .caption, .say, .reach, .speed, .hide: false
-            case let .zoom(target, _): target.isElement
+            case let .zoom(target, _, _): target.isElement
             default: true
             }
         }
@@ -95,7 +97,7 @@ public enum Command: Equatable, Sendable {
     case reach(String)
     /// Zooms the picture at render time, easing to it, until the next `Zoom`. An element is found while recording and
     /// followed while the zoom holds; `scale` nil fits it.
-    case zoom(ZoomTarget, scale: Double?)
+    case zoom(ZoomTarget, scale: Double?, transition: Transition?)
     /// `Speed 4x` until `Speed off` (nil): sped up at render time, narrated lines kept at their own pace.
     case speed(Double?)
     /// `Hide` (true) until `Show` (false): left out of the render.
@@ -105,7 +107,7 @@ public enum Command: Equatable, Sendable {
     public var isRenderOnly: Bool {
         switch self {
         case .caption, .speed, .hide: true
-        case let .zoom(target, _): !target.isElement
+        case let .zoom(target, _, _): !target.isElement
         default: false
         }
     }
@@ -192,6 +194,7 @@ public extension Tape {
         // Each marker with its line, and whether its Say carries on (only those can be waited for).
         var markers: [String: (line: Int, over: Bool)] = [:]
         var hidden = false
+        var zoomTransition = Transition.standard
         var launch: (target: LaunchTarget, line: Int)?
         var steps: [Step] = []
 
@@ -212,7 +215,7 @@ public extension Tape {
             }
             // `Type@20ms`: a command may carry an option after `@`; only Type takes one.
             let (name, option) = first.quoted ? (first.text, nil) : split(first.text)
-            if option != nil, !["Type", "Say"].contains(name) { throw fail("\(name) takes no @option") }
+            if option != nil, !["Type", "Say", "Zoom"].contains(name) { throw fail("\(name) takes no @option") }
 
             switch name {
             case "Output":
@@ -283,6 +286,11 @@ public extension Tape {
                     voice.voiceVolume = try percent("VoiceVolume", value, fail: fail)
                 case "AppVolume":
                     voice.appVolume = try percent("AppVolume", value, fail: fail)
+                case "ZoomEasing":
+                    guard let easing = Easing(rawValue: value) else { throw fail(Easing.problem(value)) }
+                    zoomTransition.easing = easing
+                case "ZoomDuration":
+                    zoomTransition.duration = try duration(value, fail: fail)
                 case "Subtitles":
                     voice.subtitles = try onOff("Subtitles", value, fail: fail)
                 case "TypingSpeed":
@@ -293,7 +301,7 @@ public extension Tape {
                     throw fail(
                         "unknown setting '\(words[0])'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, "
                             + "KeyBadges, ClickRipples, GifFrameRate, GifWidth, Voice, VoiceServer, VoiceSeed, "
-                            + "VoiceLanguage, Ducking, VoiceVolume, AppVolume or Subtitles"
+                            + "VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing or ZoomDuration"
                     )
                 }
 
@@ -369,16 +377,23 @@ public extension Tape {
                 let usage = "expected Zoom <element or @x,y> [scale], Zoom cursor [scale] or Zoom off"
                 guard (1 ... 2).contains(args.count) else { throw fail(usage) }
                 let scale = try args.dropFirst().first.map { try zoomScale($0.text, fail: fail) }
+                let transition = try option.map { try Transition($0, fail: fail) }
                 switch (args[0].quoted, args[0].text) {
                 case (false, "off"):
                     guard scale == nil else { throw fail("Zoom off takes no scale") }
-                    step(.zoom(.off, scale: nil))
+                    step(.zoom(.off, scale: nil, transition: transition))
                 case (false, "cursor"):
-                    step(.zoom(.cursor, scale: scale))
+                    step(.zoom(.cursor, scale: scale, transition: transition))
                 default:
                     switch try target(args[0], fail: fail) {
-                    case let .point(p): step(.zoom(.point(p), scale: scale))
-                    case let element: step(.zoom(.element(element), scale: scale))
+                    case let .point(p): step(.zoom(.point(p), scale: scale, transition: transition))
+                    case let element:
+                        // Recording only finds the element: its timeline names that alone, so the scale and the
+                        // easing can change without a new take.
+                        steps.append(Step(
+                            line: line, source: "Zoom \(args[0].source)",
+                            command: .zoom(.element(element), scale: scale, transition: transition)
+                        ))
                     }
                 }
 
@@ -452,6 +467,7 @@ public extension Tape {
             gifFrameRate: gifFrameRate ?? defaultGifFrameRate,
             gifWidth: gifWidth ?? defaultGifWidth,
             voice: voice,
+            zoomTransition: zoomTransition,
             launch: launch.target,
             steps: steps
         )

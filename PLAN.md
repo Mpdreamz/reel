@@ -52,6 +52,8 @@ after them. Durations are `500ms`, `2s`, `1.5s`, `1m` or a bare number of second
 | `Zoom <element> [scale]` | Zoom onto an element and stay locked on it, following it, until the next `Zoom`. Fitted with room when no scale, at most 4×. |
 | `Zoom @x,y [scale]`, `Zoom cursor [scale]` | Zoom on a point, or follow the cursor; default 2×. |
 | `Zoom off` | Back to the whole window. |
+| `Zoom@<easing>,<duration> …` | Any zoom with its own move: `Zoom@ease-out #list`, `Zoom@600ms off`, `Zoom@smooth,1s cursor`. |
+| `Set ZoomEasing <easing>`, `Set ZoomDuration <duration>` | How zooms move when they say nothing: `linear`, `ease-in`, `ease-out`, `ease-in-out` (default), `smooth` or `snap`; 400ms by default. |
 | `Speed <rate>x` … `Speed off` | Play the stretch faster (above 1× to 16×); narrated lines keep their own pace, the app's sound is left out. |
 | `Hide` … `Show` | Leave the stretch out of the render; a `Hide` with no `Show` runs to the end. |
 
@@ -106,7 +108,10 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   effect at the end of the action before them and change without a new take. A zoom on an element is an action:
   recording finds the element, keeps its frame in the timeline, and reads it again after every step while the zoom
   holds, so render follows it if it moves. Changing it needs a new take.
-- **Zoom** is a transform on the picture, eased over 0.4 s, sampled 30 times a second into transform ramps. The
+- **Zoom** is a transform on the picture, sampled 30 times a second into transform ramps, each move eased by its
+  `Zoom@` option or the tape's `ZoomEasing` and `ZoomDuration` (ease-in-out over 0.4 s unless set): cubic `ease-in`,
+  `ease-out` and `ease-in-out`, `linear`, `smooth` (half a sine) or `snap` (no move). An element zoom's timeline
+  names the element alone, so its scale and easing change without a new take. The
   region keeps the window's shape and stays inside it. A fitted element gets 8% room and at most 4×; render says so
   when an element nearly fills the window and fitting it barely zooms. Captions and badges are drawn after the zoom,
   so they stay put; a ripple is moved to where its click shows under the zoom.

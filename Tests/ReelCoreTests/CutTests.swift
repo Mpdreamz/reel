@@ -36,10 +36,10 @@ struct CutParsingTests {
         """)
         #expect(parsed.steps.map(\.command) == [
             .hide(true), .sleep(.seconds(1)), .hide(false),
-            .zoom(.element(.identifier("list")), scale: nil),
-            .zoom(.element(.label("Library")), scale: 2.5),
-            .zoom(.point(CGPoint(x: 100, y: 50)), scale: 2),
-            .zoom(.cursor, scale: nil), .zoom(.off, scale: nil),
+            .zoom(.element(.identifier("list")), scale: nil, transition: nil),
+            .zoom(.element(.label("Library")), scale: 2.5, transition: nil),
+            .zoom(.point(CGPoint(x: 100, y: 50)), scale: 2, transition: nil),
+            .zoom(.cursor, scale: nil, transition: nil), .zoom(.off, scale: nil, transition: nil),
             .speed(4), .speed(nil),
         ])
         // Only a zoom on an element is recorded (and needs Accessibility); the rest is render's.
@@ -48,8 +48,41 @@ struct CutParsingTests {
         #expect(try !tape("Zoom @1,1\nSpeed 2x\nHide").drivesTheApp)
     }
 
+    @Test func transitions() throws {
+        let parsed = try tape("""
+        Zoom@ease-out @1,1
+        Zoom@600ms #list 2x
+        Zoom@800ms,ease-in off
+        Zoom cursor
+        """)
+        #expect(parsed.steps.map(\.command) == [
+            .zoom(.point(CGPoint(x: 1, y: 1)), scale: nil, transition: Transition(easing: .easeOut, duration: nil)),
+            .zoom(
+                .element(.identifier("list")),
+                scale: 2,
+                transition: Transition(easing: nil, duration: .milliseconds(600))
+            ),
+            .zoom(.off, scale: nil, transition: Transition(easing: .easeIn, duration: .milliseconds(800))),
+            .zoom(.cursor, scale: nil, transition: nil),
+        ])
+        // An element zoom's timeline names the element alone: its scale and easing change without a new take.
+        #expect(parsed.steps[1].source == "Zoom #list")
+        #expect(parsed.zoomTransition == .standard)
+        let set = try tape("Set ZoomEasing smooth\nSet ZoomDuration 1.5s").zoomTransition
+        #expect(set == Transition(easing: .smooth, duration: .milliseconds(1500)))
+    }
+
     @Test(arguments: [
         ("Zoom", "expected Zoom <element or @x,y> [scale], Zoom cursor [scale] or Zoom off"),
+        (
+            "Zoom@bouncy off",
+            "'@bouncy' is not a transition; write an easing, a duration or both, such as @ease-out,600ms"
+        ),
+        (
+            "Zoom@1s,2s off",
+            "'@1s,2s' is not a transition; write an easing, a duration or both, such as @ease-out,600ms"
+        ),
+        ("Speed@1s 2x", "Speed takes no @option"),
         ("Zoom off 2x", "Zoom off takes no scale"),
         ("Zoom #list 9x", "a zoom scale is 1x to 8x, such as 2x, not '9x'"),
         ("Zoom #list 2", "a zoom scale is 1x to 8x, such as 2x, not '2'"),
@@ -128,10 +161,33 @@ struct ZoomPlanTests {
     @Test func zoomsEaseInAndOut() throws {
         let script = try tape("Sleep 1s\nZoom @400,250 2x\nSleep 1s\nZoom off\nSleep 1s")
         let plan = ZoomPlan.make(tape: script, take: take(script))
-        let halfway = plan.region(at: 1 + ZoomPlan.ease / 2)
+        let halfway = plan.region(at: 1.2)
         #expect(abs(halfway.width - 600) < 1e-6, "halfway between 800 and 400 at the middle of the ease")
-        #expect(abs(plan.region(at: 1 + ZoomPlan.ease).width - 400) < 1e-6)
-        #expect(abs(plan.region(at: 2 + ZoomPlan.ease).width - 800) < 1e-6)
+        #expect(abs(plan.region(at: 1.4).width - 400) < 1e-6)
+        #expect(abs(plan.region(at: 2.4).width - 800) < 1e-6)
+    }
+
+    @Test func eachZoomCanEaseItsOwnWay() throws {
+        let script = try tape("""
+        Set ZoomEasing linear
+        Set ZoomDuration 1s
+        Sleep 1s
+        Zoom @400,250 2x
+        Sleep 2s
+        Zoom@ease-in,500ms off
+        Sleep 1s
+        Zoom@snap @400,250 4x
+        Sleep 1s
+        """)
+        let plan = ZoomPlan.make(tape: script, take: take(script))
+        // The tape's linear second: a quarter of the way at 1.25 s, 800 to 400 wide.
+        // Each move starts from where the zoom was a microsecond before it, hence the hundredth's slack.
+        #expect(abs(plan.region(at: 1.25).width - 700) < 0.01)
+        // Ease-in over half a second: an eighth of the way (cubic) at the halfway mark, 400 back to 800.
+        #expect(abs(plan.region(at: 2.25).width - 450) < 0.01)
+        #expect(abs(plan.region(at: 2.5).width - 800) < 0.01)
+        // Snap: there at once.
+        #expect(abs(plan.region(at: 3.001).width - 200) < 0.01)
     }
 
     @Test func anElementIsFittedWithRoomAndFollowed() throws {

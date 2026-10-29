@@ -79,7 +79,7 @@ final class Driver {
         case .caption, .say, .reach, .speed, .hide:
             // Narration runs on the recorder's speech clock; the rest is render's.
             break
-        case let .zoom(target, _):
+        case let .zoom(target, _, _):
             if case let .element(element) = target { return try await frame(of: element) }
         case let .wait(target):
             _ = try await element(target)

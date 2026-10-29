@@ -97,7 +97,7 @@ public enum Recorder {
             defer { cursor.stop() }
             for step in tape.steps {
                 // Any other zoom (a point, the cursor, off) releases the lock.
-                if case let .zoom(target, _) = step.command, !target.isElement { focus = nil }
+                if case let .zoom(target, _, _) = step.command, !target.isElement { focus = nil }
                 guard !step.command.isRenderOnly else { continue }
                 var begin = milliseconds(since: start)
                 var landed: CGRect?
@@ -116,7 +116,7 @@ public enum Recorder {
                     landed = try await perform(step.command, with: driver)
                 }
                 if let error = sink.error { throw error }
-                if case let .zoom(.element(target), _) = step.command { focus = target }
+                if case let .zoom(.element(target), _, _) = step.command { focus = target }
                 events.append(Take.Event(
                     line: step.line, command: step.source, startMs: begin, endMs: milliseconds(since: start),
                     x: landed.map { Double($0.minX) }, y: landed.map { Double($0.minY) },
