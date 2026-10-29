@@ -37,7 +37,7 @@ reel render demo.tape   # only render the outputs from the last take
 reel doctor             # Screen Recording and Accessibility
 ```
 
-Status: milestones 1 to 7 of [PLAN.md](PLAN.md): recording a window with its sound, driving the app with clicks,
+Status: milestones 1 to 8 of [PLAN.md](PLAN.md): recording a window with its sound, driving the app with clicks,
 typing, keys and scrolling, captions, key badges and click ripples drawn over it, GIFs, and narration voiced by macOS
 or [voicebox](https://github.com/jamiepine/voicebox), with clicks timed to its words and the app's sound ducked
 under it, zoom (onto an element, a point or the cursor), speed-ups and cuts, and an intro and an outro with titles over a
@@ -45,6 +45,19 @@ colour, an image or a video, all changeable without recording again except which
 is in PLAN.md. Captions are drawn at render time, so `reel render` picks up a changed caption without recording again.
 
 While a tape plays it takes the mouse and keyboard; it stops rather than type into another app.
+
+A web page instead of an app (macOS, a Chromium-based browser reel starts and drives; your mouse stays yours):
+
+```
+Output signup.mp4
+Set Viewport 1280x800
+Open https://example.com
+Click "Sign up"
+Click "Email"
+Type "me@example.com"
+Click css:form button[type=submit]
+Wait "Welcome"
+```
 
 ## Install
 

@@ -21,6 +21,8 @@ public struct Take: Codable, Equatable, Sendable {
     public var cursor: [Sample]?
     /// Where the element a zoom is locked on was after each step (the zoom follows it).
     public var focus: [Sample]?
+    /// The cursor is drawn at render time from `cursor` (a web page: the real one never moved).
+    public var drawnCursor: Bool?
 
     /// A position at a moment: a point (zero size) or a frame, in points from the window's top left.
     public struct Sample: Codable, Equatable, Sendable {

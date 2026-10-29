@@ -97,11 +97,11 @@ struct TapeTests {
         (
             "Output a.mp4\nLaunch x\nTypo",
             3,
-            "unknown command 'Typo'; expected one of Output, Set, Launch, Sleep, Click, Wait, Type, Key, Scroll, Caption, Say, Zoom, Speed, Hide, Show, Intro, Outro"
+            "unknown command 'Typo'; expected one of Output, Set, Launch, Sleep, Click, Wait, Type, Key, Scroll, Caption, Say, Zoom, Speed, Hide, Show, Intro, Outro, Open"
         ),
         ("Launch x\nSleep 1s\nOutput a.mp4", 3, "Output is setup and must come before the first step (line 2)"),
         ("Output a.mp4\nSleep 1s\nLaunch x", 3, "Launch is setup and must come before the first step (line 2)"),
-        ("Output a.mp4\nLaunch x\nLaunch y", 3, "a tape launches one app; line 2 already does"),
+        ("Output a.mp4\nLaunch x\nLaunch y", 3, "a tape launches one app or opens one page; line 2 already does"),
         ("Output a.webm\nLaunch x", 1, "unsupported output type '.webm'; expected .mp4, .mov or .gif"),
         ("Set GifFrameRate 60", 1, "GifFrameRate must be a whole number from 1 to 50, not '60'"),
         ("Set GifWidth 50", 1, "GifWidth must be a whole number of pixels from 100 to 4000, not '50'"),
@@ -114,7 +114,7 @@ struct TapeTests {
         (
             "Set Speed 2",
             1,
-            "unknown setting 'Speed'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, KeyBadges, ClickRipples, GifFrameRate, GifWidth, Voice, VoiceServer, VoiceSeed, VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, IntroBackground or OutroBackground"
+            "unknown setting 'Speed'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, KeyBadges, ClickRipples, GifFrameRate, GifWidth, Voice, VoiceServer, VoiceSeed, VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, IntroBackground, OutroBackground, Browser or Viewport"
         ),
         ("Set Audio", 1, "expected Set <setting> <value>"),
         (
