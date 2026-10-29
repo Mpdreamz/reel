@@ -27,6 +27,10 @@ jobs:
       - name: Lint
         run: mise run lint
 
+      # Built first and without --quiet, so a compile error shows its message rather than only "Build failed".
+      - name: Build tests
+        run: swift build --build-tests
+
       - name: Test
         timeout-minutes: 10
         run: mise run test
