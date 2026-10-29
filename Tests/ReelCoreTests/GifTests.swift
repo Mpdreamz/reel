@@ -59,7 +59,7 @@ struct GifTests {
             width: 320, height: 200, scale: 2, frameRate: 30, audio: false, durationMs: 1000,
             events: [Take.Event(line: 4, command: "Sleep 1s", startMs: 0, endMs: 1000)]
         ))
-        let tape = try Tape.parse("Output demo.gif\nLaunch x\nCaption \"Hi\"\nSleep 1s", relativeTo: dir)
+        let tape = try Tape.parse("Launch x\nOutput demo.gif\nCaption \"Hi\"\nSleep 1s", relativeTo: dir)
         var lines: [String] = []
         try await Renderer.render(tape: tape, from: location, log: { lines.append($0) })
         let read = try GifFile(dir.appending(path: "demo.gif"))

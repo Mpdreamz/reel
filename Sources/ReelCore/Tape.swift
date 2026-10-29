@@ -39,6 +39,9 @@ public struct Tape: Equatable, Sendable {
     public static let defaultGifFrameRate = 15
     public static let defaultGifWidth = 800
 
+    /// What every tape starts with, and the error a tape gets when it does not.
+    static let preface = "a tape starts with Launch <app> or Open <url>, which says what it records"
+
     /// Whether playing the tape needs Accessibility: anything that finds, moves or types into the app.
     public var drivesTheApp: Bool {
         size != nil || steps.contains {
@@ -298,6 +301,12 @@ public extension Tape {
             if option != nil, !["Type", "Say", "Zoom", "Intro", "Outro"].contains(name) {
                 throw fail("\(name) takes no @option")
             }
+            // The first line says what the tape records; everything after is read knowing it.
+            if launch == nil, name != "Launch", name != "Open" { throw fail(Tape.preface) }
+            let isWeb = launch?.target.isWeb == true
+            let forWeb = { (what: String) throws in
+                if !isWeb { throw fail("\(what) is for web pages (Open); this tape Launches an app") }
+            }
 
             switch name {
             case "Intro", "Outro":
@@ -361,6 +370,7 @@ public extension Tape {
                     }
                     gifWidth = width
                 case "Browser":
+                    try forWeb("Set Browser")
                     switch value {
                     case "webkit": web.browser = .webkit
                     case "chromium": web.browser = .chromium
@@ -375,11 +385,13 @@ public extension Tape {
                         web.browser = .app(app)
                     }
                 case "Viewport":
+                    try forWeb("Set Viewport")
                     guard let parsed = parseSize(value) else {
                         throw fail("Viewport must be <width>x<height> in points, such as 1280x800, not '\(value)'")
                     }
                     web.viewport = parsed
                 case "Size":
+                    if isWeb { throw fail("Set Size is an app's window; a web page's size is Set Viewport") }
                     guard let parsed = parseSize(value) else {
                         throw fail("Size must be <width>x<height> in points, such as 1280x800, not '\(value)'")
                     }
@@ -434,12 +446,11 @@ public extension Tape {
             case "Open":
                 let value = try single(words, usage: "Open <url>", fail: fail)
                 let url = try webAddress(value, relativeTo: directory, fail: fail)
-                if steps.isEmpty, launch == nil {
+                if launch == nil {
                     launch = (.web(url), line)
                 } else {
-                    guard case .web = launch?.target else {
-                        throw fail("Open after the tape has started goes to another page, which needs a web tape")
-                    }
+                    // Any later Open goes to another page, as a step.
+                    guard isWeb else { throw fail("Open goes to a web page; this tape Launches an app") }
                     step(.open(url))
                 }
 
@@ -447,7 +458,10 @@ public extension Tape {
                 try setup(name)
                 let target = try single(words, usage: "Launch <bundle id or .app path>", fail: fail)
                 if let earlier = launch {
-                    throw fail("a tape launches one app or opens one page; line \(earlier.line) already does")
+                    throw fail(
+                        isWeb ? "a web tape Opens pages; line \(earlier.line) already does, so there is no app to Launch"
+                            : "a tape launches one app; line \(earlier.line) already does"
+                    )
                 }
                 let isPath = target.hasSuffix(".app") || target.contains("/")
                 launch = (isPath ? .app(resolve(target, against: directory)) : .bundleID(target), line)
@@ -591,15 +605,16 @@ public extension Tape {
             }
         }
 
+        guard let launch else { throw TapeError(message: Tape.preface) }
         guard !outputs.isEmpty else { throw TapeError(message: "the tape has no Output") }
-        if let launch, !launch.target.isWeb {
+        if !launch.target.isWeb {
             for step in steps
                 where step.command.targets.contains(where: { if case .css = $0 { true } else { false } })
             {
                 throw TapeError(line: step.line, message: "css: targets are for web pages; Open one instead of Launch")
             }
         }
-        guard let launch else { throw TapeError(message: "the tape has no Launch") }
+
         return Tape(
             outputs: outputs,
             frameRate: frameRate ?? defaultFrameRate,
@@ -683,11 +698,13 @@ private func count(_ text: String?, fail: (String) -> TapeError) throws -> Int {
 /// A quoted word is always a label; unquoted, `#` starts an identifier and `@` a point.
 private func target(_ token: Token, fail: (String) -> TapeError) throws -> Target {
     let text = token.text
-    if token.quoted { return .label(text) }
-    if text.hasPrefix("css:") {
+    // `css:"form button"`: a selector with spaces is quoted after the colon. A word that starts with a quote is a
+    // label, whatever it says.
+    if text.hasPrefix("css:"), !token.source.hasPrefix("\"") {
         guard text.count > 4 else { throw fail("css: needs a selector after it, such as css:.pricing") }
         return .css(String(text.dropFirst(4)))
     }
+    if token.quoted { return .label(text) }
     // A `#` on its own is a comment, so an unquoted `#` here always has an identifier after it.
     if text.hasPrefix("#") { return .identifier(String(text.dropFirst())) }
     if text.hasPrefix("@") {

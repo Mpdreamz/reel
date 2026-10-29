@@ -40,7 +40,7 @@ func writeTone(hertz: Double, seconds: Double, to url: URL) throws {
 }
 
 private func tape(_ body: String) throws -> Tape {
-    try Tape.parse("Output a.mp4\nLaunch x\n" + body, relativeTo: URL(fileURLWithPath: "/tmp"))
+    try Tape.parse("Launch x\nOutput a.mp4\n" + body, relativeTo: URL(fileURLWithPath: "/tmp"))
 }
 
 struct NarrationTests {
@@ -162,7 +162,7 @@ struct SoundtrackTests {
     }
 
     @Test func aLineVoicedDifferentlyNeedsANewTake() throws {
-        let script = try Tape.parse("Output a.mp4\nLaunch x\nSay \"Hi\"", relativeTo: URL(fileURLWithPath: "/tmp"))
+        let script = try Tape.parse("Launch x\nOutput a.mp4\nSay \"Hi\"", relativeTo: URL(fileURLWithPath: "/tmp"))
         let take = Take(
             width: 10, height: 10, scale: 1, frameRate: 30, audio: true, durationMs: 1000,
             events: [Take.Event(line: 3, command: "Say \"Hi\"", startMs: 0, endMs: 250, clip: "old")]

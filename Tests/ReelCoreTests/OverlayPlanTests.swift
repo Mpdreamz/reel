@@ -8,7 +8,7 @@ struct OverlayPlanTests {
     private func plan(_ body: String, durationMs: Int = 10000, edit: ((inout [Take.Event]) -> Void)? = nil) throws
         -> [Overlay]
     {
-        let tape = try Tape.parse("Output a.mp4\nLaunch x\n" + body, relativeTo: URL(fileURLWithPath: "/tmp"))
+        let tape = try Tape.parse("Launch x\nOutput a.mp4\n" + body, relativeTo: URL(fileURLWithPath: "/tmp"))
         var events = tape.actions.enumerated().map { index, step in
             let click = if case .click = step.command { true } else { false }
             return Take.Event(

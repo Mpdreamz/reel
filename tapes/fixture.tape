@@ -1,5 +1,7 @@
 # Drives the fixture app (mise run live builds it and checks the take): a ticking counter, a Play button that
 # starts a quiet 440 Hz tone, a text field and a list.
+Launch ../build/ReelFixture.app
+
 Output ../build/fixture.mp4
 Output ../build/fixture.gif
 Set Size 640x480
@@ -11,8 +13,6 @@ Set ZoomEasing smooth
 Intro@slide-up,ease-out,700ms "reel" "the fixture, driven by a tape" 2.5s
 Outro@wipe-left,600ms "That's reel" "mise run live"
 Set OutroBackground #1d2b3a
-
-Launch ../build/ReelFixture.app
 
 Hide
 Wait "Play"
