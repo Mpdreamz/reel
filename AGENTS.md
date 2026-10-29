@@ -28,6 +28,8 @@ or both. Read `PLAN.md` first.
 - `mise run live-web` records `tapes/web.tape` against a local page twice, in WebKit and in a Chromium-based browser
   (Chrome, Chromium, Brave, Edge or Playwright's download), and checks both takes. It plays a quiet tone; the mouse
   stays yours.
+- `mise run demos` records reel's own demos (`demos/*.tape`, the Musicbox hero first) into `docs/media/`, which git
+  ignores until the videos have a home. It plays music and takes the mouse and keyboard; CI only checks the tapes parse.
 - Branch names: `feature/`, `fix/`, `docs/`, `chore/`, `ci/`. Pull requests are squash-merged.
 
 ## Releasing

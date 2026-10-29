@@ -35,6 +35,10 @@ jobs:
         timeout-minutes: 10
         run: mise run test
 
+      # The demos cannot be recorded here (no Screen Recording), but every tape must still parse.
+      - name: Check the demo tapes
+        run: for tape in demos/*.tape; do .build/debug/reel check "$tape" >/dev/null || exit 1; done
+
       # As the release builds it: the version written in and checked, the cask template well formed.
       - name: Release build
         run: |
