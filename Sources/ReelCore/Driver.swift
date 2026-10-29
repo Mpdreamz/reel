@@ -66,18 +66,21 @@ final class Driver {
         }
     }
 
-    /// Performs one step. Returns where a click landed, in points from the window's top left, for the timeline.
-    func perform(_ command: Command) async throws -> CGPoint? {
+    /// Performs one step. Returns, for the timeline, where a click landed (an empty rect) or what a zoom framed, in
+    /// points from the window's top left.
+    func perform(_ command: Command) async throws -> CGRect? {
         switch command {
-        case .sleep, .wait, .caption, .say, .reach: break
+        case .sleep, .wait, .caption, .say, .reach, .zoom, .speed, .hide: break
         default: try await ensureInFront()
         }
         switch command {
         case let .sleep(duration):
             try await Task.sleep(for: duration)
-        case .caption, .say, .reach:
-            // Narration runs on the recorder's speech clock.
+        case .caption, .say, .reach, .speed, .hide:
+            // Narration runs on the recorder's speech clock; the rest is render's.
             break
+        case let .zoom(target, _):
+            if case let .element(element) = target { return try await frame(of: element) }
         case let .wait(target):
             _ = try await element(target)
         case let .click(target):
@@ -88,7 +91,7 @@ final class Driver {
             }
             try await glide(to: point)
             try await click(at: point)
-            return CGPoint(x: point.x - frame.minX, y: point.y - frame.minY)
+            return CGRect(x: point.x - frame.minX, y: point.y - frame.minY, width: 0, height: 0)
         case let .type(text, pause):
             for character in text {
                 try await type(character)
@@ -111,6 +114,27 @@ final class Driver {
             }
         }
         return nil
+    }
+
+    /// The element's frame in points from the window's top left, waiting for it as `Wait` does.
+    func frame(of target: Target) async throws -> CGRect {
+        let window = try windowFrame
+        guard let frame = try await element(target).node.frame else { throw ReelError("\(target) has no frame") }
+        return frame.offsetBy(dx: -window.minX, dy: -window.minY)
+    }
+
+    /// The element's frame now, from the window's top left, without waiting: nil when it is gone.
+    func currentFrame(of target: Target) -> CGRect? {
+        guard let window = try? windowFrame else { return nil }
+        let roots = [self.window] + app.windows.filter { !CFEqual($0.element, self.window.element) }
+        return ElementSearch.find(target, in: roots, within: screens)?.frame?
+            .offsetBy(dx: -window.minX, dy: -window.minY)
+    }
+
+    /// Where the cursor is, from the window's top left.
+    var cursorInWindow: CGPoint? {
+        guard let window = try? windowFrame else { return nil }
+        return CGPoint(x: cursor.x - window.minX, y: cursor.y - window.minY)
     }
 
     /// Polls for the element until the tape's wait timeout.

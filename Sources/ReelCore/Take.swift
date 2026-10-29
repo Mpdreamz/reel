@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// A recorded take: `take.mov` and this, `take.json`, in `.reel/<tape name>/` next to the tape. Render reads both;
@@ -16,6 +17,31 @@ public struct Take: Codable, Equatable, Sendable {
     /// From the first frame to the end of the last step.
     public var durationMs: Int
     public var events: [Event]
+    /// Where the cursor was through the take, about 30 times a second (`Zoom cursor` follows it). Nil in older takes.
+    public var cursor: [Sample]?
+    /// Where the element a zoom is locked on was after each step (the zoom follows it).
+    public var focus: [Sample]?
+
+    /// A position at a moment: a point (zero size) or a frame, in points from the window's top left.
+    public struct Sample: Codable, Equatable, Sendable {
+        public var ms: Int
+        public var x: Double
+        public var y: Double
+        public var w: Double?
+        public var h: Double?
+
+        public init(ms: Int, frame: CGRect) {
+            self.ms = ms
+            x = Double(frame.minX)
+            y = Double(frame.minY)
+            w = frame.isEmpty ? nil : Double(frame.width)
+            h = frame.isEmpty ? nil : Double(frame.height)
+        }
+
+        public var rect: CGRect {
+            CGRect(x: x, y: y, width: w ?? 0, height: h ?? 0)
+        }
+    }
 
     public struct Event: Codable, Equatable, Sendable {
         public var line: Int
@@ -23,16 +49,20 @@ public struct Take: Codable, Equatable, Sendable {
         /// Milliseconds from the first frame.
         public var startMs: Int
         public var endMs: Int
-        /// Where a click landed, in points from the window's top left.
+        /// Where a click landed, or (with `w` and `h`) the element a zoom framed, in points from the window's top left.
         public var x: Double?
         public var y: Double?
+        public var w: Double?
+        public var h: Double?
         /// For a `Say`, the voiced line it played (`Narration.Line.key`); its start is when the line started.
         public var clip: String?
 
         public init(
             line: Int, command: String, startMs: Int, endMs: Int, x: Double? = nil, y: Double? = nil,
-            clip: String? = nil
+            w: Double? = nil, h: Double? = nil, clip: String? = nil
         ) {
+            self.w = w
+            self.h = h
             self.clip = clip
             self.line = line
             self.command = command

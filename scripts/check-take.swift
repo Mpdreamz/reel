@@ -12,6 +12,7 @@ struct Take: Decodable {
         var startMs: Int
         var endMs: Int
         var x: Double?
+        var w: Double?
         var clip: String?
     }
 
@@ -19,6 +20,13 @@ struct Take: Decodable {
     var height: Int
     var scale: Double
     var events: [Event]
+    var durationMs: Int
+    var cursor: [Sample]?
+    var focus: [Sample]?
+
+    struct Sample: Decodable {
+        var ms: Int
+    }
 }
 
 let args = CommandLine.arguments
@@ -103,8 +111,34 @@ func event(_ command: String) -> Take.Event? {
     take.events.first { $0.command == command }
 }
 
+/// How render mapped the take's time to the output's (edit.json next to the take).
+struct Edit: Decodable {
+    struct Segment: Decodable {
+        var start: Double
+        var end: Double
+        var rate: Double
+    }
+
+    var segments: [Segment]
+
+    func map(_ ms: Int) -> Int {
+        let time = Double(ms) / 1000
+        var out = 0.0
+        for segment in segments {
+            if time < segment.start { break }
+            if time <= segment.end { return Int(((out + (time - segment.start) / segment.rate) * 1000).rounded()) }
+            out += (segment.end - segment.start) / segment.rate
+        }
+        return Int((out * 1000).rounded())
+    }
+}
+
+let edit = try JSONDecoder().decode(Edit.self, from: Data(contentsOf: dir.appending(path: "edit.json")))
+
+/// The rendered sound between two moments of the take.
 func window(_ from: Int, _ to: Int) -> ArraySlice<Float> {
-    rendered[min(rendered.count, max(0, from * 48)) ..< min(rendered.count, max(0, to * 48))]
+    let start = edit.map(from) * 48, end = edit.map(to) * 48
+    return rendered[min(rendered.count, max(0, start)) ..< min(rendered.count, max(start, end))]
 }
 
 func level(_ samples: ArraySlice<Float>, _ hertz: Double) -> Double {
@@ -131,6 +165,14 @@ if let under = event(#"Say "The tone keeps playing under the voice.""#) {
         String(format: "the tone ducks under the voice (%.0f%% of its level after)", 100 * during / max(after, 1e-9))
     )
 }
+// Zoom, speed and trim.
+let zoomed = event("Zoom #list 2x")
+check(zoomed?.w != nil, "Zoom #list 2x found the list's frame while recording")
+check((take.focus?.count ?? 0) >= 2, "the locked list was sampled after each step (\(take.focus?.count ?? 0) samples)")
+check((take.cursor?.count ?? 0) > take.durationMs / 50, "the cursor was sampled through the take (\(take.cursor?.count ?? 0))")
+let length = try await AVURLAsset(url: URL(fileURLWithPath: args[3])).load(.duration).seconds
+let taken = Double(take.durationMs) / 1000
+check(length < taken - 1.2, String(format: "Hide and Speed shortened the movie (%.2f s of a %.2f s take)", length, taken))
 check(log.contains("play"), "the fixture logged the click on Play")
 check(log.contains("submit Musicbox"), "cmd+a replaced the typed text, and return submitted it")
 check(log.contains { $0.hasPrefix("scroll ") && Int($0.dropFirst(7)).map { $0 > 0 } == true }, "the list scrolled")

@@ -72,6 +72,17 @@ public struct Soundtrack: Equatable, Sendable {
         }
     }
 
+    /// The clips where they land in the output. Narration is never sped up or left out, so each moves as a whole.
+    public func mapped(through edit: Edit) -> Soundtrack {
+        var moved = self
+        moved.clips = clips.map { clip in
+            var clip = clip
+            clip.start = edit.map(clip.start)
+            return clip
+        }
+        return moved
+    }
+
     public static func == (a: Soundtrack, b: Soundtrack) -> Bool {
         a.clips == b.clips && a.appVolume == b.appVolume && a.voiceVolume == b.voiceVolume && a.ducking == b.ducking
     }

@@ -12,13 +12,17 @@ Set Size 1280x800
 Set Voice voicebox:narrator      # or system, macOS's own voice
 
 Launch com.example.musicbox
+Hide
 Wait "Library"
+Show
 Say "This is Musicbox."
+Zoom #library                    # locks on the library, and follows it
 Say@over "Pick a track, [pick] then press [play] space to play it."
 Wait [pick]
 Click "Midnight City"
 Wait [play]
 Key space
+Zoom off
 Sleep 4s
 ```
 
@@ -30,10 +34,11 @@ reel render demo.tape   # only render the outputs from the last take
 reel doctor             # Screen Recording and Accessibility
 ```
 
-Status: milestones 1 to 5 of [PLAN.md](PLAN.md): recording a window with its sound, driving the app with clicks,
+Status: milestones 1 to 6 of [PLAN.md](PLAN.md): recording a window with its sound, driving the app with clicks,
 typing, keys and scrolling, captions, key badges and click ripples drawn over it, GIFs, and narration voiced by macOS
 or [voicebox](https://github.com/jamiepine/voicebox), with clicks timed to its words and the app's sound ducked
-under it. Zoom, speed and trim are next. The tape language
+under it, and zoom (onto an element, a point or the cursor), speed-ups and cuts, all changeable without recording
+again except a zoom onto an element. The tape language
 is in PLAN.md. Captions are drawn at render time, so `reel render` picks up a changed caption without recording again.
 
 While a tape plays it takes the mouse and keyboard; it stops rather than type into another app.

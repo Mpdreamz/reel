@@ -41,7 +41,6 @@ public enum OverlayPlan {
         var overlays: [Overlay] = []
 
         // Captions, each from the end of the action before it.
-        var done = 0
         var open: (text: String, start: Double, until: Double)?
         func close(at time: Double) {
             if let current = open, min(time, current.until) > current.start {
@@ -53,12 +52,8 @@ public enum OverlayPlan {
             }
             open = nil
         }
-        for step in tape.steps {
-            guard case let .caption(text, duration) = step.command else {
-                done += 1
-                continue
-            }
-            let at = done == 0 ? 0 : Double(take.events[done - 1].endMs) / 1000
+        for (step, at) in zip(tape.steps, Anchors.times(tape: tape, take: take)) {
+            guard case let .caption(text, duration) = step.command else { continue }
             close(at: at)
             if let text {
                 open = (text, at, duration.map { at + $0.seconds } ?? end)
@@ -87,6 +82,21 @@ public enum OverlayPlan {
 }
 
 public extension OverlayPlan {
+    /// The overlays in the output's time, and each ripple where its click shows under the zoom. One that falls in a
+    /// stretch left out is dropped.
+    static func mapped(_ overlays: [Overlay], through edit: Edit, zoom: ZoomPlan?) -> [Overlay] {
+        overlays.compactMap { overlay in
+            var moved = overlay
+            moved.start = edit.map(overlay.start)
+            moved.end = edit.map(overlay.end)
+            guard moved.end - moved.start > 0.05 else { return nil }
+            if case let .ripple(point) = overlay.kind, let zoom {
+                moved.kind = .ripple(zoom.project(point, through: zoom.region(at: overlay.start)))
+            }
+            return moved
+        }
+    }
+
     /// Each narrated line as a caption while it plays. A subtitle takes the caption's place: a `Caption` showing at the
     /// same time is cut around it.
     static func adding(subtitles clips: [Soundtrack.Clip], to overlays: [Overlay]) -> [Overlay] {

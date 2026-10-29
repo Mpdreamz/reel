@@ -2,7 +2,8 @@ import AppKit
 import AVFoundation
 import QuartzCore
 
-/// Turns a take into a tape's outputs: the take, with its overlays drawn over it by Core Animation, exported.
+/// Turns a take into a tape's outputs: the take, cut and sped up as the tape says, zoomed, its narration mixed in, its
+/// overlays drawn over it by Core Animation, exported.
 public enum Renderer {
     /// Renders every Output of `tape`. A GIF is made from a rendered movie: the first movie Output's, or a temporary
     /// one when the tape has none.
@@ -17,9 +18,19 @@ public enum Renderer {
         if tape.voice.subtitles {
             overlays = OverlayPlan.adding(subtitles: soundtrack.clips, to: overlays)
         }
+        let edit = try Edit.make(tape: tape, take: take, spoken: soundtrack.clips.map { $0.start ... $0.end })
+        let zoom = ZoomPlan.make(tape: tape, take: take)
+        zoom.notes.forEach(log)
+        let cut = Cut(edit: edit, zoom: zoom)
+        // How the take's time became the output's, next to the take: for anyone matching the two up.
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(edit).write(to: location.directory.appending(path: "edit.json"))
         var movie: URL?
         for output in tape.outputs where output.format != .gif {
-            try await render(location.movie, take: take, overlays: overlays, soundtrack: soundtrack, to: output)
+            try await render(
+                location.movie, take: take, overlays: overlays, soundtrack: soundtrack, cut: cut, to: output
+            )
             movie = movie ?? output.url
             log("wrote \(output.url.path)")
         }
@@ -28,7 +39,8 @@ public enum Renderer {
         let source = movie ?? location.directory.appending(path: "rendered.mov")
         if movie == nil {
             try await render(
-                location.movie, take: take, overlays: overlays, soundtrack: .none, to: Output(url: source, format: .mov)
+                location.movie, take: take, overlays: overlays, soundtrack: .none, cut: cut,
+                to: Output(url: source, format: .mov)
             )
         }
         for gif in gifs {
@@ -39,35 +51,64 @@ public enum Renderer {
         }
     }
 
-    /// The take, its narration mixed in with the app's sound ducked under it, and its overlays drawn over it.
+    /// How the take is edited: its time (`Hide`, `Speed`) and what part of the window shows (`Zoom`).
+    public struct Cut: Sendable {
+        public var edit: Edit?
+        public var zoom: ZoomPlan?
+
+        public init(edit: Edit? = nil, zoom: ZoomPlan? = nil) {
+            self.edit = edit
+            self.zoom = zoom
+        }
+    }
+
+    /// The take, with times in `overlays` and `soundtrack` those of the take: they are mapped through the cut here.
     public static func render(
-        _ movie: URL, take: Take, overlays: [Overlay], soundtrack: Soundtrack, to output: Output
+        _ movie: URL, take: Take, overlays: [Overlay], soundtrack: Soundtrack, cut: Cut = Cut(), to output: Output
     ) async throws {
         precondition(output.format != .gif, "a GIF is written from a rendered movie by GifWriter")
         let source = AVURLAsset(url: movie)
         let length = try await source.load(.duration)
-        let whole = CMTimeRange(start: .zero, duration: length)
+        let edit = cut.edit ?? .whole(length.seconds)
         let composition = AVMutableComposition()
         var mix: [AVMutableAudioMixInputParameters] = []
 
-        if let picture = try await source.loadTracks(withMediaType: .video).first,
-           let track = composition.addMutableTrack(
-               withMediaType: .video,
-               preferredTrackID: kCMPersistentTrackID_Invalid
-           )
-        {
-            try track.insertTimeRange(whole, of: picture, at: .zero)
+        // The kept stretches, one after another; a sped-up one is scaled where it lands and carries no app sound,
+        // which sped up is only noise.
+        let picture = try await source.loadTracks(withMediaType: .video).first
+        let sound = try await source.loadTracks(withMediaType: .audio).first
+        let videoTrack = picture.flatMap { _ in
+            composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid)
         }
-        if let sound = try await source.loadTracks(withMediaType: .audio).first,
-           let track = composition.addMutableTrack(
-               withMediaType: .audio,
-               preferredTrackID: kCMPersistentTrackID_Invalid
-           )
-        {
-            try track.insertTimeRange(whole, of: sound, at: .zero)
-            let app = AVMutableAudioMixInputParameters(track: track)
-            app.setVolume(Float(soundtrack.appVolume), at: .zero)
-            for ramp in soundtrack.appRamps {
+        let appTrack = sound.flatMap { _ in
+            composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)
+        }
+        var at = CMTime.zero
+        for segment in edit.segments {
+            let range = CMTimeRange(start: time(segment.start), end: CMTimeMinimum(time(segment.end), length))
+            guard range.duration > .zero else { continue }
+            if let picture { try videoTrack?.insertTimeRange(range, of: picture, at: at) }
+            if let sound {
+                if segment.rate == 1 {
+                    try appTrack?.insertTimeRange(range, of: sound, at: at)
+                } else {
+                    appTrack?.insertEmptyTimeRange(CMTimeRange(start: at, duration: range.duration))
+                }
+            }
+            var landed = range.duration
+            if segment.rate != 1 {
+                landed = time(range.duration.seconds / segment.rate)
+                composition.scaleTimeRange(CMTimeRange(start: at, duration: range.duration), toDuration: landed)
+            }
+            at = CMTimeAdd(at, landed)
+        }
+        let whole = CMTimeRange(start: .zero, duration: at)
+        let placed = soundtrack.mapped(through: edit)
+
+        if let appTrack {
+            let app = AVMutableAudioMixInputParameters(track: appTrack)
+            app.setVolume(Float(placed.appVolume), at: .zero)
+            for ramp in placed.appRamps {
                 app.setVolumeRamp(
                     fromStartVolume: Float(ramp.from), toEndVolume: Float(ramp.to),
                     timeRange: CMTimeRange(start: time(ramp.start), end: time(ramp.end))
@@ -75,13 +116,13 @@ public enum Renderer {
             }
             mix.append(app)
         }
-        if !soundtrack.clips.isEmpty,
+        if !placed.clips.isEmpty,
            let track = composition.addMutableTrack(
                withMediaType: .audio,
                preferredTrackID: kCMPersistentTrackID_Invalid
            )
         {
-            for clip in soundtrack.clips {
+            for clip in placed.clips {
                 var at = clip.start
                 for (piece, length) in zip(clip.pieces, clip.lengths) {
                     defer { at += length }
@@ -99,7 +140,7 @@ public enum Renderer {
                 }
             }
             let voice = AVMutableAudioMixInputParameters(track: track)
-            voice.setVolume(Float(soundtrack.voiceVolume), at: .zero)
+            voice.setVolume(Float(placed.voiceVolume), at: .zero)
             mix.append(voice)
         }
 
@@ -112,20 +153,32 @@ public enum Renderer {
             audioMix.inputParameters = mix
             session.audioMix = audioMix
         }
-        if !overlays.isEmpty {
-            let video = try await AVMutableVideoComposition.videoComposition(withPropertiesOf: composition)
-            // Capture is variable rate (a still window sends no frames); overlays animate at the tape's rate.
+        let zoomed = cut.zoom.map { !$0.states.isEmpty } ?? false
+        if let videoTrack, let picture, !overlays.isEmpty || zoomed {
+            let size = try await picture.load(.naturalSize)
+            let video = AVMutableVideoComposition()
+            video.renderSize = size
+            // Capture is variable rate (a still window sends no frames); overlays and zooms move at the tape's rate.
             video.frameDuration = CMTime(value: 1, timescale: CMTimeScale(take.frameRate))
-            let size = video.renderSize
-            let picture = CALayer()
-            picture.frame = CGRect(origin: .zero, size: size)
-            let parent = CALayer()
-            parent.frame = picture.frame
-            parent.addSublayer(picture)
-            for overlay in overlays {
-                parent.addSublayer(OverlayLayers.layer(for: overlay, in: size, scale: take.scale))
+            let instruction = AVMutableVideoCompositionInstruction()
+            instruction.timeRange = whole
+            let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTrack)
+            if let zoom = cut.zoom, zoomed { apply(zoom, to: layer, edit: edit, scale: take.scale) }
+            instruction.layerInstructions = [layer]
+            video.instructions = [instruction]
+            if !overlays.isEmpty {
+                let picture = CALayer()
+                picture.frame = CGRect(origin: .zero, size: size)
+                let parent = CALayer()
+                parent.frame = picture.frame
+                parent.addSublayer(picture)
+                for overlay in OverlayPlan.mapped(overlays, through: edit, zoom: cut.zoom) {
+                    parent.addSublayer(OverlayLayers.layer(for: overlay, in: size, scale: take.scale))
+                }
+                video.animationTool = AVVideoCompositionCoreAnimationTool(
+                    postProcessingAsVideoLayer: picture, in: parent
+                )
             }
-            video.animationTool = AVVideoCompositionCoreAnimationTool(postProcessingAsVideoLayer: picture, in: parent)
             session.videoComposition = video
         }
         try FileManager.default.createDirectory(
@@ -138,6 +191,39 @@ public enum Renderer {
         case .gif: preconditionFailure()
         }
         try await session.export(to: output.url, as: type)
+    }
+
+    /// The zoom as transform ramps, sampled 30 times a second of the take and placed in the output's time.
+    static func apply(
+        _ zoom: ZoomPlan,
+        to layer: AVMutableVideoCompositionLayerInstruction,
+        edit: Edit,
+        scale: Double
+    ) {
+        func transform(_ region: CGRect) -> CGAffineTransform {
+            let zoomed = zoom.window.width / region.width
+            return CGAffineTransform(
+                a: zoomed, b: 0, c: 0, d: zoomed, tx: -zoomed * region.minX * scale, ty: -zoomed * region.minY * scale
+            )
+        }
+        var last: (out: Double, region: CGRect)?
+        layer.setTransform(transform(zoom.region(at: 0)), at: .zero)
+        for segment in edit.segments {
+            let step = segment.rate / 30
+            var source = segment.start
+            while source <= segment.end {
+                let region = zoom.region(at: source)
+                let out = edit.map(source)
+                if let previous = last, out > previous.out, region != previous.region {
+                    layer.setTransformRamp(
+                        fromStart: transform(previous.region), toEnd: transform(region),
+                        timeRange: CMTimeRange(start: time(previous.out), end: time(out))
+                    )
+                }
+                last = (out, region)
+                source += step
+            }
+        }
     }
 
     private static func time(_ seconds: Double) -> CMTime {

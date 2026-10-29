@@ -83,7 +83,7 @@ struct Check: AsyncParsableCommand {
         if parsed.audio, !parsed.outputs.contains(where: \.format.hasSound) {
             say("note: audio is on but every Output is a GIF, which has no sound")
         }
-        let captions = parsed.steps.count - parsed.actions.count
+        let captions = parsed.steps.filter(\.command.isCaption).count
         say(
             "\(parsed.actions.count) action\(parsed.actions.count == 1 ? "" : "s"), \(captions) caption\(captions == 1 ? "" : "s")"
         )
