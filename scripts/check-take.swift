@@ -166,8 +166,9 @@ if let under = event(#"Say "The tone keeps playing under the voice.""#) {
     )
 }
 // Zoom, speed and trim.
-let zoomed = event("Zoom #list 2x")
-check(zoomed?.w != nil, "Zoom #list 2x found the list's frame while recording")
+// An element zoom's timeline names the element alone (its scale and easing are render's).
+let zoomed = event("Zoom #list")
+check(zoomed?.w != nil, "Zoom #list found the list's frame while recording")
 check((take.focus?.count ?? 0) >= 2, "the locked list was sampled after each step (\(take.focus?.count ?? 0) samples)")
 check((take.cursor?.count ?? 0) > take.durationMs / 50, "the cursor was sampled through the take (\(take.cursor?.count ?? 0))")
 let length = try await AVURLAsset(url: URL(fileURLWithPath: args[3])).load(.duration).seconds

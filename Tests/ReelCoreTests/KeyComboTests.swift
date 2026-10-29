@@ -36,3 +36,23 @@ struct KeyComboTests {
         #expect(Set(codes).count == codes.count)
     }
 }
+
+struct EasingTests {
+    @Test(arguments: Easing.allCases)
+    func everyCurveStartsAtTheStartAndEndsAtTheEnd(easing: Easing) {
+        #expect(easing(1) == 1)
+        #expect(easing == .snap || easing(0) == 0)
+        #expect(easing(-1) == easing(0) && easing(2) == 1, "clamped")
+    }
+
+    @Test func curvesHaveTheirShape() {
+        #expect(Easing.linear(0.25) == 0.25)
+        #expect(Easing.easeIn(0.5) == 0.125)
+        #expect(Easing.easeOut(0.5) == 0.875)
+        #expect(Easing.easeInOut(0.5) == 0.5)
+        #expect(Easing.easeInOut(0.25) == 0.0625)
+        #expect(abs(Easing.smooth(0.5) - 0.5) < 1e-9)
+        #expect(abs(Easing.smooth(0.25) - 0.1464466) < 1e-6)
+        #expect(Easing.snap(0.01) == 1)
+    }
+}

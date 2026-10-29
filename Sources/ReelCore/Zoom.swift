@@ -3,8 +3,6 @@ import CoreGraphics
 /// What part of the window shows at any moment, in points from its top left: the whole window, or a region of the
 /// window's shape zoomed in on, easing from one to the next.
 public struct ZoomPlan: Sendable {
-    /// How long a zoom takes to ease in or out.
-    static let ease = 0.4
     /// Room around a fitted element, as a share of its size.
     static let padding = 0.08
     /// The most a fitted element is zoomed; an explicit scale may go further.
@@ -14,7 +12,16 @@ public struct ZoomPlan: Sendable {
     /// The window, in points.
     public var window: CGSize
     /// Each zoom from when it starts: where it frames over time from then on.
-    var states: [(start: Double, frame: @Sendable (Double) -> CGRect)]
+    var states: [State]
+
+    struct State: Sendable {
+        var start: Double
+        var easing: Easing
+        /// Seconds the move into this state takes.
+        var duration: Double
+        var frame: @Sendable (Double) -> CGRect
+    }
+
     /// What render should say about the zooms: a fitted element that is nearly the window's size barely zooms.
     public var notes: [String] = []
 
@@ -31,22 +38,26 @@ public struct ZoomPlan: Sendable {
         for (step, at) in zip(tape.steps, anchors) {
             let event = step.command.isRenderOnly ? nil : take.events[safe: done]
             if !step.command.isRenderOnly { done += 1 }
-            guard case let .zoom(target, scale) = step.command else { continue }
+            guard case let .zoom(target, scale, transition) = step.command else { continue }
+            let (easing, duration) = (transition ?? Transition(easing: nil, duration: nil)).over(tape.zoomTransition)
+            func add(_ frame: @escaping @Sendable (Double) -> CGRect) {
+                plan.states.append(State(start: at, easing: easing, duration: duration, frame: frame))
+            }
             switch target {
             case .off:
-                plan.states.append((at, { _ in full }))
+                add { _ in full }
             case let .point(point):
                 let region = plan.region(around: point, scale: scale ?? defaultScale)
-                plan.states.append((at, { _ in region }))
+                add { _ in region }
             case .cursor:
                 let samples = take.cursor ?? []
                 let scale = scale ?? defaultScale
-                plan.states.append((at, { [plan] time in
+                add { [plan] time in
                     plan.region(
                         around: smoothed(samples, at: time) ?? CGPoint(x: full.midX, y: full.midY),
                         scale: scale
                     )
-                }))
+                }
             case .element:
                 guard let event, let x = event.x, let y = event.y else { continue }
                 let first = CGRect(x: x, y: y, width: event.w ?? 0, height: event.h ?? 0)
@@ -59,11 +70,11 @@ public struct ZoomPlan: Sendable {
                 // The element's frame as sampled after each step since, so the zoom follows it.
                 let track = [Take.Sample(ms: event.endMs, frame: first)]
                     + (take.focus ?? []).filter { $0.ms > event.endMs }
-                plan.states.append((at, { [plan] time in
+                add { [plan] time in
                     let frame = track.last(where: { Double($0.ms) / 1000 <= time })?.rect ?? first
                     return scale.map { plan.region(around: CGPoint(x: frame.midX, y: frame.midY), scale: $0) }
                         ?? plan.fit(frame)
-                }))
+                }
             }
         }
         return plan
@@ -75,11 +86,12 @@ public struct ZoomPlan: Sendable {
         guard let index = states.lastIndex(where: { $0.start <= time }) else { return full }
         let current = states[index]
         let target = current.frame(time)
-        let progress = (time - current.start) / Self.ease
+        guard current.duration > 0 else { return target }
+        let progress = (time - current.start) / current.duration
         guard progress < 1 else { return target }
         // From wherever the zoom before had got to when this one started.
         let before = index > 0 ? region(at: current.start - 1e-6) : full
-        let t = progress < 0.5 ? 4 * progress * progress * progress : 1 - pow(-2 * progress + 2, 3) / 2
+        let t = current.easing(progress)
         return CGRect(
             x: before.minX + (target.minX - before.minX) * t, y: before.minY + (target.minY - before.minY) * t,
             width: before.width + (target.width - before.width) * t,

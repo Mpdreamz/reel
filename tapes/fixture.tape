@@ -7,6 +7,7 @@ Set TypingSpeed 30ms
 Set Voice system
 Set Ducking 20%
 Set Subtitles on
+Set ZoomEasing smooth
 
 Launch ../build/ReelFixture.app
 
@@ -19,7 +20,7 @@ Say "This is the reel fixture."
 Say@over "Now click [play] Play, and a tone starts."
 Wait [play]
 Caption "Click Play and the tone starts"
-Zoom cursor 2x
+Zoom@ease-out,600ms cursor 2x
 Click "Play"
 Sleep 1s
 Zoom off
@@ -37,5 +38,5 @@ Caption off
 Zoom #list 2x
 Scroll down 10 #list
 Sleep 1s
-Zoom off
+Zoom@snap off
 Sleep 1s
