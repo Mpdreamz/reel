@@ -31,6 +31,9 @@ next, and recording starts at the first command after it. Durations are `500ms`,
 | Command | Meaning |
 | --- | --- |
 | `Output <path>` | A file to render: `.mp4`, `.mov` or `.gif` (no sound). Relative to the tape. At least one. |
+| `Output@<shape> <path>` | The recording framed on a canvas: an aspect (`@16:9`, `@1:1`, `@9:16`) or an exact size (`@1080x1080`). |
+| `Set Background <bg>` | Frame the recording on a backdrop in every output: `#rrggbb`, an image, or a video (looped, silent). |
+| `Set Padding <n%>` | Room around a framed recording, a share of the canvas's shorter side; default 6%, up to 30%. |
 | `Set FrameRate <n>` | Capture rate, 1–120, default 60. |
 | `Set Audio on\|off` | Record the app's sound, default on. |
 | `Set Size <w>x<h>` | The window's size in points, before recording. |
@@ -162,6 +165,19 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 - `mise run live-web` records `tapes/web.tape` against `tapes/web/fixture.html` twice, in WebKit and with `Set
   Browser chromium`: the page logs what happened and the tape waits for each entry, so a step that did not work stops
   the take.
+
+## Framing
+
+- **What it is.** An output with a shape (`Output@1:1 …`), or every output once `Set Background` is set, shows the
+  recording on a canvas: the recording centred with `Padding` around it, rounded corners (12 points, scaled) and a
+  soft shadow, over the background. Outputs without either are the bare recording, as before.
+- **Sizes.** An aspect gets the smallest canvas that holds the recording at its own size with the padding, at most
+  3840 pixels on its longer side (a 2560×1600 recording: 1:1 is 2908², 16:9 is 3232×1818, 9:16 is 2160×3840); an exact
+  size fits the recording in. Every size is even, as H.264 wants.
+- **How.** A pass after the demo is rendered (losslessly): a custom compositor (`FrameCompositor`) draws each frame
+  with Core Image. A video background is looped to the demo's length and adds no sound. An intro and an outro are
+  assembled around the framed demo, so they fill the whole canvas. A GIF is made from the movie Output with the same
+  framing, or a temporary one.
 
 ## Intro and outro
 

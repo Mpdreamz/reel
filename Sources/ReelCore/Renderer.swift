@@ -26,52 +26,79 @@ public enum Renderer {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(edit).write(to: location.directory.appending(path: "edit.json"))
-        var movie: URL?
-        // With an intro or an outro, the demo is rendered once, losslessly, and each output assembled from it.
+        // Each output's framing: none (the bare recording), or the recording on a canvas (Set Background, Output@…).
+        let recording = CGSize(width: take.width, height: take.height)
+        func framing(_ output: Output) -> Framing? {
+            guard output.shape != nil || tape.background != nil else { return nil }
+            return Framing.make(
+                recording: recording, scale: take.scale, shape: output.shape, padding: tape.padding,
+                background: tape.background ?? .standard
+            )
+        }
+        func key(_ output: Output) -> String {
+            framing(output) == nil ? "bare" : (output.shape?.description ?? "framed")
+        }
+        // With an intro, an outro or a framing, the demo is rendered once, losslessly, and outputs made from it.
         let sectioned = tape.intro != nil || tape.outro != nil
+        let staged = sectioned || tape.outputs.contains { framing($0) != nil }
         let demo = location.directory.appending(path: "demo.mov")
-        if sectioned {
+        if staged {
             try await render(
                 location.movie, take: take, overlays: overlays, soundtrack: soundtrack, cut: cut,
                 to: Output(url: demo, format: .mov), lossless: true
             )
         }
-        for output in tape.outputs where output.format != .gif {
-            if sectioned {
-                let arrangement = try await Assembler.assemble(
-                    main: demo, intro: tape.intro, outro: tape.outro, frameRate: take.frameRate,
-                    in: location.directory, to: output
-                )
-                // Where the demo sits in the finished movie, next to the take, for anyone matching the two up.
-                try JSONSerialization.data(
-                    withJSONObject: ["demoStart": arrangement.main.start, "duration": arrangement.duration],
-                    options: [.prettyPrinted, .sortedKeys]
-                ).write(to: location.directory.appending(path: "sections.json"))
-            } else {
+
+        /// A finished movie at `output`, framed as it asks, with the intro and outro around it.
+        func finish(_ output: Output) async throws {
+            let framed = framing(output)
+            guard staged, framed != nil || sectioned else {
                 try await render(
                     location.movie, take: take, overlays: overlays, soundtrack: soundtrack, cut: cut, to: output
                 )
+                return
             }
-            movie = movie ?? output.url
+            var main = demo
+            if let framed {
+                guard sectioned else {
+                    try await Framer.frame(demo, with: framed, frameRate: take.frameRate, to: output, lossless: false)
+                    return
+                }
+                // Framed losslessly first: the intro and outro then fill the whole canvas around it.
+                main = location.directory
+                    .appending(path: "framed-\(key(output).replacingOccurrences(of: ":", with: "x")).mov")
+                try await Framer.frame(
+                    demo, with: framed, frameRate: take.frameRate, to: Output(url: main, format: .mov), lossless: true
+                )
+            }
+            let arrangement = try await Assembler.assemble(
+                main: main, intro: tape.intro, outro: tape.outro, frameRate: take.frameRate,
+                in: location.directory, to: output
+            )
+            // Where the demo sits in the finished movie, next to the take, for anyone matching the two up.
+            try JSONSerialization.data(
+                withJSONObject: ["demoStart": arrangement.main.start, "duration": arrangement.duration],
+                options: [.prettyPrinted, .sortedKeys]
+            ).write(to: location.directory.appending(path: "sections.json"))
+        }
+
+        // A finished movie for each framing, for the GIFs of that framing.
+        var finished: [String: URL] = [:]
+        for output in tape.outputs where output.format != .gif {
+            try await finish(output)
+            finished[key(output)] = finished[key(output)] ?? output.url
             log("wrote \(output.url.path)")
         }
-        let gifs = tape.outputs.filter { $0.format == .gif }
-        guard !gifs.isEmpty else { return }
-        let source = movie ?? location.directory.appending(path: "rendered.mov")
-        if movie == nil {
-            if sectioned {
-                try await Assembler.assemble(
-                    main: demo, intro: tape.intro, outro: tape.outro, frameRate: take.frameRate,
-                    in: location.directory, to: Output(url: source, format: .mov)
-                )
+        for gif in tape.outputs where gif.format == .gif {
+            let source: URL
+            if let movie = finished[key(gif)] {
+                source = movie
             } else {
-                try await render(
-                    location.movie, take: take, overlays: overlays, soundtrack: .none, cut: cut,
-                    to: Output(url: source, format: .mov)
-                )
+                source = location.directory
+                    .appending(path: "gif-\(key(gif).replacingOccurrences(of: ":", with: "x")).mov")
+                try await finish(Output(url: source, format: .mov, shape: gif.shape))
+                finished[key(gif)] = source
             }
-        }
-        for gif in gifs {
             let result = try await GifWriter.write(
                 from: source, to: gif.url, frameRate: tape.gifFrameRate, width: tape.gifWidth
             )
