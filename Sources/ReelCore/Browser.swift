@@ -3,7 +3,7 @@ import Foundation
 
 /// A Chromium-based browser reel started for one take: an app window (no tabs, no address bar) on a fresh profile,
 /// driven over DevTools, its page sized to the tape's viewport. `close` quits it and removes the profile.
-final class Browser: @unchecked Sendable {
+public final class Browser: @unchecked Sendable {
     let process: Process
     let pid: pid_t
     /// The browser's bundle id: its helper processes, which play the page's sound, share it as a prefix.
@@ -12,33 +12,68 @@ final class Browser: @unchecked Sendable {
     private let browser: DevTools
     private let profile: URL
 
-    /// Where reel looks when the tape names no browser.
-    static let candidates = [
+    /// Where reel looks when the tape names no browser, in order, before Playwright's downloads.
+    public static let candidates = [
         "/Applications/Google Chrome.app", "/Applications/Chromium.app", "/Applications/Brave Browser.app",
         "/Applications/Microsoft Edge.app",
     ]
 
-    /// The tape's browser, else the first Chromium-based one installed, else Playwright's newest download.
+    /// A browser reel found, and where it found it.
+    public struct Located: Equatable, Sendable {
+        public enum Source: Equatable, Sendable {
+            /// `Set Browser`.
+            case chosen
+            /// One of `candidates`.
+            case installed
+            /// Playwright's download, by its build directory (`chromium-1234`).
+            case playwright(String)
+        }
+
+        public var app: URL
+        public var source: Source
+
+        /// The app's name and version, as its Info.plist has them.
+        public var description: String {
+            let info = Bundle(url: app)?.infoDictionary
+            let name = info?["CFBundleName"] as? String ?? app.deletingPathExtension().lastPathComponent
+            let version = (info?["CFBundleShortVersionString"] as? String).map { " \($0)" } ?? ""
+            let from = switch source {
+            case .chosen: "Set Browser"
+            case .installed: "installed"
+            case let .playwright(build): "Playwright's \(build)"
+            }
+            return "\(name)\(version) (\(from)) at \(app.path)"
+        }
+    }
+
+    /// The tape's browser, else the first Chromium-based one installed, else Playwright's newest download; nil when
+    /// there is none. `applications` and `home` are where to look, for tests.
+    public static func locate(
+        _ chosen: URL? = nil, applications: [String] = candidates,
+        home: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> Located? {
+        let files = FileManager.default
+        if let chosen { return files.fileExists(atPath: chosen.path) ? Located(app: chosen, source: .chosen) : nil }
+        if let found = applications.first(where: { files.fileExists(atPath: $0) }) {
+            return Located(app: URL(fileURLWithPath: found), source: .installed)
+        }
+        let cache = home.appending(path: "Library/Caches/ms-playwright")
+        // `chromium-<build>`, newest first; `chromium_headless_shell-…` has no window to record.
+        let builds = ((try? files.contentsOfDirectory(atPath: cache.path)) ?? [])
+            .filter { $0.hasPrefix("chromium-") && Int($0.dropFirst(9)) != nil }
+            .sorted { Int($0.dropFirst(9))! > Int($1.dropFirst(9))! }
+        for build in builds {
+            let apps = files.enumerator(
+                at: cache.appending(path: build), includingPropertiesForKeys: nil, options: [.skipsPackageDescendants]
+            )?.compactMap { $0 as? URL }.filter { $0.pathExtension == "app" } ?? []
+            if let app = apps.first { return Located(app: app, source: .playwright(build)) }
+        }
+        return nil
+    }
+
     static func find(_ chosen: URL?) throws -> URL {
-        if let chosen {
-            guard FileManager.default.fileExists(atPath: chosen.path)
-            else { throw ReelError("no browser at \(chosen.path)") }
-            return chosen
-        }
-        if let found = candidates.first(where: { FileManager.default.fileExists(atPath: $0) }) {
-            return URL(fileURLWithPath: found)
-        }
-        let cache = FileManager.default.homeDirectoryForCurrentUser.appending(path: "Library/Caches/ms-playwright")
-        let builds = (try? FileManager.default.contentsOfDirectory(atPath: cache.path))?
-            .filter { $0.hasPrefix("chromium-") }
-            .sorted { (Int($0.dropFirst(9)) ?? 0) < (Int($1.dropFirst(9)) ?? 0) } ?? []
-        for build in builds.reversed() {
-            let directory = cache.appending(path: build)
-            let apps = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil, options: [
-                .skipsPackageDescendants,
-            ])?.compactMap { $0 as? URL }.filter { $0.pathExtension == "app" } ?? []
-            if let app = apps.first { return app }
-        }
+        if let located = locate(chosen) { return located.app }
+        if let chosen { throw ReelError("no browser at \(chosen.path)") }
         throw ReelError(
             "no Chromium-based browser found (Chrome, Chromium, Brave, Edge or Playwright's); "
                 + "install one, or Set Browser /path/to/Browser.app"

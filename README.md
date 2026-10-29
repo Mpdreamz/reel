@@ -34,7 +34,7 @@ reel check demo.tape    # parse it and say what it would do
 reel demo.tape          # record, then render every Output
 reel record demo.tape   # only capture the take (.reel/demo/)
 reel render demo.tape   # only render the outputs from the last take
-reel doctor             # Screen Recording and Accessibility
+reel doctor             # Screen Recording, Accessibility, and the browser web tapes use
 ```
 
 Status: milestones 1 to 8 of [PLAN.md](PLAN.md): recording a window with its sound, driving the app with clicks,
