@@ -1,0 +1,35 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # Lint, the tests and a release build: what `mise run lint test` and `swift build -c release` do locally.
+  # Hosted runners grant no Screen Recording, so nothing here captures the screen: the writer and the render are
+  # tested on generated frames and sound.
+  build:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: ./.github/actions/setup
+
+      - name: Lint
+        run: mise run lint
+
+      - name: Test
+        timeout-minutes: 10
+        run: mise run test
+
+      - name: Release build
+        run: swift build -c release

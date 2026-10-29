@@ -1,0 +1,18 @@
+disabled_rules:
+  - identifier_name
+  - type_body_length
+  - file_length
+  - function_body_length
+  - cyclomatic_complexity
+  - nesting
+  - todo
+  - line_length
+  - function_parameter_count
+  - large_tuple
+  - trailing_comma
+  - opening_brace
+  - type_name
+  - optional_data_string_conversion
+excluded:
+  - build
+  - "**/.build"

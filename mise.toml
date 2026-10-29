@@ -1,0 +1,23 @@
+[tools]
+swiftformat = "0.58"
+swiftlint = "0.61"
+
+[tasks.build]
+description = "Debug build of the reel command"
+run = "swift build"
+
+[tasks.test]
+description = "Swift Testing suite"
+run = "swift test --quiet"
+
+[tasks.fmt]
+description = "Format Swift sources"
+run = "swiftformat Sources Tests Package.swift"
+
+[tasks.lint]
+description = "Check formatting and lint"
+run = ["swiftformat Sources Tests Package.swift --lint", "swiftlint lint --quiet Sources Tests"]
+
+[tasks.install]
+description = "Release build, copied to ~/.local/bin/reel"
+run = ["swift build -c release", "install -m 755 .build/release/reel ~/.local/bin/reel"]
