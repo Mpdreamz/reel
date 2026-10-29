@@ -6,14 +6,18 @@ Set TypingSpeed 30ms
 
 Launch ../build/ReelFixture.app
 
+Caption "reel drives the fixture"
 Wait "Play"
 Sleep 500ms
+Caption "Click Play and the tone starts"
 Click "Play"
 Sleep 1s
+Caption "Type, select all, type again"
 Click #name
 Type "hello reel"
 Key cmd+a
 Type "Musicbox"
 Key return
+Caption off
 Scroll down 10 #list
 Sleep 1s

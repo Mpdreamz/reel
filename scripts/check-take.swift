@@ -1,7 +1,7 @@
 // Checks the take scripts/live.sh records of the fixture app: the window has the tape's size, the sound is silent
 // until `Click "Play"` and a 440 Hz tone after it, and the fixture logged the click, the typing and the scroll.
 //
-// swift scripts/check-take.swift <take directory> <fixture-events.log>
+// swift scripts/check-take.swift <take directory> <fixture-events.log> <rendered output>
 import AVFoundation
 import Foundation
 
@@ -73,6 +73,9 @@ if let click {
     check(rms(after) > 0.05, String(format: "a tone after the click (rms %.3f)", rms(after)))
     check(abs(hertz(after) - 440) < 10, String(format: "at 440 Hz (%.0f)", hertz(after)))
 }
+let rendered = try await samples(of: URL(fileURLWithPath: args[3]))
+let tail = rendered.dropFirst(max(0, rendered.count - 48000))
+check(rms(tail) > 0.05 && abs(hertz(tail) - 440) < 10, "the rendered output keeps the tone, overlays and all")
 check(log.contains("play"), "the fixture logged the click on Play")
 check(log.contains("submit Musicbox"), "cmd+a replaced the typed text, and return submitted it")
 check(log.contains { $0.hasPrefix("scroll ") && Int($0.dropFirst(7)).map { $0 > 0 } == true }, "the list scrolled")

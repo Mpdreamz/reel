@@ -13,15 +13,17 @@ struct TakeWriterTests {
         let movie = dir.appending(path: "take.mov")
         try await writeTake(to: movie, seconds: 1, audio: true)
 
-        let take = AVURLAsset(url: movie)
-        let video = try #require(try await take.loadTracks(withMediaType: .video).first)
+        let asset = AVURLAsset(url: movie)
+        let video = try #require(try await asset.loadTracks(withMediaType: .video).first)
         #expect(try await video.load(.naturalSize) == CGSize(width: width, height: height))
-        #expect(try await !take.loadTracks(withMediaType: .audio).isEmpty)
-        #expect(try await abs(take.load(.duration).seconds - 1) < 0.1)
+        #expect(try await !asset.loadTracks(withMediaType: .audio).isEmpty)
+        #expect(try await abs(asset.load(.duration).seconds - 1) < 0.1)
 
         for format in Output.Format.allCases {
             let url = dir.appending(path: "demo.\(format.rawValue)")
-            try await Renderer.render(movie, to: Output(url: url, format: format))
+            try await Renderer.render(
+                movie, take: take(seconds: 1), overlays: [], to: Output(url: url, format: format)
+            )
             let rendered = AVURLAsset(url: url)
             #expect(try await !rendered.loadTracks(withMediaType: .video).isEmpty)
             #expect(try await abs(rendered.load(.duration).seconds - 1) < 0.1)
@@ -77,9 +79,16 @@ struct TakeWriterTests {
 
     // MARK: Generated media
 
+    private func take(seconds: Double, events: [Take.Event] = []) -> Take {
+        Take(
+            width: width, height: height, scale: 1, frameRate: fps, audio: false,
+            durationMs: Int(seconds * 1000), events: events
+        )
+    }
+
     /// Frames at `fps` that fade from black to white, and the sound as 100 ms chunks of a 440 Hz tone, interleaved
     /// the way capture delivers them.
-    private func writeTake(to url: URL, seconds: Double, audio: Bool) async throws {
+    func writeTake(to url: URL, seconds: Double, audio: Bool, shade fixed: UInt8? = nil) async throws {
         let writer = try TakeWriter(
             url: url, width: width, height: height, frameRate: fps, audio: audio, realTime: false
         )
@@ -89,7 +98,7 @@ struct TakeWriterTests {
             var sent = 0
             for i in 0 ..< frames {
                 let time = CMTime(value: CMTimeValue(i), timescale: CMTimeScale(fps))
-                writer.append(video: frame(at: time, shade: UInt8(i * 255 / max(1, frames - 1))))
+                writer.append(video: frame(at: time, shade: fixed ?? UInt8(i * 255 / max(1, frames - 1))))
                 while audio, Double(sent) / 48000 <= time.seconds, Double(sent) / 48000 < seconds {
                     writer.append(audio: tone(at: CMTime(value: CMTimeValue(sent), timescale: 48000), frames: chunk))
                     sent += chunk
@@ -188,7 +197,7 @@ struct TakeWriterTests {
         return count == 0 ? 0 : (sum / Double(count)).squareRoot()
     }
 
-    private func temporaryDirectory() throws -> URL {
+    func temporaryDirectory() throws -> URL {
         let url = FileManager.default.temporaryDirectory.appending(path: "reel-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url

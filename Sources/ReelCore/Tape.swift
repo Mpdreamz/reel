@@ -12,6 +12,10 @@ public struct Tape: Equatable, Sendable {
     public var typingSpeed: Duration
     /// How long `Wait` waits, and how long `Click` looks for its element.
     public var waitTimeout: Duration
+    /// Draw a badge for each `Key` step (render time).
+    public var keyBadges: Bool
+    /// Draw a ripple where each `Click` lands (render time).
+    public var clickRipples: Bool
     public var launch: LaunchTarget
     /// The commands after setup, in order. Recording starts before the first one.
     public var steps: [Step]
@@ -22,7 +26,17 @@ public struct Tape: Equatable, Sendable {
 
     /// Whether playing the tape needs Accessibility: anything that finds, moves or types into the app.
     public var drivesTheApp: Bool {
-        size != nil || steps.contains { if case .sleep = $0.command { false } else { true } }
+        size != nil || steps.contains {
+            switch $0.command {
+            case .sleep, .caption: false
+            default: true
+            }
+        }
+    }
+
+    /// The steps recording performs, in order: everything but captions. A take has one timeline event for each.
+    public var actions: [Step] {
+        steps.filter { !$0.command.isCaption }
     }
 }
 
@@ -56,6 +70,13 @@ public enum Command: Equatable, Sendable {
     case key(KeyCombo, count: Int)
     /// Over the target when there is one, else wherever the cursor is (in the window).
     case scroll(ScrollDirection, lines: Int, over: Target?)
+    /// Drawn at render time from the end of the action before it: until the next caption, for `duration`, or, with
+    /// nil text (`Caption off`), ends the one showing. Recording skips it, so captions change without a new take.
+    case caption(String?, duration: Duration?)
+
+    public var isCaption: Bool {
+        if case .caption = self { true } else { false }
+    }
 }
 
 /// An element of the app, as a tape names it.
@@ -111,6 +132,8 @@ public extension Tape {
         var size: CGSize?
         var typingSpeed: Duration?
         var waitTimeout: Duration?
+        var keyBadges: Bool?
+        var clickRipples: Bool?
         var launch: (target: LaunchTarget, line: Int)?
         var steps: [Step] = []
 
@@ -158,11 +181,11 @@ public extension Tape {
                     }
                     frameRate = rate
                 case "Audio":
-                    switch value {
-                    case "on": audio = true
-                    case "off": audio = false
-                    default: throw fail("Audio must be on or off, not '\(value)'")
-                    }
+                    audio = try onOff("Audio", value, fail: fail)
+                case "KeyBadges":
+                    keyBadges = try onOff("KeyBadges", value, fail: fail)
+                case "ClickRipples":
+                    clickRipples = try onOff("ClickRipples", value, fail: fail)
                 case "Size":
                     guard let parsed = parseSize(value) else {
                         throw fail("Size must be <width>x<height> in points, such as 1280x800, not '\(value)'")
@@ -174,7 +197,8 @@ public extension Tape {
                     waitTimeout = try duration(value, fail: fail)
                 default:
                     throw fail(
-                        "unknown setting '\(words[0])'; expected FrameRate, Audio, Size, TypingSpeed or WaitTimeout"
+                        "unknown setting '\(words[0])'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, "
+                            + "KeyBadges or ClickRipples"
                     )
                 }
 
@@ -231,8 +255,22 @@ public extension Tape {
                 guard rest.count <= 1 else { throw fail(usage) }
                 try step(.scroll(direction, lines: lines, over: rest.first.map { try target($0, fail: fail) }))
 
+            case "Caption":
+                // `Caption "text" [duration]`, or `Caption off`; a quoted "off" is text.
+                guard (1 ... 2).contains(args.count)
+                else { throw fail("expected Caption \"<text>\" [duration] or Caption off") }
+                if !args[0].quoted, args[0].text == "off" {
+                    guard args.count == 1 else { throw fail("Caption off takes no duration") }
+                    step(.caption(nil, duration: nil))
+                } else {
+                    try step(.caption(
+                        args[0].text,
+                        duration: args.dropFirst().first.map { try duration($0.text, fail: fail) }
+                    ))
+                }
+
             default:
-                let known = ["Output", "Set", "Launch", "Sleep", "Click", "Wait", "Type", "Key", "Scroll"]
+                let known = ["Output", "Set", "Launch", "Sleep", "Click", "Wait", "Type", "Key", "Scroll", "Caption"]
                 let hint = known.first { $0.lowercased() == name.lowercased() }.map { "; did you mean \($0)?" }
                 throw fail("unknown command '\(name)'" + (hint ?? "; expected one of \(known.joined(separator: ", "))"))
             }
@@ -247,6 +285,8 @@ public extension Tape {
             size: size,
             typingSpeed: typingSpeed ?? defaultTypingSpeed,
             waitTimeout: waitTimeout ?? defaultWaitTimeout,
+            keyBadges: keyBadges ?? true,
+            clickRipples: clickRipples ?? true,
             launch: launch.target,
             steps: steps
         )
@@ -269,6 +309,14 @@ private func duration(_ text: String, fail: (String) -> TapeError) throws -> Dur
         throw fail("'\(text)' is not a duration; write 500ms, 2s, 1.5s or a number of seconds")
     }
     return duration
+}
+
+private func onOff(_ setting: String, _ value: String, fail: (String) -> TapeError) throws -> Bool {
+    switch value {
+    case "on": return true
+    case "off": return false
+    default: throw fail("\(setting) must be on or off, not '\(value)'")
+    }
 }
 
 private func count(_ text: String?, fail: (String) -> TapeError) throws -> Int {
