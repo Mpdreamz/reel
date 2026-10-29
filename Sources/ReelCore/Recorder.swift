@@ -169,10 +169,13 @@ public enum Recorder {
         // Only a tape that drives the app needs Accessibility; one that only sleeps records without it.
         var driver: Driver?
         if tape.drivesTheApp {
-            let found = try Driver(pid: pid, windowFrame: window.frame, tape: tape)
+            let found = try await accessibleDriver(pid: pid, window: window, tape: tape)
             found.activate()
             if let size = tape.size {
                 try found.resize(to: size)
+                // Centred on its display, below the menu bar: grown where it stood, a window can reach past the
+                // display's edge, and what is past it records black. The same place every take, too.
+                try found.move(to: centred(size, on: display.frame))
                 try await Task.sleep(for: settle)
                 (window, display, content) = try await firstWindow(of: pid, id: window.windowID)
                 let actual = window.frame.size
@@ -190,6 +193,35 @@ public enum Recorder {
             window: window, display: display, content: content, crop: CGRect(origin: .zero, size: window.frame.size),
             driver: driver, owns: { $0.processID == pid }
         )
+    }
+
+    /// Where a window of `size` sits centred on `display` (global points, top left), below the menu bar.
+    static func centred(_ size: CGSize, on display: CGRect) -> CGPoint {
+        let menuBar = 40.0
+        let x = display.minX + max(0, (display.width - size.width) / 2)
+        let y = display.minY + max(menuBar, (display.height - size.height) / 2)
+        return CGPoint(x: x.rounded(), y: y.rounded())
+    }
+
+    /// How long an app has, once its window is on screen, to show that window to Accessibility.
+    static let accessibilityTimeout: Duration = .seconds(10)
+
+    /// The driver for the app's window, once Accessibility sees it: an app's accessibility tree can come a moment
+    /// after its window is on screen (a SwiftUI app builds it as it settles).
+    private static func accessibleDriver(pid: pid_t, window: SCWindow, tape: Tape) async throws -> Driver {
+        let deadline = ContinuousClock.now + accessibilityTimeout
+        while true {
+            do {
+                return try Driver(pid: pid, windowFrame: window.frame, tape: tape)
+            } catch {
+                if ContinuousClock.now > deadline {
+                    throw ReelError(
+                        "the app's window did not show itself to Accessibility within \(accessibilityTimeout)"
+                    )
+                }
+                try await Task.sleep(for: .milliseconds(200))
+            }
+        }
     }
 
     /// A web page: in WebKit unless the tape chose a Chromium-based browser, which it then has to have. Only the page
