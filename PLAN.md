@@ -14,6 +14,8 @@
    app's sound ducked under them (see "Narration").
 6. **Zoom, speed and trim.** `Zoom` on an element (locked and followed), a point or the cursor; `Speed` up
    stretches, narration kept at its pace; `Hide` … `Show` cuts (see "Zoom, speed and trim").
+7. **Intro and outro.** Title cards before and after the demo, over a colour, an image or a video (its sound kept),
+   with transitions into and out of the demo (see "Intro and outro").
 
 ## The tape
 
@@ -53,6 +55,10 @@ after them. Durations are `500ms`, `2s`, `1.5s`, `1m` or a bare number of second
 | `Zoom @x,y [scale]`, `Zoom cursor [scale]` | Zoom on a point, or follow the cursor; default 2×. |
 | `Zoom off` | Back to the whole window. |
 | `Zoom@<easing>,<duration> …` | Any zoom with its own move: `Zoom@ease-out #list`, `Zoom@600ms off`, `Zoom@smooth,1s cursor`. |
+| `Intro "<title>" ["<subtitle>"] [duration]` | A title card before the demo; 3 s, or a background video's own length. |
+| `Outro "<title>" ["<subtitle>"] [duration]` | One after it. |
+| `Intro@<kind>,<easing>,<duration> …` | How the intro moves into the demo (an outro: how the demo moves into it): `crossfade` (default, 600ms), `fade` (through black), `slide-left`/`-right`/`-up`/`-down`, `zoom`, `wipe-left`/`-right`/`-up`/`-down`, `cut`; any easing. |
+| `Set IntroBackground <bg>`, `Set OutroBackground <bg>` | `#rrggbb`, an image (`.png`, `.jpg`, `.heic`) or a video (`.mov`, `.mp4`), whose sound plays with it; default a near-black. |
 | `Set ZoomEasing <easing>`, `Set ZoomDuration <duration>` | How zooms move when they say nothing: `linear`, `ease-in`, `ease-out`, `ease-in-out` (default), `smooth` or `snap`; 400ms by default. |
 | `Speed <rate>x` … `Speed off` | Play the stretch faster (above 1× to 16×); narrated lines keep their own pace, the app's sound is left out. |
 | `Hide` … `Show` | Leave the stretch out of the render; a `Hide` with no `Show` runs to the end. |
@@ -120,6 +126,20 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 - **Time.** The edit (`.reel/<tape>/edit.json`) lists what is kept of the take and how fast; everything timed
   (overlays, narration, ducking, zoom) is mapped through it. A sped-up stretch carries no app sound; narration is
   never sped up, and a `Hide` that would cut a narrated line is refused.
+
+## Intro and outro
+
+- **A second pass.** With an intro or an outro, the demo is rendered once, losslessly (ProRes and PCM), to
+  `.reel/<tape>/demo.mov`, and each output is assembled from it: the intro, the demo and the outro on one timeline,
+  each on its own track. A colour or image background becomes a still clip of the section's length; a video fills the
+  frame (cropped evenly) and keeps its sound. `sections.json` says where the demo starts in the finished movie.
+- **Transitions are one function.** For each moment of a transition, `Look.of` gives each section's opacity, offset,
+  scale and crop; the assembler samples it 30 times a second into the video's opacity, transform and crop ramps, and
+  into keyframes for the titles, so a title moves (or is wiped) with its section. The intro and the outro are drawn
+  over the demo: crossfades, zooms and wipes work on them and reveal the demo beneath; slides push both. A fade goes
+  through black across the cut, half on either side; the others overlap the two sections for their length. Sounds
+  cross the same way (through silence for a fade).
+- **Render-time only**, like captions: a changed title, background or transition needs no new take.
 
 ## GIFs
 

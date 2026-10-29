@@ -84,8 +84,6 @@ if let click {
     check(abs(hertz(after) - 440) < 10, String(format: "at 440 Hz (%.0f)", hertz(after)))
 }
 let rendered = try await samples(of: URL(fileURLWithPath: args[3]))
-let tail = rendered.dropFirst(max(0, rendered.count - 48000))
-check(rms(tail) > 0.05 && abs(hertz(tail) - 440) < 10, "the rendered output keeps the tone, overlays and all")
 if let gif = CGImageSourceCreateWithURL(URL(fileURLWithPath: args[4]) as CFURL, nil),
    let first = CGImageSourceCreateImageAtIndex(gif, 0, nil)
 {
@@ -134,10 +132,14 @@ struct Edit: Decodable {
 }
 
 let edit = try JSONDecoder().decode(Edit.self, from: Data(contentsOf: dir.appending(path: "edit.json")))
+// Where the demo starts in the finished movie: after the intro, less its transition.
+let sections = (try? JSONSerialization.jsonObject(with: Data(contentsOf: dir.appending(path: "sections.json"))))
+    as? [String: Double]
+let demoStart = Int(((sections?["demoStart"] ?? 0) * 1000).rounded())
 
 /// The rendered sound between two moments of the take.
 func window(_ from: Int, _ to: Int) -> ArraySlice<Float> {
-    let start = edit.map(from) * 48, end = edit.map(to) * 48
+    let start = (demoStart + edit.map(from)) * 48, end = (demoStart + edit.map(to)) * 48
     return rendered[min(rendered.count, max(0, start)) ..< min(rendered.count, max(start, end))]
 }
 
@@ -149,6 +151,38 @@ func level(_ samples: ArraySlice<Float>, _ hertz: Double) -> Double {
     }
     return samples.isEmpty ? 0 : 2 * (s1 * s1 + s2 * s2 - k * s1 * s2).squareRoot() / Double(samples.count)
 }
+
+// The demo's own length, before the intro and the outro are put around it.
+let edited = edit.segments.reduce(0.0) { $0 + ($1.end - $1.start) / $1.rate }
+let taken = Double(take.durationMs) / 1000
+check(edited < taken - 1.2, String(format: "Hide and Speed shortened the demo (%.2f s of a %.2f s take)", edited, taken))
+
+let tail = window(take.durationMs - 1500, take.durationMs - 700)
+check(rms(tail) > 0.05 && abs(hertz(tail) - 440) < 10, "the rendered demo keeps the tone, overlays and all")
+
+// The intro and the outro: their backgrounds at the movie's corners, before and after the demo.
+func corner(at seconds: Double) async throws -> (Int, Int, Int) {
+    let generator = AVAssetImageGenerator(asset: AVURLAsset(url: URL(fileURLWithPath: args[3])))
+    generator.requestedTimeToleranceBefore = .zero
+    generator.requestedTimeToleranceAfter = .zero
+    let (image, _) = try await generator.image(at: CMTime(seconds: seconds, preferredTimescale: 600))
+    var pixel = [UInt8](repeating: 0, count: 4)
+    let context = CGContext(
+        data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+        space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+    )!
+    context.draw(image.cropping(to: CGRect(x: 8, y: 8, width: 1, height: 1))!, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+    return (Int(pixel[0]), Int(pixel[1]), Int(pixel[2]))
+}
+
+let movieLength = try await AVURLAsset(url: URL(fileURLWithPath: args[3])).load(.duration).seconds
+let opening = try await corner(at: 0.8)
+let closing = try await corner(at: movieLength - 0.3)
+check(demoStart > 1000, "the demo starts after the intro (\(demoStart) ms in)")
+check(opening.0 < 40 && opening.1 < 40 && opening.2 < 40, "the intro shows its dark background \(opening)")
+// #1d2b3a: 29, 43, 58.
+check(abs(closing.0 - 29) < 14 && abs(closing.1 - 43) < 14 && abs(closing.2 - 58) < 14,
+      "the outro shows its navy background \(closing)")
 
 if let intro = event(#"Say "This is the reel fixture.""#) {
     let speech = rms(window(intro.startMs, intro.endMs))
@@ -171,9 +205,7 @@ let zoomed = event("Zoom #list")
 check(zoomed?.w != nil, "Zoom #list found the list's frame while recording")
 check((take.focus?.count ?? 0) >= 2, "the locked list was sampled after each step (\(take.focus?.count ?? 0) samples)")
 check((take.cursor?.count ?? 0) > take.durationMs / 50, "the cursor was sampled through the take (\(take.cursor?.count ?? 0))")
-let length = try await AVURLAsset(url: URL(fileURLWithPath: args[3])).load(.duration).seconds
-let taken = Double(take.durationMs) / 1000
-check(length < taken - 1.2, String(format: "Hide and Speed shortened the movie (%.2f s of a %.2f s take)", length, taken))
+
 check(log.contains("play"), "the fixture logged the click on Play")
 check(log.contains("submit Musicbox"), "cmd+a replaced the typed text, and return submitted it")
 check(log.contains { $0.hasPrefix("scroll ") && Int($0.dropFirst(7)).map { $0 > 0 } == true }, "the list scrolled")

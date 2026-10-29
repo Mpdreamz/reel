@@ -24,6 +24,9 @@ public struct Tape: Equatable, Sendable {
     public var voice: VoiceSettings
     /// How a `Zoom` moves when it gives none of its own (`Zoom@ease-out`).
     public var zoomTransition: Transition
+    /// A title card before the demo and one after it, each moving into the next with its own transition.
+    public var intro: Section?
+    public var outro: Section?
     public var launch: LaunchTarget
     /// The commands after setup, in order. Recording starts before the first one.
     public var steps: [Step]
@@ -195,6 +198,8 @@ public extension Tape {
         var markers: [String: (line: Int, over: Bool)] = [:]
         var hidden = false
         var zoomTransition = Transition.standard
+        var intro: Section?, outro: Section?
+        var introBackground: Background?, outroBackground: Background?
         var launch: (target: LaunchTarget, line: Int)?
         var steps: [Step] = []
 
@@ -215,9 +220,31 @@ public extension Tape {
             }
             // `Type@20ms`: a command may carry an option after `@`; only Type takes one.
             let (name, option) = first.quoted ? (first.text, nil) : split(first.text)
-            if option != nil, !["Type", "Say", "Zoom"].contains(name) { throw fail("\(name) takes no @option") }
+            if option != nil, !["Type", "Say", "Zoom", "Intro", "Outro"].contains(name) {
+                throw fail("\(name) takes no @option")
+            }
 
             switch name {
+            case "Intro", "Outro":
+                try setup(name)
+                let usage = "expected \(name) \"<title>\" [\"<subtitle>\"] [duration]"
+                guard (1 ... 3).contains(args.count), args[0].quoted else { throw fail(usage) }
+                var rest = args.dropFirst()
+                let subtitle = rest.first?.quoted == true ? rest.popFirst()?.text : nil
+                let length = try rest.popFirst().map { try duration($0.text, fail: fail) }
+                guard rest.isEmpty else { throw fail(usage) }
+                let section = try Section(
+                    title: args[0].text, subtitle: subtitle, duration: length,
+                    transition: option.map { try SectionTransition($0, fail: fail) } ?? .standard
+                )
+                if name == "Intro" {
+                    guard intro == nil else { throw fail("a tape has one Intro") }
+                    intro = section
+                } else {
+                    guard outro == nil else { throw fail("a tape has one Outro") }
+                    outro = section
+                }
+
             case "Output":
                 try setup(name)
                 let path = try single(words, usage: "Output <path>", fail: fail)
@@ -286,6 +313,10 @@ public extension Tape {
                     voice.voiceVolume = try percent("VoiceVolume", value, fail: fail)
                 case "AppVolume":
                     voice.appVolume = try percent("AppVolume", value, fail: fail)
+                case "IntroBackground":
+                    introBackground = try Background(value, relativeTo: directory, fail: fail)
+                case "OutroBackground":
+                    outroBackground = try Background(value, relativeTo: directory, fail: fail)
                 case "ZoomEasing":
                     guard let easing = Easing(rawValue: value) else { throw fail(Easing.problem(value)) }
                     zoomTransition.easing = easing
@@ -301,7 +332,8 @@ public extension Tape {
                     throw fail(
                         "unknown setting '\(words[0])'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, "
                             + "KeyBadges, ClickRipples, GifFrameRate, GifWidth, Voice, VoiceServer, VoiceSeed, "
-                            + "VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing or ZoomDuration"
+                            + "VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, "
+                            + "IntroBackground or OutroBackground"
                     )
                 }
 
@@ -446,7 +478,7 @@ public extension Tape {
             default:
                 let known = [
                     "Output", "Set", "Launch", "Sleep", "Click", "Wait", "Type", "Key", "Scroll", "Caption", "Say",
-                    "Zoom", "Speed", "Hide", "Show",
+                    "Zoom", "Speed", "Hide", "Show", "Intro", "Outro",
                 ]
                 let hint = known.first { $0.lowercased() == name.lowercased() }.map { "; did you mean \($0)?" }
                 throw fail("unknown command '\(name)'" + (hint ?? "; expected one of \(known.joined(separator: ", "))"))
@@ -468,6 +500,16 @@ public extension Tape {
             gifWidth: gifWidth ?? defaultGifWidth,
             voice: voice,
             zoomTransition: zoomTransition,
+            intro: intro.map { section in
+                var section = section
+                section.background = introBackground ?? section.background
+                return section
+            },
+            outro: outro.map { section in
+                var section = section
+                section.background = outroBackground ?? section.background
+                return section
+            },
             launch: launch.target,
             steps: steps
         )
@@ -558,7 +600,7 @@ private func single(_ args: [String], usage: String, fail: (String) -> TapeError
     return args[0]
 }
 
-private func resolve(_ path: String, against directory: URL) -> URL {
+func resolve(_ path: String, against directory: URL) -> URL {
     let expanded = (path as NSString).expandingTildeInPath
     // Appended rather than `relativeTo:`, which resolves against the parent of a directory URL without a slash.
     let url = expanded.hasPrefix("/") ? URL(fileURLWithPath: expanded) : directory.appending(path: expanded)

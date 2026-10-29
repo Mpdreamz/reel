@@ -336,7 +336,7 @@ struct CutRenderTests {
     /// Four quadrants, red, green, blue and white, from the top left.
     private func writeQuadrants(to url: URL, seconds: Double) async throws {
         let writer = try TakeWriter(url: url, width: 320, height: 200, frameRate: 30, audio: false, realTime: false)
-        await writer.onQueue {
+        await writer.perform {
             for i in 0 ..< Int(seconds * 30) {
                 writer.append(video: quadrantFrame(at: CMTime(value: CMTimeValue(i), timescale: 30)))
             }
