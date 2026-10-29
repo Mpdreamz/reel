@@ -5,7 +5,7 @@ import Foundation
 import Testing
 
 private func tape(_ body: String) throws -> Tape {
-    try Tape.parse("Output a.mp4\nLaunch x\n" + body, relativeTo: URL(fileURLWithPath: "/tmp"))
+    try Tape.parse("Launch x\nOutput a.mp4\n" + body, relativeTo: URL(fileURLWithPath: "/tmp"))
 }
 
 /// A take of `tape`'s actions, each a second long, back to back from 0.

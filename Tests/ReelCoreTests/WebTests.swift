@@ -14,10 +14,10 @@ private func tape(_ text: String) throws -> Tape {
 struct WebParsingTests {
     @Test func aWebTape() throws {
         let parsed = try tape("""
+        Open https://example.com/start
         Output a.mp4
         Set Browser "/Applications/Brave Browser.app"
         Set Viewport 1000x700
-        Open https://example.com/start
         Click "Sign in"
         Click css:form .submit
         Wait #email
@@ -32,37 +32,37 @@ struct WebParsingTests {
         ])
         // A web tape needs no Accessibility: input goes to the page.
         #expect(parsed.launch.isWeb)
-        #expect(try tape("Output a.mp4\nOpen file:///tmp/a.html").web == WebSettings())
+        #expect(try tape("Open file:///tmp/a.html\nOutput a.mp4").web == WebSettings())
     }
 
     @Test(arguments: [
         (
-            "Output a.mp4\nOpen example.com",
-            2,
+            "Open example.com\nOutput a.mp4",
+            1,
             "'example.com' is not a web address; write https://…, http://…, file://… or a path to an .html file"
         ),
+        ("Launch x\nOpen https://a.dev\nOutput a.mp4", 2, "Open goes to a web page; this tape Launches an app"),
         (
-            "Output a.mp4\nLaunch x\nOpen https://a.dev",
+            "Open https://a.dev\nOutput a.mp4\nLaunch x",
             3,
-            "Open after the tape has started goes to another page, which needs a web tape"
+            "a web tape Opens pages; line 1 already does, so there is no app to Launch"
         ),
+        ("Launch x\nOutput a.mp4\nClick css:.buy", 3, "css: targets are for web pages; Open one instead of Launch"),
         (
-            "Output a.mp4\nOpen https://a.dev\nLaunch x",
-            3,
-            "a tape launches one app or opens one page; line 2 already does"
-        ),
-        ("Output a.mp4\nLaunch x\nClick css:.buy", 3, "css: targets are for web pages; Open one instead of Launch"),
-        (
-            "Output a.mp4\nSet Browser Chrome\nOpen https://a.dev",
+            "Open https://a.dev\nSet Browser Chrome",
             2,
             "Browser is webkit, chromium or a Chromium-based .app such as /Applications/Brave Browser.app, not 'Chrome'"
         ),
         (
-            "Output a.mp4\nSet Viewport big\nOpen https://a.dev",
+            "Open https://a.dev\nSet Viewport big",
             2,
             "Viewport must be <width>x<height> in points, such as 1280x800, not 'big'"
         ),
-        ("Output a.mp4\nOpen https://a.dev\nClick css:", 3, "css: needs a selector after it, such as css:.pricing"),
+        ("Open https://a.dev\nOutput a.mp4\nClick css:", 3, "css: needs a selector after it, such as css:.pricing"),
+        // A setting that does not fit what the tape records is refused, not ignored.
+        ("Launch x\nSet Viewport 800x600", 2, "Set Viewport is for web pages (Open); this tape Launches an app"),
+        ("Launch x\nSet Browser chromium", 2, "Set Browser is for web pages (Open); this tape Launches an app"),
+        ("Open https://a.dev\nSet Size 800x600", 2, "Set Size is an app's window; a web page's size is Set Viewport"),
     ])
     func errors(text: String, line: Int, message: String) {
         #expect(throws: TapeError(line: line, message: message)) { try tape(text) }
@@ -96,10 +96,25 @@ struct WebDriverTests {
         #expect(try WebDriver.commands[#require(KeyCombo("cmd+shift+z")).description] == "redo")
     }
 
+    @Test func aSelectorWithSpacesIsQuotedAfterTheColon() throws {
+        let parsed =
+            try tape(
+                #"Open https://a.dev\#nOutput a.mp4\#nClick css:"form button[type=submit]"\#nClick "css:not a selector""#
+            )
+        #expect(parsed.steps.map(\.command) == [
+            .click(.css("form button[type=submit]")), .click(.label("css:not a selector")),
+        ])
+        #expect(parsed.steps[0].source == #"Click css:"form button[type=submit]""#)
+        // Unquoted, the space splits it: two words where Click takes one.
+        #expect(throws: TapeError(line: 3, message: "expected Click \"<label>\", Click #<identifier> or Click @x,y")) {
+            try tape("Open https://a.dev\nOutput a.mp4\nClick css:form button")
+        }
+    }
+
     @Test func webKitIsTheDefaultAndAChoiceIsKeptOrRefused() throws {
-        #expect(try tape("Output a.mp4\nOpen https://a.dev").web.browser == .webkit)
-        #expect(try tape("Output a.mp4\nSet Browser chromium\nOpen https://a.dev").web.browser == .chromium)
-        #expect(try tape("Output a.mp4\nSet Browser webkit\nOpen https://a.dev").web.browser == .webkit)
+        #expect(try tape("Open https://a.dev\nOutput a.mp4").web.browser == .webkit)
+        #expect(try tape("Open https://a.dev\nOutput a.mp4\nSet Browser chromium").web.browser == .chromium)
+        #expect(try tape("Open https://a.dev\nOutput a.mp4\nSet Browser webkit").web.browser == .webkit)
 
         let found = URL(fileURLWithPath: "/Applications/Chromium.app")
         #expect(try BrowserChoice.webkit.resolve(locate: { found }) == .webkit, "WebKit even when Chromium is there")

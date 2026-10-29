@@ -5,7 +5,7 @@ import Foundation
 import Testing
 
 private func tape(_ body: String) throws -> Tape {
-    try Tape.parse("Output a.mp4\n" + body + "\nLaunch x", relativeTo: URL(fileURLWithPath: "/tmp/demos"))
+    try Tape.parse("Launch x\nOutput a.mp4\n" + body, relativeTo: URL(fileURLWithPath: "/tmp/demos"))
 }
 
 struct SectionParsingTests {
@@ -49,7 +49,7 @@ struct SectionParsingTests {
         ),
     ])
     func errors(body: String, message: String) {
-        let line = 1 + body.split(separator: "\n").count
+        let line = 2 + body.split(separator: "\n").count
         #expect(throws: TapeError(line: line, message: message)) { try tape(body) }
     }
 }

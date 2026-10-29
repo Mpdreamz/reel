@@ -5,6 +5,8 @@ of terminals, and with the app's sound.
 
 ```
 # demo.tape
+Launch com.example.musicbox
+
 Output demo.mp4
 Output demo.gif
 Set Size 1280x800
@@ -14,7 +16,6 @@ Intro@slide-up,ease-out "Musicbox" "A music player for your Mac"
 Outro@fade "Get it" "brew install --cask musicbox"
 Set IntroBackground media/intro.mov   # or #1d2b3a, or an image; a video keeps its sound
 
-Launch com.example.musicbox
 Hide
 Wait "Library"
 Show
@@ -49,13 +50,14 @@ While a tape plays it takes the mouse and keyboard; it stops rather than type in
 A web page instead of an app (macOS; WebKit by default, or `Set Browser chromium`; your mouse stays yours):
 
 ```
+Open https://example.com
 Output signup.mp4
 Set Viewport 1280x800
-Open https://example.com
+
 Click "Sign up"
 Click "Email"
 Type "me@example.com"
-Click css:form button[type=submit]
+Click css:"form button[type=submit]"
 Wait "Welcome"
 ```
 

@@ -23,8 +23,10 @@
 ## The tape
 
 One command per line. `#` starts a comment at the start of a line or followed by a space (`#play` after a command
-is an identifier). Setup commands (`Output`, `Set`, `Launch`) come first, and recording starts at the first command
-after them. Durations are `500ms`, `2s`, `1.5s`, `1m` or a bare number of seconds.
+is an identifier). A tape starts with `Launch <app>` or `Open <url>`, which says what it records; the rest is read
+knowing it, so a setting for the other kind (`Set Viewport` in an app tape, `Set Size` in a web tape, a `css:`
+target in an app tape) is refused at its line rather than ignored. Setup (`Output`, `Set`, `Intro`, `Outro`) comes
+next, and recording starts at the first command after it. Durations are `500ms`, `2s`, `1.5s`, `1m` or a bare number of seconds.
 
 | Command | Meaning |
 | --- | --- |
@@ -142,7 +144,7 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 - **One driver, two pages.** The web driver finds elements with the same JavaScript in both and keeps the drawn
   cursor's path; a `Page` does the input. Elements: `"Label"` matches an element's accessible name, placeholder,
   title, alt, button value or text exactly, controls before other elements, then the smallest; `#id` an id or
-  `data-testid`; `css:<selector>` the first visible match. A click scrolls its element into the middle first.
+  `data-testid`; `css:<selector>` the first visible match (quoted after the colon when it has spaces: `css:"form button"`). A click scrolls its element into the middle first.
 - **WebKit** is a `WKWebView` in a window of reel's own (reel shows a Dock icon while it is up). Clicks and keys are
   AppKit events sent straight to the view, which the page sees as trusted. macOS editing shortcuts are the view's own
   actions (selectAll:, copy:, …). Its gaps, because WebKit takes mouse moves and wheel events only while its app is
