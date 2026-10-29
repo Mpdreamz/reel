@@ -1,9 +1,28 @@
 import CoreGraphics
 import Foundation
 
-/// Plays a tape's steps against a web page over DevTools. Input goes to the page, not the screen: the tape takes
-/// neither the mouse nor the keyboard. The real cursor never moves, so the driver keeps a cursor of its own, glides
-/// it as the native driver does, and keeps its path for render to draw.
+/// A web page reel drives: in WebKit, a view in a window of reel's own, or in a Chromium-based browser over DevTools.
+/// Points are the page's, from its top left.
+protocol Page: AnyObject {
+    /// Evaluates JavaScript that returns numbers (an element's box), or nil when it returns null.
+    func numbers(_ script: String) async throws -> [Double]?
+    func mouse(_ action: MouseAction, at point: CGPoint) async throws
+    func wheel(dx: Double, dy: Double, at point: CGPoint) async throws
+    /// Types one character as a key press.
+    func type(_ text: String) async throws
+    /// Presses and releases a key with its modifiers; an editing shortcut (`WebDriver.commands`) as its command.
+    func key(_ combo: KeyCombo) async throws
+    /// Goes to `url` and waits until the new page has loaded.
+    func navigate(to url: URL) async throws
+}
+
+enum MouseAction {
+    case move, down, up
+}
+
+/// Plays a tape's steps against a web page. Input goes to the page, not the screen: the tape takes neither the mouse
+/// nor the keyboard. The real cursor never moves, so the driver keeps a cursor of its own, glides it as the native
+/// driver does, and keeps its path for render to draw.
 final class WebDriver: Driving {
     static let glide: Duration = .milliseconds(350)
     static let press: Duration = .milliseconds(60)
@@ -11,7 +30,7 @@ final class WebDriver: Driving {
     /// Pixels a `Scroll` line moves.
     static let line = 60.0
 
-    let browser: Browser
+    let page: any Page
     let tape: Tape
     /// Where the drawn cursor is, in points from the page's top left.
     private(set) var cursor: CGPoint
@@ -20,14 +39,10 @@ final class WebDriver: Driving {
     /// Milliseconds since the take's first frame; set once recording starts.
     var clock: (() -> Int)?
 
-    init(browser: Browser, tape: Tape, viewport: CGSize) {
-        self.browser = browser
+    init(page: any Page, tape: Tape, viewport: CGSize) {
+        self.page = page
         self.tape = tape
         cursor = CGPoint(x: viewport.width / 2, y: viewport.height / 2)
-    }
-
-    private var page: DevTools {
-        browser.page
     }
 
     func perform(_ command: Command) async throws -> CGRect? {
@@ -41,9 +56,9 @@ final class WebDriver: Driving {
         case let .click(target):
             let point = if case let .point(p) = target { p } else { try await element(target, scroll: true).center }
             try await glide(to: point)
-            try await mouse("mousePressed", at: point, clicks: 1)
+            try await mouse(.down, at: point)
             try await Task.sleep(for: Self.press)
-            try await mouse("mouseReleased", at: point, clicks: 1)
+            try await mouse(.up, at: point)
             return CGRect(origin: point, size: .zero)
         case let .type(text, pause):
             for character in text {
@@ -52,7 +67,8 @@ final class WebDriver: Driving {
             }
         case let .key(combo, count):
             for _ in 0 ..< count {
-                try await key(combo)
+                try await page.key(combo)
+                try await Task.sleep(for: Self.press)
             }
         case let .scroll(direction, lines, over):
             if let over {
@@ -66,15 +82,13 @@ final class WebDriver: Driving {
             case .right: (Self.line, 0)
             }
             for _ in 0 ..< lines {
-                try await page.send("Input.dispatchMouseEvent", [
-                    "type": "mouseWheel", "x": cursor.x, "y": cursor.y, "deltaX": dx, "deltaY": dy,
-                ])
+                try await page.wheel(dx: dx, dy: dy, at: cursor)
                 try await Task.sleep(for: .milliseconds(40))
             }
         case let .zoom(target, _, _):
             if case let .element(found) = target { return try await element(found, scroll: false).frame }
         case let .open(url):
-            try await browser.navigate(to: url)
+            try await page.navigate(to: url)
         }
         return nil
     }
@@ -106,7 +120,7 @@ final class WebDriver: Driving {
 
     private func find(_ target: Target, scroll: Bool) async throws -> CGRect? {
         guard let script = Self.finder(for: target, scroll: scroll) else { return nil }
-        guard let box = try await page.evaluate(script) as? [Double], box.count == 4 else { return nil }
+        guard let box = try await page.numbers(script), box.count == 4 else { return nil }
         return CGRect(x: box[0], y: box[1], width: box[2], height: box[3])
     }
 
@@ -163,20 +177,15 @@ final class WebDriver: Driving {
         for step in 1 ... steps {
             let t = Easing.easeInOut(Double(step) / Double(steps))
             let point = CGPoint(x: start.x + (target.x - start.x) * t, y: start.y + (target.y - start.y) * t)
-            try await mouse("mouseMoved", at: point, clicks: 0)
+            try await mouse(.move, at: point)
             try await Task.sleep(for: .milliseconds(8))
         }
     }
 
-    private func mouse(_ type: String, at point: CGPoint, clicks: Int) async throws {
+    private func mouse(_ action: MouseAction, at point: CGPoint) async throws {
         cursor = point
         record(point)
-        var event: [String: Any] = ["type": type, "x": point.x, "y": point.y]
-        if type != "mouseMoved" {
-            event["button"] = "left"
-            event["clickCount"] = clicks
-        }
-        try await page.send("Input.dispatchMouseEvent", event)
+        try await page.mouse(action, at: point)
     }
 
     private func record(_ point: CGPoint) {
@@ -184,47 +193,13 @@ final class WebDriver: Driving {
         track.append(Take.Sample(ms: ms, frame: CGRect(origin: point, size: .zero)))
     }
 
-    /// A character typed as a key press: the page sees keydown, input and keyup.
+    /// A character typed as a key press: the page sees keydown, input and keyup. Return and tab are keys.
     private func type(_ character: Character) async throws {
         switch character {
-        case "\n": return try await key(KeyCombo("return")!)
-        case "\t": return try await key(KeyCombo("tab")!)
-        default: break
+        case "\n": try await page.key(KeyCombo("return")!)
+        case "\t": try await page.key(KeyCombo("tab")!)
+        default: try await page.type(String(character))
         }
-        let text = String(character)
-        try await page.send(
-            "Input.dispatchKeyEvent",
-            ["type": "keyDown", "text": text, "key": text, "unmodifiedText": text]
-        )
-        try await page.send("Input.dispatchKeyEvent", ["type": "keyUp", "key": text])
-    }
-
-    private func key(_ combo: KeyCombo) async throws {
-        let key = Self.keys[combo.key] ?? WebKey(
-            key: combo.key,
-            code: "Key\(combo.key.uppercased())",
-            keyCode: Int(combo.key.uppercased().unicodeScalars.first!.value)
-        )
-        var modifiers = 0
-        if combo.modifiers.contains(.option) { modifiers |= 1 }
-        if combo.modifiers.contains(.control) { modifiers |= 2 }
-        if combo.modifiers.contains(.command) { modifiers |= 4 }
-        if combo.modifiers.contains(.shift) { modifiers |= 8 }
-        var down: [String: Any] = [
-            "type": "keyDown", "key": key.key, "code": key.code, "windowsVirtualKeyCode": key.keyCode,
-            "modifiers": modifiers,
-        ]
-        // Text only for keys that type, unmodified (or shifted).
-        if let text = key.text, modifiers & ~8 == 0 { down["text"] = text }
-        // On macOS the page's editing shortcuts are commands, not key presses: DevTools has to name them.
-        if let command = Self.commands[combo.description] { down["commands"] = [command] }
-        try await page.send("Input.dispatchKeyEvent", down)
-        try await Task.sleep(for: Self.press)
-        try await page.send("Input.dispatchKeyEvent", [
-            "type": "keyUp", "key": key.key, "code": key.code, "windowsVirtualKeyCode": key.keyCode,
-            "modifiers": modifiers,
-        ])
-        try await Task.sleep(for: Self.press)
     }
 
     struct WebKey {

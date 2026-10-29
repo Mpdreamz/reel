@@ -46,7 +46,7 @@ is in PLAN.md. Captions are drawn at render time, so `reel render` picks up a ch
 
 While a tape plays it takes the mouse and keyboard; it stops rather than type into another app.
 
-A web page instead of an app (macOS, a Chromium-based browser reel starts and drives; your mouse stays yours):
+A web page instead of an app (macOS; WebKit by default, or `Set Browser chromium`; your mouse stays yours):
 
 ```
 Output signup.mp4

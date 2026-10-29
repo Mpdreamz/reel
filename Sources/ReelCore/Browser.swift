@@ -71,15 +71,6 @@ public final class Browser: @unchecked Sendable {
         return nil
     }
 
-    static func find(_ chosen: URL?) throws -> URL {
-        if let located = locate(chosen) { return located.app }
-        if let chosen { throw ReelError("no browser at \(chosen.path)") }
-        throw ReelError(
-            "no Chromium-based browser found (Chrome, Chromium, Brave, Edge or Playwright's); "
-                + "install one, or Set Browser /path/to/Browser.app"
-        )
-    }
-
     static func launch(_ app: URL, viewport: CGSize, opening url: URL, log: (String) -> Void) async throws -> Browser {
         guard let bundle = Bundle(url: app), let executable = bundle.executableURL,
               let bundleID = bundle.bundleIdentifier
@@ -200,7 +191,7 @@ public final class Browser: @unchecked Sendable {
             }
             try await Task.sleep(for: .milliseconds(100))
         }
-        throw ReelError("the browser did not open DevTools within 15 s")
+        throw ReelError("the browser did not open DevTools within 15 s: is it Chromium-based?")
     }
 
     private static func firstPage(at base: URL) async throws -> (String, URL) {
@@ -220,5 +211,64 @@ public final class Browser: @unchecked Sendable {
     private static func json(_ url: URL) async throws -> Any {
         let (data, _) = try await URLSession.shared.data(from: url)
         return try JSONSerialization.jsonObject(with: data)
+    }
+}
+
+/// A Chromium page, driven over DevTools.
+extension Browser: Page {
+    func numbers(_ script: String) async throws -> [Double]? {
+        try await page.evaluate(script) as? [Double]
+    }
+
+    func mouse(_ action: MouseAction, at point: CGPoint) async throws {
+        var event: [String: Any] = ["x": point.x, "y": point.y]
+        switch action {
+        case .move: event["type"] = "mouseMoved"
+        case .down, .up:
+            event["type"] = action == .down ? "mousePressed" : "mouseReleased"
+            event["button"] = "left"
+            event["clickCount"] = 1
+        }
+        try await page.send("Input.dispatchMouseEvent", event)
+    }
+
+    func wheel(dx: Double, dy: Double, at point: CGPoint) async throws {
+        try await page.send("Input.dispatchMouseEvent", [
+            "type": "mouseWheel", "x": point.x, "y": point.y, "deltaX": dx, "deltaY": dy,
+        ])
+    }
+
+    func type(_ text: String) async throws {
+        try await page.send(
+            "Input.dispatchKeyEvent",
+            ["type": "keyDown", "text": text, "key": text, "unmodifiedText": text]
+        )
+        try await page.send("Input.dispatchKeyEvent", ["type": "keyUp", "key": text])
+    }
+
+    func key(_ combo: KeyCombo) async throws {
+        let key = WebDriver.keys[combo.key] ?? WebDriver.WebKey(
+            key: combo.key, code: "Key\(combo.key.uppercased())",
+            keyCode: Int(combo.key.uppercased().unicodeScalars.first!.value)
+        )
+        var modifiers = 0
+        if combo.modifiers.contains(.option) { modifiers |= 1 }
+        if combo.modifiers.contains(.control) { modifiers |= 2 }
+        if combo.modifiers.contains(.command) { modifiers |= 4 }
+        if combo.modifiers.contains(.shift) { modifiers |= 8 }
+        var down: [String: Any] = [
+            "type": "keyDown", "key": key.key, "code": key.code, "windowsVirtualKeyCode": key.keyCode,
+            "modifiers": modifiers,
+        ]
+        // Text only for keys that type, unmodified (or shifted).
+        if let text = key.text, modifiers & ~8 == 0 { down["text"] = text }
+        // On macOS the page's editing shortcuts are commands, not key presses: DevTools has to name them.
+        if let command = WebDriver.commands[combo.description] { down["commands"] = [command] }
+        try await page.send("Input.dispatchKeyEvent", down)
+        try await Task.sleep(for: WebDriver.press)
+        try await page.send("Input.dispatchKeyEvent", [
+            "type": "keyUp", "key": key.key, "code": key.code, "windowsVirtualKeyCode": key.keyCode,
+            "modifiers": modifiers,
+        ])
     }
 }

@@ -8,7 +8,12 @@ swift build -q
 # only in the running yabai, and goes again on exit.
 if pgrep -xq yabai; then
     yabai -m rule --add label=reel-web app='^(Google Chrome|Google Chrome for Testing|Chromium|Brave Browser|Microsoft Edge)$' manage=off
-    trap 'yabai -m rule --remove reel-web' EXIT
 fi
-.build/debug/reel tapes/web.tape
-swift scripts/check-web.swift tapes/.reel/web build/web.mp4
+# The same tape twice: in WebKit (the default), and in a Chromium-based browser from a copy that Sets Browser chromium.
+sed 's/^Set Viewport/Set Browser chromium\nSet Viewport/; s#build/web\.#build/web-chromium.#' tapes/web.tape >tapes/web-chromium.tape
+trap 'rm -f tapes/web-chromium.tape; pgrep -xq yabai && yabai -m rule --remove reel-web' EXIT
+for tape in web web-chromium; do
+    echo "== $tape"
+    .build/debug/reel "tapes/$tape.tape"
+    swift scripts/check-web.swift "tapes/.reel/$tape" "build/$tape.mp4"
+done

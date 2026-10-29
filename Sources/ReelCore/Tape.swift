@@ -82,10 +82,51 @@ public enum LaunchTarget: Equatable, Sendable {
     }
 }
 
+/// Which browser shows a web page. Anything but WebKit is a promise the tape makes: when it cannot be kept, recording
+/// refuses rather than fall back.
+public enum BrowserChoice: Equatable, Sendable {
+    /// WebKit, built into macOS: a view in a window of reel's own. The default.
+    case webkit
+    /// Any Chromium-based browser reel finds (`Browser.locate`).
+    case chromium
+    /// That Chromium-based browser.
+    case app(URL)
+}
+
+public extension BrowserChoice {
+    enum Resolved: Equatable, Sendable {
+        case webkit
+        /// A Chromium-based browser's app.
+        case chromium(URL)
+    }
+
+    /// What the choice comes to on this Mac, or why it cannot be had: a tape that chose a browser never gets another.
+    /// `locate` finds a Chromium-based browser (`Browser.locate`).
+    func resolve(locate: () -> URL?, exists: (URL) -> Bool = { FileManager.default.fileExists(atPath: $0.path) })
+        throws -> Resolved
+    {
+        switch self {
+        case .webkit:
+            return .webkit
+        case .chromium:
+            guard let app = locate() else {
+                throw ReelError(
+                    "the tape Sets Browser chromium, but none is installed (Chrome, Chromium, Brave, Edge) or "
+                        + "downloaded by Playwright (`npx playwright install chromium`)"
+                )
+            }
+            return .chromium(app)
+        case let .app(app):
+            guard exists(app) else { throw ReelError("the tape Sets Browser \(app.path), which is not there") }
+            return .chromium(app)
+        }
+    }
+}
+
 /// How a web page is shown: in which browser, and how big the page is.
 public struct WebSettings: Equatable, Sendable {
-    /// A Chromium-based browser's `.app`; nil finds one (Chrome, Chromium, Brave, Edge, then Playwright's).
-    public var browser: URL?
+    /// Which browser shows the page: WebKit, built into macOS, unless the tape says otherwise.
+    public var browser = BrowserChoice.webkit
     /// The page's size in points (CSS pixels).
     public var viewport = CGSize(width: 1280, height: 800)
 
@@ -320,11 +361,19 @@ public extension Tape {
                     }
                     gifWidth = width
                 case "Browser":
-                    let app = resolve(value, against: directory)
-                    guard app.pathExtension == "app" else {
-                        throw fail("Browser is a Chromium-based .app, such as /Applications/Brave Browser.app")
+                    switch value {
+                    case "webkit": web.browser = .webkit
+                    case "chromium": web.browser = .chromium
+                    default:
+                        let app = resolve(value, against: directory)
+                        guard app.pathExtension == "app" else {
+                            throw fail(
+                                "Browser is webkit, chromium or a Chromium-based .app such as "
+                                    + "/Applications/Brave Browser.app, not '\(value)'"
+                            )
+                        }
+                        web.browser = .app(app)
                     }
-                    web.browser = app
                 case "Viewport":
                     guard let parsed = parseSize(value) else {
                         throw fail("Viewport must be <width>x<height> in points, such as 1280x800, not '\(value)'")
