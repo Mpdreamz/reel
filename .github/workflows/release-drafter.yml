@@ -18,6 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # To list the merged pull requests: without it a private repository answers "not accessible by integration",
+      # and the action still succeeds, making no draft.
+      pull-requests: read
     steps:
       - uses: release-drafter/release-drafter@v6
         with:
