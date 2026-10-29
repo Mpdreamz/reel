@@ -22,7 +22,7 @@ struct TakeWriterTests {
         for format in Output.Format.allCases where format != .gif {
             let url = dir.appending(path: "demo.\(format.rawValue)")
             try await Renderer.render(
-                movie, take: take(seconds: 1), overlays: [], to: Output(url: url, format: format)
+                movie, take: take(seconds: 1), overlays: [], soundtrack: .none, to: Output(url: url, format: format)
             )
             let rendered = AVURLAsset(url: url)
             #expect(try await !rendered.loadTracks(withMediaType: .video).isEmpty)
@@ -43,7 +43,7 @@ struct TakeWriterTests {
         let writer = try TakeWriter(
             url: movie, width: width, height: height, frameRate: fps, audio: true, realTime: false
         )
-        writer.queue.sync {
+        await writer.onQueue {
             writer.append(audio: tone(at: CMTime(value: 0, timescale: 48000), frames: 48000))
             writer.append(video: frame(at: CMTime(value: 2, timescale: 1), shade: 0))
         }
@@ -94,12 +94,14 @@ struct TakeWriterTests {
         )
         let frames = Int(seconds * Double(fps))
         let chunk = 4800
-        writer.queue.sync {
+        await writer.onQueue {
             var sent = 0
             for i in 0 ..< frames {
                 let time = CMTime(value: CMTimeValue(i), timescale: CMTimeScale(fps))
                 writer.append(video: frame(at: time, shade: fixed ?? UInt8(i * 255 / max(1, frames - 1))))
-                while audio, Double(sent) / 48000 <= time.seconds, Double(sent) / 48000 < seconds {
+                // Sound runs 0.2 s ahead of the picture, as capture delivers it: the writer holds the picture back
+                // until the sound has caught up, so sound that lags would leave both waiting.
+                while audio, Double(sent) / 48000 < time.seconds + 0.2, Double(sent) / 48000 < seconds {
                     writer.append(audio: tone(at: CMTime(value: CMTimeValue(sent), timescale: 48000), frames: chunk))
                     sent += chunk
                 }
@@ -201,5 +203,18 @@ struct TakeWriterTests {
         let url = FileManager.default.temporaryDirectory.appending(path: "reel-tests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
+    }
+}
+
+extension TakeWriter {
+    /// Runs `work` on the writer's queue and waits for it without blocking a thread of Swift's pool: writing a take
+    /// waits on the encoder, and tests running in parallel that each block a pool thread can starve the rest.
+    func onQueue(_ work: @escaping @Sendable () -> Void) async {
+        await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            queue.async {
+                work()
+                done.resume()
+            }
+        }
     }
 }

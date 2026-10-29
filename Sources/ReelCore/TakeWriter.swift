@@ -123,18 +123,23 @@ public final class TakeWriter: @unchecked Sendable {
             allocator: nil, sampleBuffer: lastFrame, sampleTimingEntryCount: 1, sampleTimingArray: &timing,
             sampleBufferOut: &copy
         )
-        // Waits even when capturing: this is the one frame the movie cannot do without.
-        while !video.isReadyForMoreMediaData, writer.status == .writing {
+        // Waits even when capturing (a little): this is the one frame the movie cannot do without.
+        let deadline = Date().addingTimeInterval(2)
+        while !video.isReadyForMoreMediaData, writer.status == .writing, Date() < deadline {
             Thread.sleep(forTimeInterval: 0.001)
         }
         if let copy, video.append(copy) { self.lastFrameTime = end - frameInterval }
     }
 
+    /// Without real time, waits for `input`, but not forever: the writer holds one input back until the other
+    /// catches up, so a caller that feeds them out of step would wait for good. Giving up drops the buffer, which
+    /// `droppedFrames` and the movie's length show.
     private func ready(_ input: AVAssetWriterInput) -> Bool {
         if realTime { return input.isReadyForMoreMediaData }
-        while !input.isReadyForMoreMediaData, writer.status == .writing {
+        let deadline = Date().addingTimeInterval(2)
+        while !input.isReadyForMoreMediaData, writer.status == .writing, Date() < deadline {
             Thread.sleep(forTimeInterval: 0.001)
         }
-        return writer.status == .writing
+        return input.isReadyForMoreMediaData && writer.status == .writing
     }
 }

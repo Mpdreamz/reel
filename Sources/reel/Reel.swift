@@ -74,6 +74,12 @@ struct Check: AsyncParsableCommand {
         case let .app(url): say("launch \(url.path)")
         }
         say("capture at \(parsed.frameRate) fps, audio \(parsed.audio ? "on" : "off")")
+        let lines = parsed.steps.count(where: { if case .say = $0.command { true } else { false } })
+        if lines > 0 {
+            say(
+                "narration: \(lines) line\(lines == 1 ? "" : "s") in \(parsed.voice.source)\(parsed.voice.subtitles ? ", subtitled" : "")"
+            )
+        }
         if parsed.audio, !parsed.outputs.contains(where: \.format.hasSound) {
             say("note: audio is on but every Output is a GIF, which has no sound")
         }

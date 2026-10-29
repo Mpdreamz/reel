@@ -20,6 +20,8 @@ public struct Tape: Equatable, Sendable {
     public var gifFrameRate: Int
     /// Pixels wide of a `.gif` Output, at most the video's own width.
     public var gifWidth: Int
+    /// Who speaks `Say` lines and how they mix with the app's sound.
+    public var voice: VoiceSettings
     public var launch: LaunchTarget
     /// The commands after setup, in order. Recording starts before the first one.
     public var steps: [Step]
@@ -34,7 +36,7 @@ public struct Tape: Equatable, Sendable {
     public var drivesTheApp: Bool {
         size != nil || steps.contains {
             switch $0.command {
-            case .sleep, .caption: false
+            case .sleep, .caption, .say, .reach: false
             default: true
             }
         }
@@ -84,6 +86,11 @@ public enum Command: Equatable, Sendable {
     /// Drawn at render time from the end of the action before it: until the next caption, for `duration`, or, with
     /// nil text (`Caption off`), ends the one showing. Recording skips it, so captions change without a new take.
     case caption(String?, duration: Duration?)
+    /// Narration. Blocks until the line ends, or with `over` (`Say@over`) carries on while it plays. Lines never
+    /// overlap: one starts after the one before has ended.
+    case say(Speech, over: Bool)
+    /// `Wait [marker]`: until the narration reaches a marker of an earlier `Say@over`.
+    case reach(String)
 
     public var isCaption: Bool {
         if case .caption = self { true } else { false }
@@ -147,6 +154,9 @@ public extension Tape {
         var clickRipples: Bool?
         var gifFrameRate: Int?
         var gifWidth: Int?
+        var voice = VoiceSettings()
+        // Each marker with its line, and whether its Say carries on (only those can be waited for).
+        var markers: [String: (line: Int, over: Bool)] = [:]
         var launch: (target: LaunchTarget, line: Int)?
         var steps: [Step] = []
 
@@ -167,7 +177,7 @@ public extension Tape {
             }
             // `Type@20ms`: a command may carry an option after `@`; only Type takes one.
             let (name, option) = first.quoted ? (first.text, nil) : split(first.text)
-            if option != nil, name != "Type" { throw fail("\(name) takes no @option") }
+            if option != nil, !["Type", "Say"].contains(name) { throw fail("\(name) takes no @option") }
 
             switch name {
             case "Output":
@@ -215,6 +225,31 @@ public extension Tape {
                         throw fail("Size must be <width>x<height> in points, such as 1280x800, not '\(value)'")
                     }
                     size = parsed
+                case "Voice":
+                    voice.source = try VoiceSource(value, fail: fail)
+                case "VoiceServer":
+                    guard let url = URL(string: value), ["http", "https"].contains(url.scheme ?? "") else {
+                        throw fail("VoiceServer must be an http URL, such as http://127.0.0.1:17493, not '\(value)'")
+                    }
+                    voice.server = url
+                case "VoiceSeed":
+                    guard let seed = Int(value), seed >= 0 else {
+                        throw fail("VoiceSeed must be a whole number from 0, not '\(value)'")
+                    }
+                    voice.seed = seed
+                case "VoiceLanguage":
+                    guard value.count == 2, value.allSatisfy(\.isLowercase) else {
+                        throw fail("VoiceLanguage must be a two letter code such as en or nl, not '\(value)'")
+                    }
+                    voice.language = value
+                case "Ducking":
+                    voice.ducking = try percent("Ducking", value, fail: fail)
+                case "VoiceVolume":
+                    voice.voiceVolume = try percent("VoiceVolume", value, fail: fail)
+                case "AppVolume":
+                    voice.appVolume = try percent("AppVolume", value, fail: fail)
+                case "Subtitles":
+                    voice.subtitles = try onOff("Subtitles", value, fail: fail)
                 case "TypingSpeed":
                     typingSpeed = try duration(value, fail: fail)
                 case "WaitTimeout":
@@ -222,7 +257,8 @@ public extension Tape {
                 default:
                     throw fail(
                         "unknown setting '\(words[0])'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, "
-                            + "KeyBadges, ClickRipples, GifFrameRate or GifWidth"
+                            + "KeyBadges, ClickRipples, GifFrameRate, GifWidth, Voice, VoiceServer, VoiceSeed, "
+                            + "VoiceLanguage, Ducking, VoiceVolume, AppVolume or Subtitles"
                     )
                 }
 
@@ -245,7 +281,22 @@ public extension Tape {
                 try step(.click(target(args[0], fail: fail)))
 
             case "Wait":
-                guard args.count == 1 else { throw fail("expected Wait \"<label>\" or Wait #<identifier>") }
+                guard args.count == 1
+                else { throw fail("expected Wait \"<label>\", Wait #<identifier> or Wait [marker]") }
+                if !args[0].quoted, args[0].text.hasPrefix("["), args[0].text.hasSuffix("]") {
+                    let name = String(args[0].text.dropFirst().dropLast())
+                    guard let marker = markers[name] else {
+                        throw fail("no Say before this has a marker [\(name)]")
+                    }
+                    guard marker.over else {
+                        throw fail(
+                            "the Say on line \(marker.line) waits until it ends, so [\(name)] has passed by now; "
+                                + "write Say@over to act while it speaks"
+                        )
+                    }
+                    step(.reach(name))
+                    continue
+                }
                 let target = try target(args[0], fail: fail)
                 if case .point = target { throw fail("Wait needs an element to wait for, not a point") }
                 step(.wait(target))
@@ -279,6 +330,19 @@ public extension Tape {
                 guard rest.count <= 1 else { throw fail(usage) }
                 try step(.scroll(direction, lines: lines, over: rest.first.map { try target($0, fail: fail) }))
 
+            case "Say":
+                guard option == nil || option == "over"
+                else { throw fail("Say takes @over or nothing, not @\(option!)") }
+                let text = try single(words, usage: "Say \"<text>\"", fail: fail)
+                let speech = try Speech(text, fail: fail)
+                for name in speech.markers {
+                    if let earlier = markers[name] {
+                        throw fail("[\(name)] is already a marker on line \(earlier.line)")
+                    }
+                    markers[name] = (line, option == "over")
+                }
+                step(.say(speech, over: option == "over"))
+
             case "Caption":
                 // `Caption "text" [duration]`, or `Caption off`; a quoted "off" is text.
                 guard (1 ... 2).contains(args.count)
@@ -294,7 +358,9 @@ public extension Tape {
                 }
 
             default:
-                let known = ["Output", "Set", "Launch", "Sleep", "Click", "Wait", "Type", "Key", "Scroll", "Caption"]
+                let known = [
+                    "Output", "Set", "Launch", "Sleep", "Click", "Wait", "Type", "Key", "Scroll", "Caption", "Say",
+                ]
                 let hint = known.first { $0.lowercased() == name.lowercased() }.map { "; did you mean \($0)?" }
                 throw fail("unknown command '\(name)'" + (hint ?? "; expected one of \(known.joined(separator: ", "))"))
             }
@@ -313,6 +379,7 @@ public extension Tape {
             clickRipples: clickRipples ?? true,
             gifFrameRate: gifFrameRate ?? defaultGifFrameRate,
             gifWidth: gifWidth ?? defaultGifWidth,
+            voice: voice,
             launch: launch.target,
             steps: steps
         )
@@ -335,6 +402,14 @@ private func duration(_ text: String, fail: (String) -> TapeError) throws -> Dur
         throw fail("'\(text)' is not a duration; write 500ms, 2s, 1.5s or a number of seconds")
     }
     return duration
+}
+
+/// `25%`: a fraction from 0 to 1.
+private func percent(_ setting: String, _ value: String, fail: (String) -> TapeError) throws -> Double {
+    guard value.hasSuffix("%"), let number = Double(value.dropLast()), (0 ... 100).contains(number) else {
+        throw fail("\(setting) must be a percentage from 0% to 100%, not '\(value)'")
+    }
+    return number / 100
 }
 
 private func onOff(_ setting: String, _ value: String, fail: (String) -> TapeError) throws -> Bool {

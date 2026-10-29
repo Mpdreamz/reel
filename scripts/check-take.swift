@@ -12,6 +12,7 @@ struct Take: Decodable {
         var startMs: Int
         var endMs: Int
         var x: Double?
+        var clip: String?
     }
 
     var width: Int
@@ -94,6 +95,41 @@ if let gif = CGImageSourceCreateWithURL(URL(fileURLWithPath: args[4]) as CFURL, 
     check(loop == 0, "the GIF loops forever (\(frames) frames)")
 } else {
     check(false, "the GIF can be read")
+}
+// Narration: in the rendered movie, timed by its markers, with the app's sound ducked under it.
+let says = take.events.filter { $0.command.hasPrefix("Say") }
+check(!says.isEmpty && says.allSatisfy { $0.clip != nil }, "every Say has its voiced line in the timeline")
+func event(_ command: String) -> Take.Event? {
+    take.events.first { $0.command == command }
+}
+
+func window(_ from: Int, _ to: Int) -> ArraySlice<Float> {
+    rendered[min(rendered.count, max(0, from * 48)) ..< min(rendered.count, max(0, to * 48))]
+}
+
+func level(_ samples: ArraySlice<Float>, _ hertz: Double) -> Double {
+    let k = 2 * cos(2 * .pi * hertz / 48000)
+    var s1 = 0.0, s2 = 0.0
+    for x in samples {
+        (s1, s2) = (Double(x) + k * s1 - s2, s1)
+    }
+    return samples.isEmpty ? 0 : 2 * (s1 * s1 + s2 * s2 - k * s1 * s2).squareRoot() / Double(samples.count)
+}
+
+if let intro = event(#"Say "This is the reel fixture.""#) {
+    let speech = rms(window(intro.startMs, intro.endMs))
+    check(speech > 0.02, String(format: "the narration is in the rendered movie (rms %.3f)", speech))
+}
+if let over = event(#"Say@over "Now click [play] Play, and a tone starts.""#), let wait = event("Wait [play]") {
+    check(wait.endMs - over.startMs > 250, "Click waits for [play], \(wait.endMs - over.startMs) ms into the line")
+}
+if let under = event(#"Say "The tone keeps playing under the voice.""#) {
+    let during = level(window(under.startMs + 300, under.endMs - 300), 440)
+    let after = level(window(under.endMs + 400, under.endMs + 900), 440)
+    check(
+        after > 0.02 && during / after < 0.4,
+        String(format: "the tone ducks under the voice (%.0f%% of its level after)", 100 * during / max(after, 1e-9))
+    )
 }
 check(log.contains("play"), "the fixture logged the click on Play")
 check(log.contains("submit Musicbox"), "cmd+a replaced the typed text, and return submitted it")

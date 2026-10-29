@@ -17,6 +17,10 @@ public enum Recorder {
                     + "Privacy & Security → Accessibility, then run reel again"
             )
         }
+        // Voiced before the app opens: a voice that cannot be reached fails here, not halfway through a take.
+        let narration = try await Narration.prepare(
+            tape, into: location.directory, with: tape.voice.synthesizer(), log: log
+        )
         let pid = try await launch(tape.launch)
         log("waiting for a window of pid \(pid)")
         var (window, display, content) = try await firstWindow(of: pid)
@@ -84,15 +88,32 @@ public enum Recorder {
         do {
             start = try await firstFrame(of: writer, sink: sink)
             var events: [Take.Event] = []
+            var clock = SpeechClock()
             for step in tape.actions {
-                let begin = milliseconds(since: start)
-                let point = try await perform(step.command, with: driver)
+                var begin = milliseconds(since: start)
+                var point: CGPoint?
+                var clip: String?
+                switch step.command {
+                case let .say(_, over):
+                    guard let line = narration.lines[step.line]
+                    else { throw ReelError("line \(step.line) was not voiced") }
+                    let (spoken, resume) = clock.say(line, now: seconds(since: start), over: over)
+                    try await sleep(until: resume, since: start)
+                    begin = Int((spoken * 1000).rounded())
+                    clip = line.key
+                case let .reach(marker):
+                    if let time = clock.time(of: marker) { try await sleep(until: time, since: start) }
+                default:
+                    point = try await perform(step.command, with: driver)
+                }
                 if let error = sink.error { throw error }
                 events.append(Take.Event(
                     line: step.line, command: step.source, startMs: begin, endMs: milliseconds(since: start),
-                    x: point.map { Double($0.x) }, y: point.map { Double($0.y) }
+                    x: point.map { Double($0.x) }, y: point.map { Double($0.y) }, clip: clip
                 ))
             }
+            // The take runs until the last line has been said.
+            try await sleep(until: clock.speechEnd, since: start)
             try await stream.stopCapture()
             let end = now()
             try await writer.finish(at: end)
@@ -187,6 +208,15 @@ public enum Recorder {
 
     private static func now() -> CMTime {
         CMClockGetTime(CMClockGetHostTimeClock())
+    }
+
+    private static func seconds(since start: CMTime) -> Double {
+        (now() - start).seconds
+    }
+
+    private static func sleep(until time: Double, since start: CMTime) async throws {
+        let left = time - seconds(since: start)
+        if left > 0 { try await Task.sleep(for: .milliseconds(Int64(left * 1000))) }
     }
 
     private static func milliseconds(since start: CMTime) -> Int {

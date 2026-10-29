@@ -8,10 +8,18 @@ public enum Renderer {
     /// one when the tape has none.
     public static func render(tape: Tape, from location: TakeLocation, log: (String) -> Void) async throws {
         let take = try location.read()
-        let overlays = try OverlayPlan.make(tape: tape, take: take)
+        var overlays = try OverlayPlan.make(tape: tape, take: take)
+        // Only what the take was recorded with: voiced again, a line may come out a different length.
+        let narration = try await Narration.prepare(
+            tape, into: location.directory, with: tape.voice.synthesizer(), voicing: false, log: log
+        )
+        let soundtrack = try Soundtrack.make(tape: tape, take: take, narration: narration)
+        if tape.voice.subtitles {
+            overlays = OverlayPlan.adding(subtitles: soundtrack.clips, to: overlays)
+        }
         var movie: URL?
         for output in tape.outputs where output.format != .gif {
-            try await render(location.movie, take: take, overlays: overlays, to: output)
+            try await render(location.movie, take: take, overlays: overlays, soundtrack: soundtrack, to: output)
             movie = movie ?? output.url
             log("wrote \(output.url.path)")
         }
@@ -20,7 +28,7 @@ public enum Renderer {
         let source = movie ?? location.directory.appending(path: "rendered.mov")
         if movie == nil {
             try await render(
-                location.movie, take: take, overlays: overlays, to: Output(url: source, format: .mov)
+                location.movie, take: take, overlays: overlays, soundtrack: .none, to: Output(url: source, format: .mov)
             )
         }
         for gif in gifs {
@@ -31,29 +39,94 @@ public enum Renderer {
         }
     }
 
-    public static func render(_ movie: URL, take: Take, overlays: [Overlay], to output: Output) async throws {
+    /// The take, its narration mixed in with the app's sound ducked under it, and its overlays drawn over it.
+    public static func render(
+        _ movie: URL, take: Take, overlays: [Overlay], soundtrack: Soundtrack, to output: Output
+    ) async throws {
         precondition(output.format != .gif, "a GIF is written from a rendered movie by GifWriter")
-        let asset = AVURLAsset(url: movie)
-        guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
+        let source = AVURLAsset(url: movie)
+        let length = try await source.load(.duration)
+        let whole = CMTimeRange(start: .zero, duration: length)
+        let composition = AVMutableComposition()
+        var mix: [AVMutableAudioMixInputParameters] = []
+
+        if let picture = try await source.loadTracks(withMediaType: .video).first,
+           let track = composition.addMutableTrack(
+               withMediaType: .video,
+               preferredTrackID: kCMPersistentTrackID_Invalid
+           )
+        {
+            try track.insertTimeRange(whole, of: picture, at: .zero)
+        }
+        if let sound = try await source.loadTracks(withMediaType: .audio).first,
+           let track = composition.addMutableTrack(
+               withMediaType: .audio,
+               preferredTrackID: kCMPersistentTrackID_Invalid
+           )
+        {
+            try track.insertTimeRange(whole, of: sound, at: .zero)
+            let app = AVMutableAudioMixInputParameters(track: track)
+            app.setVolume(Float(soundtrack.appVolume), at: .zero)
+            for ramp in soundtrack.appRamps {
+                app.setVolumeRamp(
+                    fromStartVolume: Float(ramp.from), toEndVolume: Float(ramp.to),
+                    timeRange: CMTimeRange(start: time(ramp.start), end: time(ramp.end))
+                )
+            }
+            mix.append(app)
+        }
+        if !soundtrack.clips.isEmpty,
+           let track = composition.addMutableTrack(
+               withMediaType: .audio,
+               preferredTrackID: kCMPersistentTrackID_Invalid
+           )
+        {
+            for clip in soundtrack.clips {
+                var at = clip.start
+                for (piece, length) in zip(clip.pieces, clip.lengths) {
+                    defer { at += length }
+                    guard let piece else { continue }
+                    // Held until the insert: a track whose asset is already gone fails to insert.
+                    let asset = AVURLAsset(url: piece)
+                    guard let audio = try await asset.loadTracks(withMediaType: .audio).first else { continue }
+                    // Never past the end of the clip's own track, nor past the end of the picture.
+                    let own = try await audio.load(.timeRange)
+                    let fits = min(length, own.duration.seconds, whole.duration.seconds - at)
+                    guard fits > 0 else { continue }
+                    try track.insertTimeRange(
+                        CMTimeRange(start: own.start, duration: time(fits)), of: audio, at: time(at)
+                    )
+                }
+            }
+            let voice = AVMutableAudioMixInputParameters(track: track)
+            voice.setVolume(Float(soundtrack.voiceVolume), at: .zero)
+            mix.append(voice)
+        }
+
+        guard let session = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality)
+        else {
             throw ReelError("cannot export \(movie.path)")
         }
+        if !mix.isEmpty {
+            let audioMix = AVMutableAudioMix()
+            audioMix.inputParameters = mix
+            session.audioMix = audioMix
+        }
         if !overlays.isEmpty {
-            let composition = try await AVMutableVideoComposition.videoComposition(withPropertiesOf: asset)
+            let video = try await AVMutableVideoComposition.videoComposition(withPropertiesOf: composition)
             // Capture is variable rate (a still window sends no frames); overlays animate at the tape's rate.
-            composition.frameDuration = CMTime(value: 1, timescale: CMTimeScale(take.frameRate))
-            let size = composition.renderSize
-            let video = CALayer()
-            video.frame = CGRect(origin: .zero, size: size)
+            video.frameDuration = CMTime(value: 1, timescale: CMTimeScale(take.frameRate))
+            let size = video.renderSize
+            let picture = CALayer()
+            picture.frame = CGRect(origin: .zero, size: size)
             let parent = CALayer()
-            parent.frame = video.frame
-            parent.addSublayer(video)
+            parent.frame = picture.frame
+            parent.addSublayer(picture)
             for overlay in overlays {
                 parent.addSublayer(OverlayLayers.layer(for: overlay, in: size, scale: take.scale))
             }
-            composition.animationTool = AVVideoCompositionCoreAnimationTool(
-                postProcessingAsVideoLayer: video, in: parent
-            )
-            session.videoComposition = composition
+            video.animationTool = AVVideoCompositionCoreAnimationTool(postProcessingAsVideoLayer: picture, in: parent)
+            session.videoComposition = video
         }
         try FileManager.default.createDirectory(
             at: output.url.deletingLastPathComponent(), withIntermediateDirectories: true
@@ -65,6 +138,10 @@ public enum Renderer {
         case .gif: preconditionFailure()
         }
         try await session.export(to: output.url, as: type)
+    }
+
+    private static func time(_ seconds: Double) -> CMTime {
+        CMTime(seconds: seconds, preferredTimescale: 48000)
     }
 }
 

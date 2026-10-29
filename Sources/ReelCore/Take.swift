@@ -26,8 +26,14 @@ public struct Take: Codable, Equatable, Sendable {
         /// Where a click landed, in points from the window's top left.
         public var x: Double?
         public var y: Double?
+        /// For a `Say`, the voiced line it played (`Narration.Line.key`); its start is when the line started.
+        public var clip: String?
 
-        public init(line: Int, command: String, startMs: Int, endMs: Int, x: Double? = nil, y: Double? = nil) {
+        public init(
+            line: Int, command: String, startMs: Int, endMs: Int, x: Double? = nil, y: Double? = nil,
+            clip: String? = nil
+        ) {
+            self.clip = clip
             self.line = line
             self.command = command
             self.startMs = startMs
