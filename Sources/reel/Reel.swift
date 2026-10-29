@@ -8,7 +8,8 @@ import ReelCore
 struct Reel: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "reel",
-        abstract: "Record demos of macOS apps from a .tape script: video with the app's sound.",
+        abstract: "Record demos of macOS apps and web pages from a .tape script: video with sound, GIFs, captions.",
+        version: reelVersion,
         subcommands: [Run.self, Record.self, Render.self, Check.self, Doctor.self],
         defaultSubcommand: Run.self
     )

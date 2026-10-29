@@ -35,5 +35,8 @@ jobs:
         timeout-minutes: 10
         run: mise run test
 
+      # As the release builds it: the version written in and checked, the cask template well formed.
       - name: Release build
-        run: swift build -c release
+        run: |
+          scripts/build-release.sh 0.0.0
+          ruby -c packaging/homebrew/reel.rb

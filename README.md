@@ -64,8 +64,12 @@ Wait "Welcome"
 ## Install
 
 ```sh
-mise run install        # ~/.local/bin/reel
+brew install --cask mpdreamz/tap/reel
+reel doctor             # what is granted, and which browsers web tapes can use
 ```
 
-Requires macOS 15. The first recording asks for Screen Recording for your terminal; a tape that drives the app
-needs Accessibility too (`reel doctor`).
+reel runs on macOS 15 or later on Apple silicon. It records with Screen Recording and drives apps with Accessibility,
+both granted to the terminal it runs in; the first recording asks. A web tape needs neither Accessibility nor a
+browser: WebKit is built in.
+
+From source: `mise run install` builds it into `~/.local/bin/reel`.

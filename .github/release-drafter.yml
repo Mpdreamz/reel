@@ -1,0 +1,44 @@
+# The draft release, kept up to date as pull requests merge. Publishing it is the release workflow's job
+# (.github/workflows/release.yml): it builds, attaches the app, then publishes, so a release never lacks its files.
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+
+categories:
+  - title: Features
+    labels: [enhancement]
+  - title: Fixes
+    labels: [bug]
+  - title: Docs
+    labels: [documentation]
+  - title: Maintenance
+    labels: [ci, chore, dependencies]
+
+change-template: "- $TITLE (#$NUMBER)"
+change-title-escapes: '\<*_&'
+exclude-labels: [skip-changelog]
+
+version-resolver:
+  major:
+    labels: [major]
+  minor:
+    labels: [minor, enhancement]
+  patch:
+    labels: [patch]
+  default: patch
+
+# One label per pull request, from its branch name: release-drafter lists a pull request under every category it has a
+# label for, so labels from the paths it touches would list most pull requests twice.
+autolabeler:
+  - label: enhancement
+    branch: ['/^feature\/.+/']
+  - label: bug
+    branch: ['/^fix\/.+/']
+  - label: documentation
+    branch: ['/^docs\/.+/']
+  - label: chore
+    branch: ['/^chore\/.+/', '/^ci\/.+/']
+
+template: |
+  $CHANGES
+
+  **Install:** `brew install --cask mpdreamz/tap/reel`, then `reel doctor`.

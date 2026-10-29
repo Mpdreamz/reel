@@ -1,0 +1,28 @@
+name: tap
+
+# Writes a published release's cask to mpdreamz/homebrew-tap. The release workflow does this itself after
+# publishing; run this to redo it (a failed push, a new HOMEBREW_TAP_TOKEN, a changed packaging/homebrew/reel.rb).
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Published version, e.g. 0.1.0 (empty: the latest release)"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  tap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Update the Homebrew tap
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          version="${{ inputs.version }}"
+          [ -n "$version" ] || version="$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName -q .tagName)"
+          scripts/bump-tap.sh "$version"
