@@ -32,6 +32,8 @@ jobs:
     if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-latest
     permissions:
+      # To read .github/release-drafter.yml: a private repository's token cannot without it.
+      contents: read
       pull-requests: write
     steps:
       - uses: release-drafter/release-drafter@v6
