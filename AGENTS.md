@@ -29,3 +29,14 @@ or both. Read `PLAN.md` first.
   (Chrome, Chromium, Brave, Edge or Playwright's download), and checks both takes. It plays a quiet tone; the mouse
   stays yours.
 - Branch names: `feature/`, `fix/`, `docs/`, `chore/`, `ci/`. Pull requests are squash-merged.
+
+## Releasing
+
+Merges to main keep a draft release up to date (release-drafter; branch names set the label). `gh workflow run
+release -f version=0.1.0` (or empty for the draft's version) builds main (`scripts/build-release.sh`, the version
+written in and checked by `reel --version`), signs it with the Developer ID and notarizes it, attaches `reel-arm64.zip`
+and its checksum to the draft, publishes it, and writes `packaging/homebrew/reel.rb` to `mpdreamz/homebrew-tap`. A
+`dry_run` does everything but release, and keeps the zip on the run. The secrets are stored with
+`scripts/release-secrets.sh` (run by the owner, never by an agent); without them a release is ad-hoc signed and not
+sent to Homebrew. The `notary` workflow asks Apple about a slow or rejected submission; `tap` redoes the tap.
+

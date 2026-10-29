@@ -1,0 +1,166 @@
+name: release
+
+# The release step, run by hand (Actions > release > Run workflow, or `gh workflow run release -f version=0.1.0`):
+# builds main at the version release-drafter worked out (or the one given), signs and notarizes it, attaches it to the
+# draft, checks it is there, and only then publishes the draft, which creates the tag on the commit that was built. A
+# published release always has its files; a notarized one then goes to the Homebrew tap.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. 0.1.0 (empty: the draft's)"
+        required: false
+      dry_run:
+        description: "Dry run: build, sign and notarize, keep the zip on the run, release nothing"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # Releases come from main; a dry run may try a branch.
+    if: github.ref == 'refs/heads/main' || inputs.dry_run
+    runs-on: macos-26
+    # Room for an hour of notarization on top of the build.
+    timeout-minutes: 100
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Signing and notarizing need the secrets scripts/release-secrets.sh stores; without them the release is ad-hoc
+      # signed, and not sent to Homebrew (a quarantined, unnotarized binary would not run).
+      NOTARIZE: ${{ secrets.DEVELOPER_ID_P12 != '' && secrets.NOTARY_KEY_P8 != '' }}
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Find the draft
+        id: draft
+        run: |
+          draft="$(gh api "repos/$GITHUB_REPOSITORY/releases" --jq '[.[] | select(.draft)][0] // empty')"
+          # A dry run that names its version needs no draft (there is none between a release and the next merge).
+          if [ -z "$draft" ] && [ "${{ inputs.dry_run }}" = "true" ] && [ -n "${{ inputs.version }}" ]; then
+            echo "tag=v${{ inputs.version }}" >>"$GITHUB_OUTPUT"
+            echo "version=${{ inputs.version }}" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$draft" ]; then
+            echo "No draft release: release-drafter makes one when a pull request merges." >&2
+            exit 1
+          fi
+          tag="$(jq -r .tag_name <<<"$draft")"
+          wanted="${{ inputs.version }}"
+          if [ -n "$wanted" ] && [ "${{ inputs.dry_run }}" = "true" ]; then
+            tag="v$wanted"
+          elif [ -n "$wanted" ] && [ "v$wanted" != "$tag" ]; then
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/releases/$(jq -r .id <<<"$draft")" \
+              -f tag_name="v$wanted" -f name="v$wanted" >/dev/null
+            tag="v$wanted"
+          fi
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" >/dev/null 2>&1; then
+            echo "$tag is already released." >&2
+            exit 1
+          fi
+          echo "tag=$tag" >>"$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >>"$GITHUB_OUTPUT"
+
+      - uses: ./.github/actions/setup
+
+      - name: Test
+        run: mise run test
+
+      - name: Release build
+        env:
+          VERSION: ${{ steps.draft.outputs.version }}
+        run: scripts/build-release.sh "$VERSION"
+
+      - name: Sign with the Developer ID
+        if: env.NOTARIZE == 'true'
+        env:
+          P12: ${{ secrets.DEVELOPER_ID_P12 }}
+          P12_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+        run: |
+          # A keychain of its own, deleted when the job ends (see the last step).
+          keychain="$RUNNER_TEMP/signing.keychain-db"
+          password="$(openssl rand -hex 24)"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 3600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          base64 --decode <<<"$P12" >"$RUNNER_TEMP/developer-id.p12"
+          security import "$RUNNER_TEMP/developer-id.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          rm "$RUNNER_TEMP/developer-id.p12"
+          # The intermediate certificate, so codesign can build the chain to Apple.
+          curl -fsSL -o "$RUNNER_TEMP/DeveloperIDG2CA.cer" https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
+          security import "$RUNNER_TEMP/DeveloperIDG2CA.cer" -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$password" "$keychain" >/dev/null
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
+          identity="$(security find-identity -v -p codesigning "$keychain" \
+            | grep -o '"Developer ID Application: [^"]*"' | tr -d '"' | head -1)"
+          [ -n "$identity" ] || { echo "No Developer ID Application identity in DEVELOPER_ID_P12" >&2; exit 1; }
+          scripts/sign.sh build/reel "$identity" "$keychain"
+
+      - name: Package the zip
+        run: |
+          mkdir -p dist
+          # The binary at the zip's top, as the cask's `binary "reel"` expects it.
+          ditto -c -k build/reel dist/reel-arm64.zip
+          unzip -l dist/reel-arm64.zip
+
+      - name: Notarize
+        if: env.NOTARIZE == 'true'
+        env:
+          KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          ISSUER: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: scripts/notarize.sh dist/reel-arm64.zip
+
+      - name: No notarization without the secrets
+        if: env.NOTARIZE != 'true'
+        run: |
+          echo "::warning::No signing secrets (scripts/release-secrets.sh): this release is ad-hoc signed and not sent to Homebrew."
+
+      - name: Checksums
+        run: |
+          cd dist
+          shasum -a 256 reel-arm64.zip >reel-arm64.zip.sha256
+          cat ./*.sha256
+
+      - name: Keep the files on the run
+        if: inputs.dry_run
+        uses: actions/upload-artifact@v4
+        with:
+          name: reel-${{ steps.draft.outputs.version }}-dry-run
+          path: dist/*
+
+      - name: Attach to the draft
+        if: ${{ !inputs.dry_run }}
+        run: gh release upload "${{ steps.draft.outputs.tag }}" dist/* --clobber
+
+      - name: Check the draft has every file
+        if: ${{ !inputs.dry_run }}
+        run: |
+          names="$(gh release view "${{ steps.draft.outputs.tag }}" --json assets --jq '[.assets[].name] | sort | join(" ")')"
+          [ "$names" = "reel-arm64.zip reel-arm64.zip.sha256" ] || { echo "draft has: $names" >&2; exit 1; }
+
+      - name: Publish
+        if: ${{ !inputs.dry_run }}
+        run: gh release edit "${{ steps.draft.outputs.tag }}" --draft=false --latest --target "$GITHUB_SHA"
+
+      # Only notarized releases go to Homebrew: casks are quarantined, and an ad-hoc signed binary would not run.
+      - name: Update the Homebrew tap
+        if: ${{ !inputs.dry_run && env.NOTARIZE == 'true' }}
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          if [ -z "$TAP_TOKEN" ]; then
+            echo "::warning::No HOMEBREW_TAP_TOKEN: the tap was not updated. Run the tap workflow once it is set."
+            exit 0
+          fi
+          scripts/bump-tap.sh "${{ steps.draft.outputs.version }}"
+
+      - name: Remove the signing keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true

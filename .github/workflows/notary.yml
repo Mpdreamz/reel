@@ -1,0 +1,36 @@
+name: notary
+
+# Asks Apple how notarization submissions are doing, without building or submitting anything: the recent history, or
+# one submission (and its log once it has a verdict). For a slow or rejected submission from the release workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      submission:
+        description: "Submission id (empty: the recent history)"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  status:
+    runs-on: macos-26
+    timeout-minutes: 10
+    steps:
+      - name: Ask Apple
+        env:
+          KEY_P8: ${{ secrets.NOTARY_KEY_P8 }}
+          KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          ISSUER: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          key="$RUNNER_TEMP/notary.p8"
+          printf '%s\n' "$KEY_P8" >"$key"
+          auth=(--key "$key" --key-id "$KEY_ID" --issuer "$ISSUER")
+          id="${{ inputs.submission }}"
+          if [ -z "$id" ]; then
+            xcrun notarytool history "${auth[@]}"
+          else
+            xcrun notarytool info "$id" "${auth[@]}"
+            xcrun notarytool log "$id" "${auth[@]}" 2>/dev/null || echo "(no log until Apple has a verdict)"
+          fi
+          rm -f "$key"
