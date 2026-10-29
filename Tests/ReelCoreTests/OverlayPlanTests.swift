@@ -41,6 +41,23 @@ struct OverlayPlanTests {
         ])
     }
 
+    @Test func otherRenderOnlyStepsAreNotActions() throws {
+        // Zooms on a point, speeds and trims sit between captions without counting as actions of the take.
+        let overlays = try plan("""
+        Hide
+        Sleep 1s
+        Show
+        Zoom @10,10 2x
+        Caption "After the first"
+        Speed 2x
+        Sleep 1s
+        Speed off
+        Zoom off
+        Caption "After the second"
+        """)
+        #expect(overlays.map(\.start) == [1, 3])
+    }
+
     @Test func aDurationEndsACaptionEarlyButNeverLate() throws {
         let overlays = try plan("""
         Sleep 1s

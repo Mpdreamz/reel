@@ -12,8 +12,8 @@
 4. **GIF.** `Output demo.gif`, sampled from the rendered movie and written with ImageIO (see "GIFs").
 5. **Narration.** `Say` lines voiced by macOS or a voicebox server, the tape timed by them, mixed in with the
    app's sound ducked under them (see "Narration").
-6. **Zoom, speed and trim.** Zoom that follows the cursor, sped-up stretches, trimming to scenes. Speed-ups skip
-   narrated stretches: sped-up speech is no use.
+6. **Zoom, speed and trim.** `Zoom` on an element (locked and followed), a point or the cursor; `Speed` up
+   stretches, narration kept at its pace; `Hide` … `Show` cuts (see "Zoom, speed and trim").
 
 ## The tape
 
@@ -49,6 +49,11 @@ after them. Durations are `500ms`, `2s`, `1.5s`, `1m` or a bare number of second
 | `Set Ducking <n%>` | The app's sound under narration, default 25%. |
 | `Set VoiceVolume <n%>`, `Set AppVolume <n%>` | Levels in the mix, default 100%. |
 | `Set Subtitles on\|off` | Show each `Say` as a caption while it plays, default off. |
+| `Zoom <element> [scale]` | Zoom onto an element and stay locked on it, following it, until the next `Zoom`. Fitted with room when no scale, at most 4×. |
+| `Zoom @x,y [scale]`, `Zoom cursor [scale]` | Zoom on a point, or follow the cursor; default 2×. |
+| `Zoom off` | Back to the whole window. |
+| `Speed <rate>x` … `Speed off` | Play the stretch faster (above 1× to 16×); narrated lines keep their own pace, the app's sound is left out. |
+| `Hide` … `Show` | Leave the stretch out of the render; a `Hide` with no `Show` runs to the end. |
 
 An element is `"Label"` (its title, description or value, exactly; quoted is always a label), `#identifier` (its
 accessibility identifier) or a bare word as a label. `@x,y` is points from the window's top left. Elements are found
@@ -94,6 +99,22 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   (`GET /profiles`) and voices with `POST /generate/stream`, which answers WAV.
 - **Subtitles** take the caption's place: a `Caption` showing during a line is cut around it. A GIF has no sound,
   so subtitles are how narration reaches one.
+
+## Zoom, speed and trim
+
+- **Render-time edits, anchored like captions.** `Speed`, `Hide`/`Show` and zooms on a point or the cursor take
+  effect at the end of the action before them and change without a new take. A zoom on an element is an action:
+  recording finds the element, keeps its frame in the timeline, and reads it again after every step while the zoom
+  holds, so render follows it if it moves. Changing it needs a new take.
+- **Zoom** is a transform on the picture, eased over 0.4 s, sampled 30 times a second into transform ramps. The
+  region keeps the window's shape and stays inside it. A fitted element gets 8% room and at most 4×; render says so
+  when an element nearly fills the window and fitting it barely zooms. Captions and badges are drawn after the zoom,
+  so they stay put; a ripple is moved to where its click shows under the zoom.
+- **The cursor** is sampled about 30 times a second through every take (`Take.cursor`); `Zoom cursor` follows it
+  averaged over 0.3 s, so the zoom glides rather than jitters.
+- **Time.** The edit (`.reel/<tape>/edit.json`) lists what is kept of the take and how fast; everything timed
+  (overlays, narration, ducking, zoom) is mapped through it. A sped-up stretch carries no app sound; narration is
+  never sped up, and a `Hide` that would cut a narrated line is refused.
 
 ## GIFs
 

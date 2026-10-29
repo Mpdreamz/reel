@@ -36,15 +36,17 @@ public struct Tape: Equatable, Sendable {
     public var drivesTheApp: Bool {
         size != nil || steps.contains {
             switch $0.command {
-            case .sleep, .caption, .say, .reach: false
+            case .sleep, .caption, .say, .reach, .speed, .hide: false
+            case let .zoom(target, _): target.isElement
             default: true
             }
         }
     }
 
-    /// The steps recording performs, in order: everything but captions. A take has one timeline event for each.
+    /// The steps recording performs, in order: everything but what only render draws or edits (captions, speed,
+    /// trims, zooms that need no element). A take has one timeline event for each.
     public var actions: [Step] {
-        steps.filter { !$0.command.isCaption }
+        steps.filter { !$0.command.isRenderOnly }
     }
 }
 
@@ -91,6 +93,22 @@ public enum Command: Equatable, Sendable {
     case say(Speech, over: Bool)
     /// `Wait [marker]`: until the narration reaches a marker of an earlier `Say@over`.
     case reach(String)
+    /// Zooms the picture at render time, easing to it, until the next `Zoom`. An element is found while recording and
+    /// followed while the zoom holds; `scale` nil fits it.
+    case zoom(ZoomTarget, scale: Double?)
+    /// `Speed 4x` until `Speed off` (nil): sped up at render time, narrated lines kept at their own pace.
+    case speed(Double?)
+    /// `Hide` (true) until `Show` (false): left out of the render.
+    case hide(Bool)
+
+    /// Drawn or edited at render time only: recording skips it, so it can change without a new take.
+    public var isRenderOnly: Bool {
+        switch self {
+        case .caption, .speed, .hide: true
+        case let .zoom(target, _): !target.isElement
+        default: false
+        }
+    }
 
     public var isCaption: Bool {
         if case .caption = self { true } else { false }
@@ -116,6 +134,22 @@ public enum Target: Equatable, Sendable, CustomStringConvertible {
 
     private func formatted(_ value: CGFloat) -> String {
         value == value.rounded() ? String(Int(value)) : String(Double(value))
+    }
+}
+
+/// What a `Zoom` frames.
+public enum ZoomTarget: Equatable, Sendable {
+    /// Found while recording and followed while the zoom holds.
+    case element(Target)
+    /// Points from the window's top left.
+    case point(CGPoint)
+    /// Wherever the cursor is.
+    case cursor
+    /// Back to the whole window.
+    case off
+
+    public var isElement: Bool {
+        if case .element = self { true } else { false }
     }
 }
 
@@ -157,6 +191,7 @@ public extension Tape {
         var voice = VoiceSettings()
         // Each marker with its line, and whether its Say carries on (only those can be waited for).
         var markers: [String: (line: Int, over: Bool)] = [:]
+        var hidden = false
         var launch: (target: LaunchTarget, line: Int)?
         var steps: [Step] = []
 
@@ -330,6 +365,42 @@ public extension Tape {
                 guard rest.count <= 1 else { throw fail(usage) }
                 try step(.scroll(direction, lines: lines, over: rest.first.map { try target($0, fail: fail) }))
 
+            case "Zoom":
+                let usage = "expected Zoom <element or @x,y> [scale], Zoom cursor [scale] or Zoom off"
+                guard (1 ... 2).contains(args.count) else { throw fail(usage) }
+                let scale = try args.dropFirst().first.map { try zoomScale($0.text, fail: fail) }
+                switch (args[0].quoted, args[0].text) {
+                case (false, "off"):
+                    guard scale == nil else { throw fail("Zoom off takes no scale") }
+                    step(.zoom(.off, scale: nil))
+                case (false, "cursor"):
+                    step(.zoom(.cursor, scale: scale))
+                default:
+                    switch try target(args[0], fail: fail) {
+                    case let .point(p): step(.zoom(.point(p), scale: scale))
+                    case let element: step(.zoom(.element(element), scale: scale))
+                    }
+                }
+
+            case "Speed":
+                guard args.count == 1 else { throw fail("expected Speed <rate>x or Speed off") }
+                if words[0] == "off" {
+                    step(.speed(nil))
+                } else {
+                    guard words[0].hasSuffix("x"), let rate = Double(words[0].dropLast()), rate > 1, rate <= 16 else {
+                        throw fail("Speed must be a rate above 1x and up to 16x, such as 4x, not '\(words[0])'")
+                    }
+                    step(.speed(rate))
+                }
+
+            case "Hide", "Show":
+                guard args.isEmpty else { throw fail("\(name) takes nothing") }
+                if (name == "Hide") == hidden {
+                    throw fail(name == "Hide" ? "already hidden; Show comes first" : "nothing is hidden to Show")
+                }
+                hidden = name == "Hide"
+                step(.hide(hidden))
+
             case "Say":
                 guard option == nil || option == "over"
                 else { throw fail("Say takes @over or nothing, not @\(option!)") }
@@ -360,6 +431,7 @@ public extension Tape {
             default:
                 let known = [
                     "Output", "Set", "Launch", "Sleep", "Click", "Wait", "Type", "Key", "Scroll", "Caption", "Say",
+                    "Zoom", "Speed", "Hide", "Show",
                 ]
                 let hint = known.first { $0.lowercased() == name.lowercased() }.map { "; did you mean \($0)?" }
                 throw fail("unknown command '\(name)'" + (hint ?? "; expected one of \(known.joined(separator: ", "))"))
@@ -402,6 +474,14 @@ private func duration(_ text: String, fail: (String) -> TapeError) throws -> Dur
         throw fail("'\(text)' is not a duration; write 500ms, 2s, 1.5s or a number of seconds")
     }
     return duration
+}
+
+/// `2x`, `1.5x`: from 1 to 8.
+private func zoomScale(_ text: String, fail: (String) -> TapeError) throws -> Double {
+    guard text.hasSuffix("x"), let scale = Double(text.dropLast()), scale >= 1, scale <= 8 else {
+        throw fail("a zoom scale is 1x to 8x, such as 2x, not '\(text)'")
+    }
+    return scale
 }
 
 /// `25%`: a fraction from 0 to 1.

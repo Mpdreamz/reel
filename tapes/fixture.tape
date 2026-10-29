@@ -10,22 +10,32 @@ Set Subtitles on
 
 Launch ../build/ReelFixture.app
 
-Caption "reel drives the fixture"
+Hide
 Wait "Play"
+Sleep 1s
+Show
+Caption "reel drives the fixture"
 Say "This is the reel fixture."
 Say@over "Now click [play] Play, and a tone starts."
 Wait [play]
 Caption "Click Play and the tone starts"
+Zoom cursor 2x
 Click "Play"
 Sleep 1s
+Zoom off
 Say "The tone keeps playing under the voice."
 Sleep 1s
 Caption "Type, select all, type again"
+Speed 3x
 Click #name
 Type "hello reel"
 Key cmd+a
 Type "Musicbox"
 Key return
+Speed off
 Caption off
+Zoom #list 2x
 Scroll down 10 #list
+Sleep 1s
+Zoom off
 Sleep 1s

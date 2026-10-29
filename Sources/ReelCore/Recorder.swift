@@ -89,9 +89,18 @@ public enum Recorder {
             start = try await firstFrame(of: writer, sink: sink)
             var events: [Take.Event] = []
             var clock = SpeechClock()
-            for step in tape.actions {
+            // The element a zoom is locked on: its frame is read again after every step, so render can follow it.
+            var focus: Target?
+            var focusTrack: [Take.Sample] = []
+            let cursor = CursorSampler(window: window.frame)
+            cursor.start(at: start)
+            defer { cursor.stop() }
+            for step in tape.steps {
+                // Any other zoom (a point, the cursor, off) releases the lock.
+                if case let .zoom(target, _) = step.command, !target.isElement { focus = nil }
+                guard !step.command.isRenderOnly else { continue }
                 var begin = milliseconds(since: start)
-                var point: CGPoint?
+                var landed: CGRect?
                 var clip: String?
                 switch step.command {
                 case let .say(_, over):
@@ -104,13 +113,19 @@ public enum Recorder {
                 case let .reach(marker):
                     if let time = clock.time(of: marker) { try await sleep(until: time, since: start) }
                 default:
-                    point = try await perform(step.command, with: driver)
+                    landed = try await perform(step.command, with: driver)
                 }
                 if let error = sink.error { throw error }
+                if case let .zoom(.element(target), _) = step.command { focus = target }
                 events.append(Take.Event(
                     line: step.line, command: step.source, startMs: begin, endMs: milliseconds(since: start),
-                    x: point.map { Double($0.x) }, y: point.map { Double($0.y) }, clip: clip
+                    x: landed.map { Double($0.minX) }, y: landed.map { Double($0.minY) },
+                    w: landed.flatMap { $0.isEmpty ? nil : Double($0.width) },
+                    h: landed.flatMap { $0.isEmpty ? nil : Double($0.height) }, clip: clip
                 ))
+                if let focus, let frame = driver?.currentFrame(of: focus) {
+                    focusTrack.append(Take.Sample(ms: milliseconds(since: start), frame: frame))
+                }
             }
             // The take runs until the last line has been said.
             try await sleep(until: clock.speechEnd, since: start)
@@ -119,10 +134,12 @@ public enum Recorder {
             try await writer.finish(at: end)
             if writer.droppedFrames > 0 { log("dropped \(writer.droppedFrames) frames the encoder was not ready for") }
 
-            let take = Take(
+            var take = Take(
                 width: width, height: height, scale: scale, frameRate: tape.frameRate, audio: tape.audio,
                 durationMs: Int(((end - start).seconds * 1000).rounded()), events: events
             )
+            take.cursor = cursor.stop()
+            take.focus = focusTrack
             try location.write(take)
             return take
         } catch {
@@ -132,7 +149,7 @@ public enum Recorder {
     }
 
     /// Without a driver the tape only sleeps (`drivesTheApp` is false).
-    private static func perform(_ command: Command, with driver: Driver?) async throws -> CGPoint? {
+    private static func perform(_ command: Command, with driver: Driver?) async throws -> CGRect? {
         if let driver { return try await driver.perform(command) }
         if case let .sleep(duration) = command { try await Task.sleep(for: duration) }
         return nil
@@ -262,5 +279,39 @@ private final class Sink: NSObject, SCStreamOutput, SCStreamDelegate, @unchecked
 
     func stream(_: SCStream, didStopWithError error: Error) {
         lock.withLock { failure = ReelError("capture stopped: \(error.localizedDescription)") }
+    }
+}
+
+/// Where the cursor is, from the window's top left, about 30 times a second through the take: what `Zoom cursor`
+/// follows at render time. Reads the event system's cursor, which needs no permission.
+private final class CursorSampler: @unchecked Sendable {
+    private let window: CGRect
+    private let lock = NSLock()
+    private var samples: [Take.Sample] = []
+    private var task: Task<Void, Never>?
+
+    init(window: CGRect) {
+        self.window = window
+    }
+
+    func start(at start: CMTime) {
+        task = Task.detached { [self] in
+            while !Task.isCancelled {
+                if let location = CGEvent(source: nil)?.location {
+                    let ms = Int(((CMClockGetTime(CMClockGetHostTimeClock()) - start).seconds * 1000).rounded())
+                    let point = CGRect(x: location.x - window.minX, y: location.y - window.minY, width: 0, height: 0)
+                    lock.withLock { samples.append(Take.Sample(ms: ms, frame: point)) }
+                }
+                try? await Task.sleep(for: .milliseconds(33))
+            }
+        }
+    }
+
+    /// Stops sampling and hands over what was sampled.
+    @discardableResult
+    func stop() -> [Take.Sample] {
+        task?.cancel()
+        task = nil
+        return lock.withLock { samples }
     }
 }
