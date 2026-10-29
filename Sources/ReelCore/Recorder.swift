@@ -192,15 +192,47 @@ public enum Recorder {
         )
     }
 
-    /// A web page in a browser reel starts, driven over DevTools: only the page is recorded, below the title bar.
+    /// A web page: in WebKit unless the tape chose a Chromium-based browser, which it then has to have. Only the page
+    /// is recorded, below the window's title bar.
     private static func webStage(_ tape: Tape, opening url: URL, log: (String) -> Void) async throws -> Stage {
-        let browser = try await Browser.launch(
-            Browser.find(tape.web.browser), viewport: tape.web.viewport, opening: url, log: log
-        )
+        switch try tape.web.browser.resolve(locate: { Browser.locate()?.app }) {
+        case .webkit: try await webKitStage(tape, opening: url, log: log)
+        case let .chromium(app): try await chromiumStage(tape, app: app, opening: url, log: log)
+        }
+    }
+
+    /// WebKit, in a window of reel's own: the page's sound plays in WebKit's helper processes, so those are kept too.
+    private static func webKitStage(_ tape: Tape, opening url: URL, log: (String) -> Void) async throws -> Stage {
+        let page = try await WebKitPage.open(url, viewport: tape.web.viewport)
+        log("opened \(url.absoluteString) in WebKit")
+        let pid = ProcessInfo.processInfo.processIdentifier
+        do {
+            let (window, display, content) = try await firstWindow(of: pid)
+            let viewport = await page.viewport()
+            let driver = WebDriver(page: page, tape: tape, viewport: viewport)
+            let crop = CGRect(
+                x: 0, y: window.frame.height - viewport.height, width: viewport.width, height: viewport.height
+            )
+            return Stage(
+                window: window, display: display, content: content, crop: crop, driver: driver, web: driver,
+                owns: { $0.processID == pid || $0.bundleIdentifier.hasPrefix("com.apple.WebKit") },
+                close: { Task { @MainActor in page.close() } }
+            )
+        } catch {
+            await page.close()
+            throw error
+        }
+    }
+
+    /// A Chromium-based browser reel starts and drives over DevTools.
+    private static func chromiumStage(
+        _ tape: Tape, app: URL, opening url: URL, log: (String) -> Void
+    ) async throws -> Stage {
+        let browser = try await Browser.launch(app, viewport: tape.web.viewport, opening: url, log: log)
         do {
             let (window, display, content) = try await firstWindow(of: browser.pid)
             let viewport = try await browser.viewport()
-            let driver = WebDriver(browser: browser, tape: tape, viewport: viewport)
+            let driver = WebDriver(page: browser, tape: tape, viewport: viewport)
             // The page fills the window under its title bar.
             let crop = CGRect(
                 x: 0, y: window.frame.height - viewport.height, width: viewport.width, height: viewport.height

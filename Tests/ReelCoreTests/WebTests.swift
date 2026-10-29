@@ -1,3 +1,4 @@
+import AppKit
 import AVFoundation
 import CoreMedia
 import Foundation
@@ -23,7 +24,7 @@ struct WebParsingTests {
         Open site/next.html
         """.replacingOccurrences(of: "css:form .submit", with: "css:.submit"))
         #expect(parsed.launch == .web(URL(string: "https://example.com/start")!))
-        #expect(parsed.web.browser == URL(fileURLWithPath: "/Applications/Brave Browser.app"))
+        #expect(parsed.web.browser == .app(URL(fileURLWithPath: "/Applications/Brave Browser.app")))
         #expect(parsed.web.viewport == CGSize(width: 1000, height: 700))
         #expect(parsed.steps.map(\.command) == [
             .click(.label("Sign in")), .click(.css(".submit")), .wait(.identifier("email")),
@@ -54,7 +55,7 @@ struct WebParsingTests {
         (
             "Output a.mp4\nSet Browser Chrome\nOpen https://a.dev",
             2,
-            "Browser is a Chromium-based .app, such as /Applications/Brave Browser.app"
+            "Browser is webkit, chromium or a Chromium-based .app such as /Applications/Brave Browser.app, not 'Chrome'"
         ),
         (
             "Output a.mp4\nSet Viewport big\nOpen https://a.dev",
@@ -95,8 +96,28 @@ struct WebDriverTests {
         #expect(try WebDriver.commands[#require(KeyCombo("cmd+shift+z")).description] == "redo")
     }
 
-    @Test func aChosenBrowserMustExist() {
-        #expect(throws: ReelError.self) { try Browser.find(URL(fileURLWithPath: "/nowhere/Browser.app")) }
+    @Test func webKitIsTheDefaultAndAChoiceIsKeptOrRefused() throws {
+        #expect(try tape("Output a.mp4\nOpen https://a.dev").web.browser == .webkit)
+        #expect(try tape("Output a.mp4\nSet Browser chromium\nOpen https://a.dev").web.browser == .chromium)
+        #expect(try tape("Output a.mp4\nSet Browser webkit\nOpen https://a.dev").web.browser == .webkit)
+
+        let found = URL(fileURLWithPath: "/Applications/Chromium.app")
+        #expect(try BrowserChoice.webkit.resolve(locate: { found }) == .webkit, "WebKit even when Chromium is there")
+        #expect(try BrowserChoice.chromium.resolve(locate: { found }) == .chromium(found))
+        // A tape that chose a browser never gets another: no fall back to WebKit.
+        #expect(throws: ReelError.self) { try BrowserChoice.chromium.resolve(locate: { nil }) }
+        let brave = URL(fileURLWithPath: "/Applications/Brave Browser.app")
+        #expect(throws: ReelError.self) { try BrowserChoice.app(brave).resolve(locate: { found }, exists: { _ in
+            false
+        }) }
+        #expect(try BrowserChoice.app(brave).resolve(locate: { nil }, exists: { _ in true }) == .chromium(brave))
+    }
+
+    @Test func webKitKeysTypeWhatAppKitExpects() {
+        #expect(WebKitPage.characters["return"] == "\r")
+        #expect(WebKitPage.characters["delete"] == "\u{7F}")
+        #expect(WebKitPage.characters["down"]?.unicodeScalars.first?.value == UInt32(NSDownArrowFunctionKey))
+        #expect(WebKitPage.characters["f1"]?.unicodeScalars.first?.value == UInt32(NSF1FunctionKey))
     }
 }
 

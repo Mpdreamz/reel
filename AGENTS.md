@@ -25,6 +25,7 @@ or both. Read `PLAN.md` first.
 - `mise run live` records `tapes/fixture.tape` against the fixture app for real and checks the take
   (`scripts/check-take.swift`): the window's size, silence before `Click "Play"` and 440 Hz after, and what the
   fixture logged. CI cannot run it. It plays a quiet tone and takes the mouse and keyboard for a few seconds.
-- `mise run live-web` records `tapes/web.tape` against a local page in a browser reel starts (Chrome, Chromium,
-  Brave, Edge or Playwright's download) and checks the take. It plays a quiet tone; the mouse stays yours.
+- `mise run live-web` records `tapes/web.tape` against a local page twice, in WebKit and in a Chromium-based browser
+  (Chrome, Chromium, Brave, Edge or Playwright's download), and checks both takes. It plays a quiet tone; the mouse
+  stays yours.
 - Branch names: `feature/`, `fix/`, `docs/`, `chore/`, `ci/`. Pull requests are squash-merged.

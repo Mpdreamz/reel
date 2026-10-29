@@ -97,7 +97,7 @@ struct Check: AsyncParsableCommand {
 
 struct Doctor: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Report the permissions reel needs, without asking for them, and the browser web tapes use."
+        abstract: "Report the permissions reel needs, without asking for them, and the browsers web tapes can use."
     )
 
     func run() async throws {
@@ -107,13 +107,11 @@ struct Doctor: AsyncParsableCommand {
         say(
             "Accessibility:    \(accessibility ? "granted" : "not granted (needed by tapes that click, type or scroll)")"
         )
-        // Not a permission, and not needed by every tape: reported, never a failure.
-        say(
-            "Browser:          " + (
-                Browser.locate().map(\.description) ?? "none found (needed by tapes that Open a page: "
-                    + "install Chrome, Chromium, Brave or Edge, or `npx playwright install chromium`)"
-            )
-        )
+        // Not permissions, and not needed by every tape: reported, never a failure.
+        say("Web pages:        WebKit, built in (Set Browser chromium for Chromium)")
+        let chromium = Browser.locate().map(\.description) ?? "none found (for Set Browser chromium: install Chrome, "
+            + "Chromium, Brave or Edge, or `npx playwright install chromium`)"
+        say("Chromium:         " + chromium)
         if !screen {
             say("Grant them to this terminal in System Settings → Privacy & Security.")
             throw ExitCode(1)

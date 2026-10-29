@@ -16,7 +16,7 @@
    stretches, narration kept at its pace; `Hide` … `Show` cuts (see "Zoom, speed and trim").
 7. **Intro and outro.** Title cards before and after the demo, over a colour, an image or a video (its sound kept),
    with transitions into and out of the demo (see "Intro and outro").
-8. **Web pages.** `Open <url>` instead of `Launch`: a Chromium-based browser reel starts and drives over DevTools,
+8. **Web pages.** `Open <url>` instead of `Launch`: in WebKit by default, or a Chromium-based browser over DevTools,
    only the page recorded, with a drawn cursor (see "Web pages"). macOS only, tapes only; Playwright journeys and other
    platforms are still to be discussed.
 
@@ -36,7 +36,7 @@ after them. Durations are `500ms`, `2s`, `1.5s`, `1m` or a bare number of second
 | `Set WaitTimeout <duration>` | How long `Wait` and `Click` look for an element, default 10s. |
 | `Launch <bundle id or .app path>` | The app to record. Exactly one (or `Open`). Reel waits for its first window. |
 | `Open <url>` | A web page to record instead of an app: `https://…`, `file://…` or an `.html` path. Later in the tape, goes to another page. |
-| `Set Browser <app>` | A Chromium-based browser; by default Chrome, Chromium, Brave or Edge, then Playwright's download. |
+| `Set Browser webkit\|chromium\|<app>` | WebKit, built in, is the default. `chromium` is any Chromium-based browser reel finds; an `.app` is that one. A chosen browser that cannot be had refuses the take; it never falls back. |
 | `Set Viewport <w>x<h>` | The page's size in points, default 1280x800. |
 | `Sleep <duration>` | Wait. |
 | `Wait <element>` | Wait until the element shows. |
@@ -135,25 +135,31 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 
 ## Web pages
 
-- **Which browser.** `Set Browser`, else the first installed of Chrome, Chromium, Brave and Edge, else the newest
-  Chromium Playwright downloaded (`~/Library/Caches/ms-playwright/chromium-<build>`). `reel doctor` says which, its
-  version and where it came from.
-- **The browser.** reel starts a Chromium-based browser as an app window (no tabs, no address bar) on a fresh,
-  temporary profile with a DevTools port (`--remote-debugging-port=0`, read from `DevToolsActivePort`), sizes the
-  window until the page itself is `Viewport`, and quits it and removes the profile when the take ends. No Node, no
-  Playwright, no agent-browser: DevTools is a WebSocket of JSON.
-- **Driving.** Steps go to the page over DevTools (`Input.dispatchMouseEvent`, `dispatchKeyEvent`, `Runtime.evaluate`),
-  so a web tape needs no Accessibility and takes neither the mouse nor the keyboard. Elements: `"Label"` matches an
-  element's accessible name, placeholder, title, alt, button value or text exactly, controls before other elements,
-  then the smallest; `#id` an id or `data-testid`; `css:<selector>` the first visible match. A click scrolls its
-  element into the middle first. macOS editing shortcuts (cmd+a, c, x, v, z, shift+cmd+z) are sent as the commands
-  DevTools needs for them.
-- **Recording.** ScreenCaptureKit, as for an app, cropped to the page under the title bar; the sound kept includes
-  the browser's helper processes (where a page's audio plays). The real cursor is hidden: the driver keeps a cursor
-  of its own, glides it as the native driver does (the page sees the moves, so hovers show), and render draws an
-  arrow along its path, through edits and zooms.
-- `mise run live-web` records `tapes/web.tape` against `tapes/web/fixture.html`: the page logs what happened and the
-  tape waits for each entry, so a step that did not work stops the take.
+- **Which browser.** WebKit, built into macOS, unless the tape says otherwise: nothing to install. `Set Browser
+  chromium` is the first installed of Chrome, Chromium, Brave and Edge, else the newest Chromium Playwright
+  downloaded (`~/Library/Caches/ms-playwright/chromium-<build>`); `Set Browser <path>.app` is that browser. A chosen
+  browser that is not there refuses the take rather than fall back. `reel doctor` says what `chromium` would be.
+- **One driver, two pages.** The web driver finds elements with the same JavaScript in both and keeps the drawn
+  cursor's path; a `Page` does the input. Elements: `"Label"` matches an element's accessible name, placeholder,
+  title, alt, button value or text exactly, controls before other elements, then the smallest; `#id` an id or
+  `data-testid`; `css:<selector>` the first visible match. A click scrolls its element into the middle first.
+- **WebKit** is a `WKWebView` in a window of reel's own (reel shows a Dock icon while it is up). Clicks and keys are
+  AppKit events sent straight to the view, which the page sees as trusted. macOS editing shortcuts are the view's own
+  actions (selectAll:, copy:, …). Its gaps, because WebKit takes mouse moves and wheel events only while its app is
+  active, which a tool started from a terminal cannot make itself: no hover (the page sees no mouse moves), scrolling
+  is the page scrolling its nearest scrollable element under the cursor (scroll events fire; wheel events do not),
+  and no focus ring. Pages render as in Safari. A page's sound plays in WebKit's helper processes, which Safari's own
+  pages share: sound Safari plays during a take is recorded too.
+- **Chromium** is a browser reel starts as an app window (no tabs, no address bar) on a fresh, temporary profile
+  with a DevTools port (`--remote-debugging-port=0`, read from `DevToolsActivePort`), sized until the page is
+  `Viewport`, quit and its profile removed when the take ends. Input is DevTools' (`Input.dispatchMouseEvent`,
+  `dispatchKeyEvent`): hovers and wheel events included. Editing shortcuts are sent as the commands DevTools needs.
+- **Recording.** ScreenCaptureKit, as for an app, cropped to the page under the title bar, the browser's helper
+  processes' sound kept. Neither takes the mouse or the keyboard, and neither needs Accessibility. The real cursor
+  is hidden; render draws an arrow along the driver's path, through edits and zooms.
+- `mise run live-web` records `tapes/web.tape` against `tapes/web/fixture.html` twice, in WebKit and with `Set
+  Browser chromium`: the page logs what happened and the tape waits for each entry, so a step that did not work stops
+  the take.
 
 ## Intro and outro
 
