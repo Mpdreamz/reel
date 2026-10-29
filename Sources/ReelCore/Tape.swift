@@ -499,7 +499,9 @@ public extension Tape {
                             : "a tape launches one app; line \(earlier.line) already does"
                     )
                 }
-                let isPath = target.hasSuffix(".app") || target.contains("/")
+                // A path has a slash (`./Name.app` beside the tape); anything else is a bundle id, which may itself end
+                // in `.app` (`dev.musicbox.app`).
+                let isPath = target.contains("/")
                 launch = (isPath ? .app(resolve(target, against: directory)) : .bundleID(target), line)
 
             case "Sleep":

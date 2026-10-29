@@ -39,7 +39,7 @@ next, and recording starts at the first command after it. Durations are `500ms`,
 | `Set Size <w>x<h>` | The window's size in points, before recording. |
 | `Set TypingSpeed <duration>` | The pause after each typed character, default 50ms. |
 | `Set WaitTimeout <duration>` | How long `Wait` and `Click` look for an element, default 10s. |
-| `Launch <bundle id or .app path>` | The app to record. Exactly one (or `Open`). Reel waits for its first window. |
+| `Launch <bundle id or .app path>` | The app to record: a bundle id, or a path with a slash (`./Name.app` beside the tape). Reel waits for its first window. |
 | `Open <url>` | A web page to record instead of an app: `https://…`, `file://…` or an `.html` path. Later in the tape, goes to another page. |
 | `Set Browser webkit\|chromium\|<app>` | WebKit, built in, is the default. `chromium` is any Chromium-based browser reel finds; an `.app` is that one. A chosen browser that cannot be had refuses the take; it never falls back. |
 | `Set Viewport <w>x<h>` | The page's size in points, default 1280x800. |

@@ -254,7 +254,8 @@ public enum Recorder {
         switch target {
         case let .bundleID(id):
             guard let found = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else {
-                throw ReelError("no app with bundle id \(id) is installed")
+                let hint = id.hasSuffix(".app") ? "; for an app beside the tape, write ./\(id)" : ""
+                throw ReelError("no app with bundle id \(id) is installed\(hint)")
             }
             url = found
         case let .app(path):
