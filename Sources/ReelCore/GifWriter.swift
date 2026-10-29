@@ -75,8 +75,9 @@ public enum GifWriter {
 
     static func looksTheSame(_ a: Data, _ b: Data, within tolerance: UInt8 = noise) -> Bool {
         guard a.count == b.count else { return false }
-        return a.withUnsafeBytes { x in
-            b.withUnsafeBytes { y in
+        // Typed closures: without them newer SDKs find `withUnsafeBytes` ambiguous.
+        return a.withUnsafeBytes { (x: UnsafeRawBufferPointer) -> Bool in
+            b.withUnsafeBytes { (y: UnsafeRawBufferPointer) -> Bool in
                 for index in 0 ..< x.count where x[index] &- y[index] > tolerance && y[index] &- x[index] > tolerance {
                     return false
                 }
