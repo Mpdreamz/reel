@@ -1,0 +1,43 @@
+# reel's hero demo: Musicbox, a sketchpad for chord progressions, recorded with its own sound and narrated.
+# `mise run demos` records it (Musicbox built in ~/Projects/musicbox: by path, since a bundle id can find another copy). It plays music and takes the mouse and keyboard.
+Launch ~/Projects/musicbox/build/App/Musicbox.app
+
+Output ../docs/media/musicbox.mp4
+Output@16:9 ../docs/media/musicbox-wide.mp4
+Output@1:1 ../docs/media/musicbox-square.mp4
+Output ../docs/media/musicbox.gif
+Set Size 1440x900
+# Placeholders until the designed backgrounds arrive (design/backgrounds).
+Set Background #1d2b3a
+Set OutroBackground #1d2b3a
+Set Voice system
+Set Ducking 30%
+Set Subtitles on
+Set ZoomEasing smooth
+Set ZoomDuration 700ms
+Set GifWidth 720
+Intro@slide-up,ease-out,700ms "Musicbox" "Chord progressions, sketched and heard"
+Outro@fade,800ms "Recorded with reel" "brew install --cask mpdreamz/tap/reel"
+
+Hide
+Wait #lanes
+Sleep 1s
+Show
+
+Say "This is Musicbox, a sketchpad for chord progressions."
+Say@over "Press space, [play] and every lane starts looping."
+Wait [play]
+Key space
+Sleep 2s
+Zoom #timeline.chords 1.8x
+Say "The chords lane drives the others."
+Zoom #timeline.melody 1.8x
+Say "The melody follows it, snapped to the scale."
+Zoom #timeline.bass 1.8x
+Say "And the bass plays the roots."
+Zoom off
+Sleep 3s
+Say@over "Space again, [stop] and it stops."
+Wait [stop]
+Key space
+Sleep 1s

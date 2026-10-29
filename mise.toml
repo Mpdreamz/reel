@@ -38,3 +38,7 @@ run = "scripts/live-web.sh"
 description = "Build build/reel as the release does (scripts/build-release.sh), at version 0.0.0 unless given"
 run = "scripts/build-release.sh ${VERSION:-0.0.0}"
 
+[tasks.demos]
+description = "Record reel's own demos (demos/*.tape) into docs/media; plays sound, app tapes take the mouse"
+run = "scripts/demos.sh"
+
