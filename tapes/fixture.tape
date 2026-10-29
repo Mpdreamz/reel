@@ -4,6 +4,7 @@ Launch ../build/ReelFixture.app
 
 Output ../build/fixture.mp4
 Output ../build/fixture.gif
+Output@1:1 ../build/fixture-square.mp4
 Set Size 640x480
 Set TypingSpeed 30ms
 Set Voice system

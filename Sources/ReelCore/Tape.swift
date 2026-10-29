@@ -29,6 +29,10 @@ public struct Tape: Equatable, Sendable {
     public var outro: Section?
     /// For a tape that `Open`s a web page.
     public var web: WebSettings
+    /// `Set Background`: the recording is framed on it in every output; nil frames only outputs with a shape.
+    public var background: Background?
+    /// Room around a framed recording, as a share of the canvas's shorter side.
+    public var padding: Double
     public var launch: LaunchTarget
     /// The commands after setup, in order. Recording starts before the first one.
     public var steps: [Step]
@@ -72,6 +76,27 @@ public struct Output: Equatable, Sendable {
 
     public var url: URL
     public var format: Format
+    /// `Output@16:9 …`: the canvas the recording is framed on; nil for the recording's own shape.
+    public var shape: Shape?
+
+    /// A canvas: an aspect ratio (its size worked out from the recording) or an exact size in pixels.
+    public enum Shape: Equatable, Sendable, CustomStringConvertible {
+        case aspect(Int, Int)
+        case size(Int, Int)
+
+        public var description: String {
+            switch self {
+            case let .aspect(w, h): "\(w):\(h)"
+            case let .size(w, h): "\(w)x\(h)"
+            }
+        }
+    }
+
+    public init(url: URL, format: Format, shape: Shape? = nil) {
+        self.url = url
+        self.format = format
+        self.shape = shape
+    }
 }
 
 public enum LaunchTarget: Equatable, Sendable {
@@ -275,6 +300,8 @@ public extension Tape {
         var markers: [String: (line: Int, over: Bool)] = [:]
         var hidden = false
         var zoomTransition = Transition.standard
+        var background: Background?
+        var padding = Framing.defaultPadding
         var web = WebSettings()
         var intro: Section?, outro: Section?
         var introBackground: Background?, outroBackground: Background?
@@ -298,7 +325,7 @@ public extension Tape {
             }
             // `Type@20ms`: a command may carry an option after `@`; only Type takes one.
             let (name, option) = first.quoted ? (first.text, nil) : split(first.text)
-            if option != nil, !["Type", "Say", "Zoom", "Intro", "Outro"].contains(name) {
+            if option != nil, !["Type", "Say", "Zoom", "Intro", "Outro", "Output"].contains(name) {
                 throw fail("\(name) takes no @option")
             }
             // The first line says what the tape records; everything after is read knowing it.
@@ -341,7 +368,7 @@ public extension Tape {
                 if outputs.contains(where: { $0.url == url }) {
                     throw fail("\(path) is already an Output")
                 }
-                outputs.append(Output(url: url, format: format))
+                try outputs.append(Output(url: url, format: format, shape: option.map { try shape($0, fail: fail) }))
 
             case "Set":
                 try setup(name)
@@ -419,6 +446,15 @@ public extension Tape {
                     voice.voiceVolume = try percent("VoiceVolume", value, fail: fail)
                 case "AppVolume":
                     voice.appVolume = try percent("AppVolume", value, fail: fail)
+                case "Background":
+                    background = try Background(value, relativeTo: directory, fail: fail)
+                case "Padding":
+                    guard value.hasSuffix("%"), let number = Double(value.dropLast()),
+                          (0 ... 30).contains(number)
+                    else {
+                        throw fail("Padding must be a percentage from 0% to 30%, not '\(value)'")
+                    }
+                    padding = number / 100
                 case "IntroBackground":
                     introBackground = try Background(value, relativeTo: directory, fail: fail)
                 case "OutroBackground":
@@ -439,7 +475,7 @@ public extension Tape {
                         "unknown setting '\(words[0])'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, "
                             + "KeyBadges, ClickRipples, GifFrameRate, GifWidth, Voice, VoiceServer, VoiceSeed, "
                             + "VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, "
-                            + "IntroBackground, OutroBackground, Browser or Viewport"
+                            + "IntroBackground, OutroBackground, Browser, Viewport, Background or Padding"
                     )
                 }
 
@@ -639,6 +675,8 @@ public extension Tape {
                 return section
             },
             web: web,
+            background: background,
+            padding: padding,
             launch: launch.target,
             steps: steps
         )
@@ -724,6 +762,23 @@ private func webAddress(_ value: String, relativeTo directory: URL, fail: (Strin
     }
     if value.hasSuffix(".html") || value.hasSuffix(".htm") { return resolve(value, against: directory) }
     throw fail("'\(value)' is not a web address; write https://…, http://…, file://… or a path to an .html file")
+}
+
+/// `16:9`, `1:1`, `9:16`, or an exact `1080x1080` in pixels.
+private func shape(_ text: String, fail: (String) -> TapeError) throws -> Output.Shape {
+    let problem = "'@\(text)' is not a shape; write an aspect such as @16:9, @1:1 or @9:16, or a size such as @1080x1080"
+    if text.contains(":") {
+        let parts = text.split(separator: ":", omittingEmptySubsequences: false)
+        guard parts.count == 2, let w = Int(parts[0]), let h = Int(parts[1]), (1 ... 100).contains(w),
+              (1 ... 100).contains(h)
+        else { throw fail(problem) }
+        return .aspect(w, h)
+    }
+    let parts = text.split(separator: "x", omittingEmptySubsequences: false)
+    guard parts.count == 2, let w = Int(parts[0]), let h = Int(parts[1]), (64 ... 8192).contains(w),
+          (64 ... 8192).contains(h)
+    else { throw fail(problem) }
+    return .size(w, h)
 }
 
 private func parseSize(_ text: String) -> CGSize? {
