@@ -74,6 +74,9 @@ struct Check: AsyncParsableCommand {
         case let .app(url): say("launch \(url.path)")
         }
         say("capture at \(parsed.frameRate) fps, audio \(parsed.audio ? "on" : "off")")
+        if parsed.audio, !parsed.outputs.contains(where: \.format.hasSound) {
+            say("note: audio is on but every Output is a GIF, which has no sound")
+        }
         let captions = parsed.steps.count - parsed.actions.count
         say(
             "\(parsed.actions.count) action\(parsed.actions.count == 1 ? "" : "s"), \(captions) caption\(captions == 1 ? "" : "s")"
@@ -104,12 +107,7 @@ struct Doctor: AsyncParsableCommand {
 }
 
 private func renderAll(_ tape: Tape, from location: TakeLocation) async throws {
-    let take = try location.read()
-    let overlays = try OverlayPlan.make(tape: tape, take: take)
-    for output in tape.outputs {
-        try await Renderer.render(location.movie, take: take, overlays: overlays, to: output)
-        say("wrote \(output.url.path)")
-    }
+    try await Renderer.render(tape: tape, from: location, log: say)
 }
 
 private func say(_ line: String) {

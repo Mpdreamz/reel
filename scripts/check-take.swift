@@ -1,9 +1,10 @@
 // Checks the take scripts/live.sh records of the fixture app: the window has the tape's size, the sound is silent
 // until `Click "Play"` and a 440 Hz tone after it, and the fixture logged the click, the typing and the scroll.
 //
-// swift scripts/check-take.swift <take directory> <fixture-events.log> <rendered output>
+// swift scripts/check-take.swift <take directory> <fixture-events.log> <rendered movie> <rendered gif>
 import AVFoundation
 import Foundation
+import ImageIO
 
 struct Take: Decodable {
     struct Event: Decodable {
@@ -76,6 +77,24 @@ if let click {
 let rendered = try await samples(of: URL(fileURLWithPath: args[3]))
 let tail = rendered.dropFirst(max(0, rendered.count - 48000))
 check(rms(tail) > 0.05 && abs(hertz(tail) - 440) < 10, "the rendered output keeps the tone, overlays and all")
+if let gif = CGImageSourceCreateWithURL(URL(fileURLWithPath: args[4]) as CFURL, nil),
+   let first = CGImageSourceCreateImageAtIndex(gif, 0, nil)
+{
+    let frames = CGImageSourceGetCount(gif)
+    let seconds = (0 ..< frames).reduce(0.0) { total, index in
+        let properties = CGImageSourceCopyPropertiesAtIndex(gif, index, nil) as? [CFString: Any]
+        let frame = properties?[kCGImagePropertyGIFDictionary] as? [CFString: Any]
+        return total + (frame?[kCGImagePropertyGIFUnclampedDelayTime] as? Double ?? 0)
+    }
+    let loop = ((CGImageSourceCopyProperties(gif, nil) as? [CFString: Any])?[kCGImagePropertyGIFDictionary]
+        as? [CFString: Any])?[kCGImagePropertyGIFLoopCount] as? Int
+    let movie = try await AVURLAsset(url: URL(fileURLWithPath: args[3])).load(.duration).seconds
+    check(first.width == 800, "the GIF is 800 pixels wide (\(first.width))")
+    check(abs(seconds - movie) < 0.1, String(format: "the GIF lasts as long as the movie (%.2f s of %.2f)", seconds, movie))
+    check(loop == 0, "the GIF loops forever (\(frames) frames)")
+} else {
+    check(false, "the GIF can be read")
+}
 check(log.contains("play"), "the fixture logged the click on Play")
 check(log.contains("submit Musicbox"), "cmd+a replaced the typed text, and return submitted it")
 check(log.contains { $0.hasPrefix("scroll ") && Int($0.dropFirst(7)).map { $0 > 0 } == true }, "the list scrolled")

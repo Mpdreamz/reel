@@ -6,6 +6,7 @@ of terminals, and with the app's sound.
 ```
 # demo.tape
 Output demo.mp4
+Output demo.gif
 Set Size 1280x800
 
 Launch com.example.musicbox
@@ -25,8 +26,9 @@ reel render demo.tape   # only render the outputs from the last take
 reel doctor             # Screen Recording and Accessibility
 ```
 
-Status: milestones 1 to 3 of [PLAN.md](PLAN.md): recording a window with its sound, driving the app with clicks,
-typing, keys and scrolling, and captions, key badges and click ripples drawn over it. GIFs are next. The tape language
+Status: milestones 1 to 4 of [PLAN.md](PLAN.md): recording a window with its sound, driving the app with clicks,
+typing, keys and scrolling, captions, key badges and click ripples drawn over it, and GIFs. Zoom, speed and trim are
+next. The tape language
 is in PLAN.md. Captions are drawn at render time, so `reel render` picks up a changed caption without recording again.
 
 While a tape plays it takes the mouse and keyboard; it stops rather than type into another app.

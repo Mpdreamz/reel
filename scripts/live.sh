@@ -16,4 +16,4 @@ status=0
 .build/debug/reel tapes/fixture.tape || status=$?
 pkill -x ReelFixture || true
 [ "$status" -eq 0 ] || exit "$status"
-swift scripts/check-take.swift tapes/.reel/fixture build/fixture-events.log build/fixture.mp4
+swift scripts/check-take.swift tapes/.reel/fixture build/fixture-events.log build/fixture.mp4 build/fixture.gif

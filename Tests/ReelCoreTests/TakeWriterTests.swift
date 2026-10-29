@@ -19,7 +19,7 @@ struct TakeWriterTests {
         #expect(try await !asset.loadTracks(withMediaType: .audio).isEmpty)
         #expect(try await abs(asset.load(.duration).seconds - 1) < 0.1)
 
-        for format in Output.Format.allCases {
+        for format in Output.Format.allCases where format != .gif {
             let url = dir.appending(path: "demo.\(format.rawValue)")
             try await Renderer.render(
                 movie, take: take(seconds: 1), overlays: [], to: Output(url: url, format: format)

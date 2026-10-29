@@ -4,7 +4,35 @@ import QuartzCore
 
 /// Turns a take into a tape's outputs: the take, with its overlays drawn over it by Core Animation, exported.
 public enum Renderer {
+    /// Renders every Output of `tape`. A GIF is made from a rendered movie: the first movie Output's, or a temporary
+    /// one when the tape has none.
+    public static func render(tape: Tape, from location: TakeLocation, log: (String) -> Void) async throws {
+        let take = try location.read()
+        let overlays = try OverlayPlan.make(tape: tape, take: take)
+        var movie: URL?
+        for output in tape.outputs where output.format != .gif {
+            try await render(location.movie, take: take, overlays: overlays, to: output)
+            movie = movie ?? output.url
+            log("wrote \(output.url.path)")
+        }
+        let gifs = tape.outputs.filter { $0.format == .gif }
+        guard !gifs.isEmpty else { return }
+        let source = movie ?? location.directory.appending(path: "rendered.mov")
+        if movie == nil {
+            try await render(
+                location.movie, take: take, overlays: overlays, to: Output(url: source, format: .mov)
+            )
+        }
+        for gif in gifs {
+            let result = try await GifWriter.write(
+                from: source, to: gif.url, frameRate: tape.gifFrameRate, width: tape.gifWidth
+            )
+            log("wrote \(gif.url.path) (\(result.frames) frames of \(result.sampled) sampled)")
+        }
+    }
+
     public static func render(_ movie: URL, take: Take, overlays: [Overlay], to output: Output) async throws {
+        precondition(output.format != .gif, "a GIF is written from a rendered movie by GifWriter")
         let asset = AVURLAsset(url: movie)
         guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
             throw ReelError("cannot export \(movie.path)")
@@ -34,6 +62,7 @@ public enum Renderer {
         let type: AVFileType = switch output.format {
         case .mp4: .mp4
         case .mov: .mov
+        case .gif: preconditionFailure()
         }
         try await session.export(to: output.url, as: type)
     }
