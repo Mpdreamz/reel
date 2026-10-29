@@ -84,7 +84,7 @@ public enum Recorder {
         do {
             start = try await firstFrame(of: writer, sink: sink)
             var events: [Take.Event] = []
-            for step in tape.steps {
+            for step in tape.actions {
                 let begin = milliseconds(since: start)
                 let point = try await perform(step.command, with: driver)
                 if let error = sink.error { throw error }

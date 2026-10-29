@@ -7,8 +7,8 @@
    it. `reel doctor`.
 2. **Drive the app.** `Click`, `Type`, `Key`, `Wait`, `Scroll` and `Set Size`, through Accessibility: elements by
    label or identifier, points as the last resort. Input is real (see "How a tape drives the app").
-3. **Overlays.** Captions, key badges and click ripples, drawn with Core Animation at render time and anchored to
-   timeline events.
+3. **Overlays.** Captions, key badges and click ripples, drawn with Core Animation at render time from the
+   timeline (see "Overlays").
 4. **GIF.** `Output demo.gif`, written with ImageIO from the rendered frames (no sound: a GIF has none).
 5. **Zoom, speed and trim.** Zoom that follows the cursor, sped-up stretches, trimming to scenes.
 
@@ -33,6 +33,9 @@ after them. Durations are `500ms`, `2s`, `1.5s`, `1m` or a bare number of second
 | `Type "<text>"`, `Type@<duration> "<text>"` | Type the text, a character at a time; `\n` is return. |
 | `Key <combo> [count]` | `return`, `a`, `cmd+s`, `ctrl+shift+tab`, `f5`; repeated `count` times. |
 | `Scroll <up\|down\|left\|right> [lines] [element or @x,y]` | Scroll, over the element when one is named. |
+| `Caption "<text>" [duration]`, `Caption off` | A caption from here until the next one, for `duration`, or until `Caption off`. |
+| `Set KeyBadges on\|off` | A badge for each `Key` step (`⌘S`, `↓ ×3`), default on. |
+| `Set ClickRipples on\|off` | A ripple where each click lands, default on. |
 
 An element is `"Label"` (its title, description or value, exactly; quoted is always a label), `#identifier` (its
 accessibility identifier) or a bare word as a label. `@x,y` is points from the window's top left. Elements are found
@@ -50,6 +53,17 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   the size back and warns. `scripts/live.sh` floats the fixture with a yabai rule that only lives while it runs.
 - **Timeline.** Each step's event records when it ran and, for a click, where it landed in window points: what
   milestone 3's click ripples need.
+
+## Overlays
+
+- **Captions are not recorded.** Recording skips them; render anchors each one to the end of the action before it in
+  the take's timeline. Captions can be added, moved, reworded or removed and rendered again without a new take; an
+  action that changed since the take (render compares each action's line with the timeline) needs one.
+- **Key badges and ripples come from the timeline**: a badge from a `Key` step's start until 0.6 s after it, a
+  ripple from the press of a click (its point is in the timeline) for 0.5 s.
+- **Drawn by Core Animation** through `AVVideoCompositionCoreAnimationTool` during the export, sized from the
+  video. Text is drawn into an image first: a `CATextLayer` draws nothing when AVFoundation renders off screen.
+  Animations fill forwards only, since filling backwards would show each overlay's first frame from the start.
 
 ## How a take is captured
 

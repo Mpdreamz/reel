@@ -80,7 +80,7 @@ struct TapeTests {
         (
             "Output a.mp4\nLaunch x\nTypo",
             3,
-            "unknown command 'Typo'; expected one of Output, Set, Launch, Sleep, Click, Wait, Type, Key, Scroll"
+            "unknown command 'Typo'; expected one of Output, Set, Launch, Sleep, Click, Wait, Type, Key, Scroll, Caption"
         ),
         ("Launch x\nSleep 1s\nOutput a.mp4", 3, "Output is setup and must come before the first step (line 2)"),
         ("Output a.mp4\nSleep 1s\nLaunch x", 3, "Launch is setup and must come before the first step (line 2)"),
@@ -92,7 +92,11 @@ struct TapeTests {
         ("Set FrameRate 0", 1, "FrameRate must be a whole number from 1 to 120, not '0'"),
         ("Set FrameRate 30.5", 1, "FrameRate must be a whole number from 1 to 120, not '30.5'"),
         ("Set Audio yes", 1, "Audio must be on or off, not 'yes'"),
-        ("Set Speed 2", 1, "unknown setting 'Speed'; expected FrameRate, Audio, Size, TypingSpeed or WaitTimeout"),
+        (
+            "Set Speed 2",
+            1,
+            "unknown setting 'Speed'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, KeyBadges or ClickRipples"
+        ),
         ("Set Audio", 1, "expected Set <setting> <value>"),
         (
             "Output a.mp4\nLaunch x\nSleep soon",

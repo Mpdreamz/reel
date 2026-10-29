@@ -7,8 +7,10 @@ import CoreGraphics
 public struct KeyCombo: Equatable, Sendable, CustomStringConvertible {
     public var keyCode: CGKeyCode
     public var modifiers: Modifiers
-    /// The name as the tape wrote it, normalised: `cmd+shift+z`.
+    /// The name as the tape wrote it, normalised: `shift+cmd+z`.
     public var description: String
+    /// The key without its modifiers, lowercased: `z`, `return`.
+    public var key: String
 
     public struct Modifiers: OptionSet, Equatable, Sendable {
         public let rawValue: Int
@@ -45,6 +47,7 @@ public struct KeyCombo: Equatable, Sendable, CustomStringConvertible {
             names.append(name)
         }
         keyCode = code
+        self.key = key
         self.modifiers = modifiers
         let order = ["ctrl", "opt", "shift", "cmd", "fn"]
         description = (names.sorted { order.firstIndex(of: $0)! < order.firstIndex(of: $1)! } + [key])
@@ -79,4 +82,20 @@ public struct KeyCombo: Equatable, Sendable, CustomStringConvertible {
         }
         return keys
     }()
+
+    /// How a key badge shows it: `⌘⇧Z`, `↩`, `F5`, in the order macOS menus use.
+    public var symbol: String {
+        let names: [String: String] = [
+            "return": "↩", "enter": "↩", "tab": "⇥", "space": "Space", "delete": "⌫", "backspace": "⌫",
+            "escape": "⎋", "esc": "⎋", "forwarddelete": "⌦", "home": "↖", "end": "↘", "pageup": "⇞",
+            "pagedown": "⇟", "left": "←", "right": "→", "up": "↑", "down": "↓",
+        ]
+        var text = ""
+        if modifiers.contains(.function) { text += "fn " }
+        if modifiers.contains(.control) { text += "⌃" }
+        if modifiers.contains(.option) { text += "⌥" }
+        if modifiers.contains(.shift) { text += "⇧" }
+        if modifiers.contains(.command) { text += "⌘" }
+        return text + (names[key] ?? key.uppercased())
+    }
 }

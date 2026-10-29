@@ -69,12 +69,14 @@ final class Driver {
     /// Performs one step. Returns where a click landed, in points from the window's top left, for the timeline.
     func perform(_ command: Command) async throws -> CGPoint? {
         switch command {
-        case .sleep, .wait: break
+        case .sleep, .wait, .caption: break
         default: try await ensureInFront()
         }
         switch command {
         case let .sleep(duration):
             try await Task.sleep(for: duration)
+        case .caption:
+            break
         case let .wait(target):
             _ = try await element(target)
         case let .click(target):
