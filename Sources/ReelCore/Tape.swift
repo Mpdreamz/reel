@@ -652,9 +652,6 @@ public extension Tape {
             // The first line says what the tape records; everything after is read knowing it.
             if launch == nil, !["Launch", "Open", "Import"].contains(name) { throw fail(Tape.preface) }
             let isWeb = launch?.target.isWeb == true
-            let forWeb = { (what: String) throws in
-                if !isWeb { throw fail("\(what) is for web pages (Open); this tape Launches an app") }
-            }
 
             switch name {
             case "Import":
