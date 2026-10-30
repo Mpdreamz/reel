@@ -52,6 +52,13 @@ struct EncoderTests {
         }
     }
 
+    @Test func aQualityStandsInAsBitsPerPixelWhereTheEncoderTakesNone() {
+        // Quality 65 on the Musicbox take came to about 0.9 Mbit/s at 1920x1256 and 30 fps.
+        let rate = 1920 * 1256 * 30 * Encoder.bitsPerPixel(quality: 65)
+        #expect((0.8e6 ... 1.0e6).contains(rate))
+        #expect(Encoder.bitsPerPixel(quality: 100) > Encoder.bitsPerPixel(quality: 30))
+    }
+
     @Test func sizesAreEvenAndInProportion() {
         let natural = CGSize(width: 3124, height: 2044)
         #expect(Encoding.standard.size(for: natural) == natural)

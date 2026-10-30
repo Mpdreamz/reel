@@ -177,6 +177,9 @@ public enum Renderer {
         if let bitrate = encoding.bitrate {
             notes.append(String(format: "%.1f Mbit/s to fit %@", Double(bitrate) / 1e6, megabytes(maxBytes ?? 0)))
             notes.append("\(result.encodes) encodes")
+        } else if let bitrate = result.qualityAsBitrate {
+            // This Mac's encoder took no quality.
+            notes.append(String(format: "quality %d as %.1f Mbit/s", encoding.quality, Double(bitrate) / 1e6))
         } else if encoding.codec != .prores {
             notes.append("quality \(encoding.quality)")
         }

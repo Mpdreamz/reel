@@ -66,6 +66,14 @@ public enum Encoder {
         public var encoding: Encoding
         /// How many times it was encoded to fit under its size: 1 when it fit at once.
         public var encodes = 1
+        /// The bitrate the quality became, when the encoder took no quality (`bitsPerPixel`).
+        public var qualityAsBitrate: Int?
+    }
+
+    /// The bits a pixel a frame that stand in for a quality the encoder does not take. Measured on a screen
+    /// recording: quality 65 came to about 0.013.
+    static func bitsPerPixel(quality: Int) -> Double {
+        0.0002 * Double(quality)
     }
 
     /// The bits a pixel a frame below which a screen recording smears: fitting a size lowers the frame rate to 30,
@@ -234,7 +242,31 @@ public enum Encoder {
         case .prores: settings[AVVideoCodecKey] = AVVideoCodecType.proRes422
         }
         // ProRes takes no compression settings: it has one quality.
-        if encoding.codec != .prores { settings[AVVideoCompressionPropertiesKey] = compression }
+        var qualityAsBitrate: Int?
+        if encoding.codec != .prores {
+            settings[AVVideoCompressionPropertiesKey] = compression
+            // The encoder VideoToolbox hands out need not take every setting: a software one (on a virtual machine,
+            // or with the hardware busy) takes no quality, and a setting it does not take is an exception, not an
+            // error. Asked first, a setting it refuses is dropped: the hard cap on the rate, or the quality, which
+            // becomes the bitrate it comes to for the picture.
+            if !writer.canApply(outputSettings: settings, forMediaType: .video) {
+                compression[kVTCompressionPropertyKey_DataRateLimits as String] = nil
+                settings[AVVideoCompressionPropertiesKey] = compression
+            }
+            if !writer.canApply(outputSettings: settings, forMediaType: .video), compression[AVVideoQualityKey] != nil {
+                let rate = Double(min(encoding.frameRate ?? frameRate, frameRate))
+                let bitrate = Int(size.width * size.height * rate * bitsPerPixel(quality: encoding.quality))
+                compression[AVVideoQualityKey] = nil
+                compression[AVVideoAverageBitRateKey] = bitrate
+                settings[AVVideoCompressionPropertiesKey] = compression
+                qualityAsBitrate = bitrate
+            }
+        }
+        guard writer.canApply(outputSettings: settings, forMediaType: .video) else {
+            throw ReelError(
+                "the video encoder on this Mac takes none of the settings for \(output.url.lastPathComponent)"
+            )
+        }
         let video = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
         video.expectsMediaDataInRealTime = false
         writer.add(video)
@@ -268,8 +300,8 @@ public enum Encoder {
         writer.startSession(atSourceTime: .zero)
         // Fewer frames a second than the movie's: each kept frame lasts until the next one.
         let keep = encoding.frameRate.flatMap { $0 < frameRate ? $0 : nil }
-        let picturePump = Pump(output: frames, input: video, frameRate: keep)
-        let soundPump = samples.flatMap { samples in audio.map { Pump(output: samples, input: $0) } }
+        let picturePump = Pump(output: frames, input: video, writer: writer, frameRate: keep)
+        let soundPump = samples.flatMap { samples in audio.map { Pump(output: samples, input: $0, writer: writer) } }
         async let pictureDone: Void = picturePump.run()
         await soundPump?.run()
         await pictureDone
@@ -283,7 +315,7 @@ public enum Encoder {
             throw ReelError("cannot write \(output.url.path): \(writer.error?.localizedDescription ?? "unknown error")")
         }
         let bytes = fileSize(output.url)
-        return Result(size: size, bytes: bytes, encoding: encoding)
+        return Result(size: size, bytes: bytes, encoding: encoding, qualityAsBitrate: qualityAsBitrate)
     }
 }
 
@@ -293,23 +325,45 @@ private final class Pump: @unchecked Sendable {
     let queue = DispatchQueue(label: "reel.encoder")
     private let output: AVAssetReaderOutput
     private let input: AVAssetWriterInput
+    private let writer: AVAssetWriter
     private var finished = false
+    private var watch: DispatchSourceTimer?
     /// With a frame rate, only the first frame in each of its slots is kept.
     private let frameRate: Int?
     private var lastSlot = Int.min
 
-    init(output: AVAssetReaderOutput, input: AVAssetWriterInput, frameRate: Int? = nil) {
+    init(output: AVAssetReaderOutput, input: AVAssetWriterInput, writer: AVAssetWriter, frameRate: Int? = nil) {
         self.output = output
         self.input = input
+        self.writer = writer
         self.frameRate = frameRate
     }
 
-    /// Feeds the output's samples into the input as fast as it takes them, and returns once they run out (or the
-    /// input stops taking them).
+    /// Feeds the output's samples into the input as fast as it takes them, and returns once they run out, the
+    /// input stops taking them, or the writer fails: a failed writer never asks for more, and the encode would
+    /// wait for ever, so its status is looked at four times a second too.
     func run() async {
         await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
-            input.requestMediaDataWhenReady(on: queue) { self.drain(then: done) }
+            queue.async { [self] in
+                let timer = DispatchSource.makeTimerSource(queue: queue)
+                timer.schedule(deadline: .now() + 0.25, repeating: 0.25)
+                timer.setEventHandler { [self] in
+                    if writer.status == .failed || writer.status == .cancelled { finish(done) }
+                }
+                watch = timer
+                timer.resume()
+                input.requestMediaDataWhenReady(on: queue) { self.drain(then: done) }
+            }
         }
+    }
+
+    private func finish(_ done: CheckedContinuation<Void, Never>) {
+        dispatchPrecondition(condition: .onQueue(queue))
+        guard !finished else { return }
+        finished = true
+        watch?.cancel()
+        if writer.status == .writing { input.markAsFinished() }
+        done.resume()
     }
 
     private func drain(then done: CheckedContinuation<Void, Never>) {
@@ -324,9 +378,7 @@ private final class Pump: @unchecked Sendable {
                 lastSlot = slot
             }
             guard let buffer = next, input.append(buffer) else {
-                input.markAsFinished()
-                finished = true
-                done.resume()
+                finish(done)
                 return
             }
         }
