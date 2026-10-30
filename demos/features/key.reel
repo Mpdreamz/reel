@@ -1,0 +1,12 @@
+Import //demos/features/features.reelpreset
+Launch ~/Projects/musicbox/build/App/Musicbox.app
+Output //docs/landing/features/key.gif
+Set Size 1440x900
+Hide
+Wait #lanes
+Show
+Sleep 0.5s
+Key space
+Sleep 1.5s
+Key space
+Sleep 1s

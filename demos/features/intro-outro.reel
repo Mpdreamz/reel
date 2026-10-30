@@ -1,0 +1,12 @@
+Import //demos/features/features.reelpreset
+Launch ~/Projects/musicbox/build/App/Musicbox.app
+Output //docs/landing/features/intro-outro.gif
+Set Size 1440x900
+Set IntroBackground //design/motion/intro-reel-2s-16x9.mp4
+Set OutroBackground //design/motion/outro-reel-2s-16x9.mp4
+Intro@crossfade,ease-out,500ms 2s
+Outro@fade,600ms 2s
+Hide
+Wait #lanes
+Show
+Sleep 1.5s

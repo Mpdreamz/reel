@@ -1,0 +1,11 @@
+Import //demos/features/features.reelpreset
+Launch ~/Projects/musicbox/build/App/Musicbox.app
+Output //docs/landing/features/caption.gif
+Set Size 1440x900
+Hide
+Wait #lanes
+Show
+Caption "Captions say what the picture can't"
+Sleep 2s
+Caption "And change without recording again"
+Sleep 2s

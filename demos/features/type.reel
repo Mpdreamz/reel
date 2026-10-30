@@ -1,0 +1,15 @@
+Import //demos/features/features.reelpreset
+Open type.html
+Output //docs/landing/features/type.gif
+Set Viewport 960x600
+# Chromium: under yabai its window floats in front and draws every frame; reel's own WebKit window opens behind the
+# terminal and paints only now and then (a known gap).
+Set Browser chromium
+# Off camera until the page has drawn.
+Hide
+Wait #q
+Sleep 1s
+Show
+Click #q
+Type@60ms "I, V, vi, IV in C major"
+Sleep 1.5s

@@ -1,0 +1,7 @@
+Import //demos/features/features.reelpreset
+Launch ~/Projects/musicbox/build/App/Musicbox.app
+Output //docs/landing/features/launch.gif
+Set Size 1440x900
+Caption "Launch ~/Projects/musicbox/build/App/Musicbox.app"
+Wait #lanes
+Sleep 2.5s

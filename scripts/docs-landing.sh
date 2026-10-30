@@ -8,6 +8,6 @@ out="$1"
 cd "$(dirname "$0")/.."
 cp docs/reel-landing.html "$out/index.html"
 cp docs/robots.txt "$out/robots.txt"
-cp docs/landing/* "$out/"
+cp -R docs/landing/. "$out/"
 # docs-builder copies images, not fonts; the landing page needs its six.
 mkdir -p "$out/fonts" && cp docs/fonts/*.woff2 "$out/fonts/"
