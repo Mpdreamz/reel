@@ -34,7 +34,10 @@ jobs:
       - name: Test
         timeout-minutes: 10
         # Not --quiet: every test says when it starts and ends, so one that hangs names itself before the timeout.
-        run: swift test
+        # One at a time: the runner has a few virtual cores and no hardware encoder, and with every encoding test
+        # opening an encoder session at once the run stalled (all of them started at 07:39:08 in run 41021183678
+        # and none ended). reel itself encodes one movie at a time. About 10 seconds slower.
+        run: swift test --no-parallel
 
       # The demos cannot be recorded here (no Screen Recording), but every tape must still parse.
       - name: Check the demo tapes
