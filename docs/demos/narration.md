@@ -30,6 +30,21 @@ Lines never overlap: one starts when the line before it ends. The take runs unti
 | `system:Samantha` | That macOS voice. |
 | `voicebox:<profile>` | An AI voice from [voicebox](https://github.com/jamiepine/voicebox), by profile name or id: a voice you cloned from a sample, or one of its preset voices. voicebox runs on your Mac; nothing is sent anywhere. |
 
+### More than one voice
+
+```
+Set Voice voicebox:Main
+Set Voice guest voicebox:Bella
+
+Say "This is Musicbox."
+Say@guest "Can it play the chords alone?"
+Say@guest,over "Mute the melody, [mute] and listen."
+```
+
+`Set Voice <name> <voice>` names another voice, and `Say@<name>` speaks in it; `@over` goes with it, in either order.
+Names are letters, digits, `-` and `_`. The unnamed `Set Voice` speaks every other line. The seed, language and
+server are the same for every voice.
+
 voicebox is the AI voice reel speaks with today: open source, local, with several speech engines; reel uses the one
 each profile names. For voicebox, `Set VoiceServer` is its address (`http://127.0.0.1:17493` unless set), `Set VoiceSeed` its seed
 (`1`) and `Set VoiceLanguage` its language (`en`).

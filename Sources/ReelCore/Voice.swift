@@ -45,12 +45,21 @@ public struct Narration: Sendable {
         _ tape: Tape, into directory: URL, with synthesizer: some Synthesizer, voicing: Bool = true,
         log: (String) -> Void
     ) async throws -> Narration {
+        try await prepare(tape, into: directory, voices: { _ in synthesizer }, voicing: voicing, log: log)
+    }
+
+    /// - Parameter voices: the synthesizer for a line's named voice, or for the reel's own when nil.
+    public static func prepare(
+        _ tape: Tape, into directory: URL, voices: (String?) -> any Synthesizer, voicing: Bool = true,
+        log: (String) -> Void
+    ) async throws -> Narration {
         let folder = directory.appending(path: "voice", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         var lines: [Int: Line] = [:]
         var voiced = 0
         for step in tape.steps {
             guard case let .say(speech, _) = step.command else { continue }
+            let synthesizer = voices(speech.voice)
             var urls: [URL?] = [], lengths: [Double] = [], keys: [String] = []
             for piece in speech.pieces {
                 guard !piece.isEmpty else {
@@ -98,9 +107,9 @@ public struct Narration: Sendable {
 }
 
 public extension VoiceSettings {
-    /// The synthesizer for `source`.
-    func synthesizer() -> any Synthesizer {
-        switch source {
+    /// The synthesizer for the voice named `name`, or for `source` when nil. Parsing makes sure the name is set.
+    func synthesizer(for name: String? = nil) -> any Synthesizer {
+        switch name.flatMap({ named[$0] }) ?? source {
         case let .system(name): SystemVoice(name: name, language: language)
         case let .voicebox(profile): Voicebox(server: server, profile: profile, language: language, seed: seed)
         }

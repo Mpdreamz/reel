@@ -526,7 +526,22 @@ public extension Tape {
                 }
                 size = parsed
             case "Voice":
-                voice.source = try VoiceSource(value, fail: fail)
+                // `Set Voice <voice>` is the reel's own; `Set Voice <name> <voice>` one a `Say@<name>` speaks with.
+                let parts = value.split(separator: " ", maxSplits: 1).map(String.init)
+                if parts.count == 2 {
+                    let name = parts[0]
+                    guard name.first?.isLetter == true,
+                          name.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" }), name != "over"
+                    else {
+                        throw fail(
+                            "'\(name)' cannot name a voice; name it with letters, digits, - and _ (not over), "
+                                + "such as Set Voice guest voicebox:Bella"
+                        )
+                    }
+                    voice.named[name] = try VoiceSource(parts[1], fail: fail)
+                } else {
+                    voice.source = try VoiceSource(value, fail: fail)
+                }
             case "VoiceServer":
                 guard let url = URL(string: value), ["http", "https"].contains(url.scheme ?? "") else {
                     throw fail("VoiceServer must be an http URL, such as http://127.0.0.1:17493, not '\(value)'")
@@ -721,7 +736,9 @@ public extension Tape {
 
             case "Set":
                 try setup(name)
-                guard words.count == 2 || (words.count > 2 && Tape.listSettings.contains(words[0])) else {
+                guard words.count == 2 || (words.count > 2 && Tape.listSettings.contains(words[0]))
+                    || (words.count == 3 && words[0] == "Voice")
+                else {
                     throw fail("expected Set <setting> <value>")
                 }
                 try set(
@@ -864,17 +881,26 @@ public extension Tape {
                 step(.hide(hidden))
 
             case "Say":
-                guard option == nil || option == "over"
-                else { throw fail("Say takes @over or nothing, not @\(option!)") }
+                // `Say@over`, `Say@guest` (a voice named with Set Voice), or both: `Say@guest,over`.
+                let options = option.map { $0.split(separator: ",", omittingEmptySubsequences: false).map(String.init) }
+                    ?? []
+                let over = options.contains("over")
+                let named = options.filter { $0 != "over" }
+                guard named.count <= 1, options.count == Set(options).count, !named.contains("") else {
+                    throw fail("Say takes @over, a voice's name, or both (Say@guest,over), not @\(option!)")
+                }
+                if let name = named.first, voice.named[name] == nil {
+                    throw fail("no voice is named \(name); name one first with Set Voice \(name) <voice>")
+                }
                 let text = try single(words, usage: "Say \"<text>\"", fail: fail)
-                let speech = try Speech(text, fail: fail)
+                let speech = try Speech(text, voice: named.first, fail: fail)
                 for name in speech.markers {
                     if let earlier = markers[name] {
                         throw fail("[\(name)] is already a marker on line \(earlier.line)")
                     }
-                    markers[name] = (line, option == "over")
+                    markers[name] = (line, over)
                 }
-                step(.say(speech, over: option == "over"))
+                step(.say(speech, over: over))
 
             case "Caption":
                 // `Caption "text" [duration]`, or `Caption off`; a quoted "off" is text.

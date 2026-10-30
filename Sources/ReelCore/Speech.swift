@@ -7,15 +7,18 @@ public struct Speech: Equatable, Sendable {
     /// be empty (a marker at the start).
     public var pieces: [String]
     public var markers: [String]
+    /// The named voice that speaks it (`Say@guest`), or nil for the reel's own voice.
+    public var voice: String?
 
     /// The words as a subtitle shows them: no markers, single spaces.
     public var text: String {
         pieces.joined(separator: " ").split(whereSeparator: \.isWhitespace).joined(separator: " ")
     }
 
-    init(_ source: String, fail: (String) -> TapeError) throws {
+    init(_ source: String, voice: String? = nil, fail: (String) -> TapeError) throws {
         pieces = []
         markers = []
+        self.voice = voice
         var rest = source[...]
         while let open = rest.firstIndex(of: "[") {
             guard let close = rest[open...].firstIndex(of: "]") else { throw fail("a [ in the text has no ]") }
@@ -62,6 +65,8 @@ public enum VoiceSource: Equatable, Sendable, CustomStringConvertible {
 
 public struct VoiceSettings: Equatable, Sendable {
     public var source = VoiceSource.system(nil)
+    /// More voices, by the name a `Say@<name>` speaks with (`Set Voice guest voicebox:Bella`).
+    public var named: [String: VoiceSource] = [:]
     /// voicebox's own default address.
     public var server = URL(string: "http://127.0.0.1:17493")!
     /// The same seed voices the same text the same way, so a take can be recorded again.

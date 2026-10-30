@@ -34,7 +34,7 @@ public enum Renderer {
         var overlays = try OverlayPlan.make(tape: tape, take: take)
         // Only what the take was recorded with: voiced again, a line may come out a different length.
         let narration = try await Narration.prepare(
-            tape, into: location.directory, with: tape.voice.synthesizer(), voicing: false, log: log
+            tape, into: location.directory, voices: tape.voice.synthesizer(for:), voicing: false, log: log
         )
         let soundtrack = try Soundtrack.make(tape: tape, take: take, narration: narration)
         if tape.voice.subtitles {

@@ -19,7 +19,7 @@ public enum Recorder {
         }
         // Voiced before the app opens: a voice that cannot be reached fails here, not halfway through a take.
         let narration = try await Narration.prepare(
-            tape, into: location.directory, with: tape.voice.synthesizer(), log: log
+            tape, into: location.directory, voices: tape.voice.synthesizer(for:), log: log
         )
         let stage = if case let .web(url) = tape.launch {
             try await webStage(tape, opening: url, log: log)
