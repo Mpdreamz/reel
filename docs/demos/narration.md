@@ -28,9 +28,10 @@ Lines never overlap: one starts when the line before it ends. The take runs unti
 |---|---|
 | `system` (default) | macOS's own voice. Offline, nothing to install. |
 | `system:Samantha` | That macOS voice. |
-| `voicebox:<profile>` | A [voicebox](https://github.com/jamiepine/voicebox) profile, by name or id: a voice you cloned, running locally. |
+| `voicebox:<profile>` | An AI voice from [voicebox](https://github.com/jamiepine/voicebox), by profile name or id: a voice you cloned from a sample, or one of its preset voices. voicebox runs on your Mac; nothing is sent anywhere. |
 
-For voicebox, `Set VoiceServer` is its address (`http://127.0.0.1:17493` unless set), `Set VoiceSeed` its seed
+voicebox is the AI voice reel speaks with today: open source, local, with several speech engines; reel uses the one
+each profile names. For voicebox, `Set VoiceServer` is its address (`http://127.0.0.1:17493` unless set), `Set VoiceSeed` its seed
 (`1`) and `Set VoiceLanguage` its language (`en`).
 
 Every line is voiced before the app opens and cached in `.reel/<reel>/voice/`, by text, voice and seed, so an

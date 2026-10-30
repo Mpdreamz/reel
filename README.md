@@ -28,7 +28,7 @@ Output //docs/media/musicbox.gif
 Set Size 1440x900
 Intro@crossfade,ease-out,600ms 2s       # reel's sting, from the preset
 
-Say "This is Musicbox, a sketchpad for chord progressions."
+Say "Using reel, I can demo my macOS app, Musicbox: a sketchpad for chord progressions."
 Say@over "Press space, [play] and every lane starts looping."
 Wait [play]
 Key space
@@ -53,13 +53,16 @@ Captions, zooms, speed-ups, cuts, title cards and every output setting are appli
 
 - **Drives apps and web pages:** clicks, typing, keys, scrolling and waiting, by label or accessibility identifier.
   Web pages in WebKit, built in, or Chromium.
-- **Narrates:** `Say` lines in a macOS or [voicebox](https://github.com/jamiepine/voicebox) voice, clicks landing on
-  a word, the app's sound ducked underneath, subtitles for muted feeds.
+- **Narrates:** `Say` lines in an AI voice from [voicebox](https://github.com/jamiepine/voicebox) (local; clone your
+  own or use a preset) or a macOS voice, clicks landing on a word, the app's sound ducked underneath, subtitles for
+  muted feeds.
 - **Draws over it:** captions, key badges and click ripples.
-- **Edits it:** zoom onto an element and follow it, speed through a stretch, cut what shouldn't be seen.
-- **Frames it:** title cards, backgrounds, and 16:9, 1:1 and 9:16 canvases.
-- **Fits it:** quality, codec and width; profiles for GitHub, the web and social feeds, each held to its size and
-  length; presets to share it all between reels; conditions for what differs.
+- **Edits it:** zoom onto an element and follow it, speed through a stretch, skip the setup (a cookie banner, getting to
+  the right screen) with `Hide` … `Show`.
+- **Frames it:** title cards, or your own intro and outro videos; backgrounds; 16:9, 1:1 and 9:16 canvases.
+- **One reel, every outlet:** profiles for GitHub, your website, YouTube Shorts, TikTok, Reels, X, Bluesky, Mastodon,
+  LinkedIn and Instagram, each in its shape and under its size and length; presets to share it all between reels;
+  conditions for what differs.
 
 The [documentation](https://mpdreamz.github.io/reel/getting-started/) has the rest: a first reel, every command and
 setting, and troubleshooting.

@@ -15,10 +15,25 @@ Set OutroBackground //demos/backgrounds/outro-16x10.jpg
 |---|---|
 | `Intro "<title>" ["<subtitle>"] [duration]` | A title card before the demo: 3 s, or a background video's own length. |
 | `Outro "<title>" ["<subtitle>"] [duration]` | One after it. |
-| `Intro [duration]`, `Outro [duration]` | No title: the background video on its own, such as a designed sting. |
+| `Intro [duration]`, `Outro [duration]` | No title: your own video on its own, such as a designed sting or a logo animation. |
 | `Set IntroBackground <bg>`, `Set OutroBackground <bg>` | `#rrggbb`, an image (`.png`, `.jpg`, `.heic`) or a video (`.mov`, `.mp4`). A video's sound plays with it. Near-black unless set. |
 
 Titles are centred, white with a soft shadow, sized from the video. A background fills the frame, cropped evenly.
+
+## Your own video
+
+An intro or an outro can be any video you made: a logo animation, a sting, a clip from somewhere else. Set it as the
+background and leave out the title, and it plays as it is, with its sound:
+
+```
+Set IntroBackground //brand/intro.mp4
+Set OutroBackground //brand/outro.mp4
+Intro@crossfade
+Outro@fade
+```
+
+reel's own demos open and close this way, on the stings in its brand kit. With a [condition](../outputs/conditions.md)
+each cut can have its own: `Set IntroBackground social ? //brand/intro-9x16.mp4 : //brand/intro-16x9.mp4`.
 
 ## Transitions
 
