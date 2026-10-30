@@ -15,6 +15,74 @@ public enum GifWriter {
         public var frames: Int
         public var sampled: Int
         public var bytes: Int
+        /// What it was written with, after fitting.
+        public var look = Look(frameRate: 15, width: 800, colors: 256)
+        /// How many times it was written to fit under its size: 1 when it fit at once.
+        public var writes = 1
+    }
+
+    /// How a GIF is drawn: `Set GifFrameRate`, `Set GifWidth`, `Set GifColors`.
+    public struct Look: Equatable, Sendable {
+        public var frameRate: Int
+        public var width: Int
+        public var colors: Int
+
+        public init(frameRate: Int, width: Int, colors: Int) {
+            self.frameRate = frameRate
+            self.width = width
+            self.colors = colors
+        }
+
+        /// The next, smaller look to try when one came out `ratio` times the size allowed: fewer colours first,
+        /// which costs least to look at, then fewer frames, then a narrower picture. Far over (half again and more),
+        /// it narrows as well: the cheap steps alone would not get there.
+        func smaller(than ratio: Double) -> Look {
+            var next = self
+            // A GIF's size goes with its area: narrow by the square root of what it is over, and a little more.
+            let narrower = max(GifWriter.narrowest, Int(Double(width) * (1 / ratio).squareRoot() * 0.95))
+            if colors > 128 {
+                next.colors = 128
+            } else if colors > 64 {
+                next.colors = 64
+            } else if frameRate > 10 {
+                next.frameRate = 10
+            } else {
+                next.width = narrower
+            }
+            if ratio >= 1.5 { next.width = narrower }
+            return next
+        }
+    }
+
+    static let narrowest = 160
+
+    /// Writes the GIF as `look` says, and while it comes out over `maxBytes`, again smaller (`Look.smaller`); at
+    /// most `tries` writes. Fails, removing the file, when nothing fits.
+    public static func fit(from movie: URL, to url: URL, look: Look, under maxBytes: Int?, tries: Int = 6)
+        async throws -> Result
+    {
+        var look = look
+        var result = try await write(
+            from: movie, to: url, frameRate: look.frameRate, width: look.width, colors: look.colors
+        )
+        guard let maxBytes else { return result }
+        var writes = 1
+        while result.bytes > maxBytes {
+            guard writes < tries, look != look.smaller(than: Double(result.bytes) / Double(maxBytes)) else {
+                try? FileManager.default.removeItem(at: url)
+                throw ReelError(
+                    "\(url.lastPathComponent) was still \(Encoder.megabytes(result.bytes)) after \(writes) writes, "
+                        + "over MaxSize \(Encoder.megabytes(maxBytes)); try a lower Set GifWidth or a shorter take"
+                )
+            }
+            look = look.smaller(than: Double(result.bytes) / Double(maxBytes))
+            result = try await write(
+                from: movie, to: url, frameRate: look.frameRate, width: look.width, colors: look.colors
+            )
+            writes += 1
+        }
+        result.writes = writes
+        return result
     }
 
     @discardableResult
@@ -80,8 +148,11 @@ public enum GifWriter {
             ] as CFDictionary)
         }
         guard CGImageDestinationFinalize(destination) else { throw ReelError("cannot write \(url.path)") }
-        let bytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-        return Result(frames: runs.count, sampled: count, bytes: bytes)
+        let bytes = fileSize(url)
+        return Result(
+            frames: runs.count, sampled: count, bytes: bytes,
+            look: Look(frameRate: frameRate, width: Int(size.width), colors: colors)
+        )
     }
 
     static func looksTheSame(_ a: Data, _ b: Data, within tolerance: UInt8 = noise) -> Bool {

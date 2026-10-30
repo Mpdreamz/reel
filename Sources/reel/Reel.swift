@@ -10,7 +10,7 @@ struct Reel: AsyncParsableCommand {
         commandName: "reel",
         abstract: "Record demos of macOS apps and web pages from a .reel script: video with sound, GIFs, captions.",
         version: reelVersion,
-        subcommands: [Run.self, Record.self, Render.self, Check.self, Doctor.self],
+        subcommands: [Run.self, Record.self, Render.self, Check.self, Profiles.self, Doctor.self],
         defaultSubcommand: Run.self
     )
 }
@@ -29,16 +29,36 @@ struct TapeArgument: ParsableArguments {
     }
 }
 
+struct ProfileOption: ParsableArguments {
+    @Option(
+        name: .customLong("profile"),
+        help: ArgumentHelp(
+            "Render only these profiles (repeat it, or separate with commas); a tape that lists its profiles "
+                + "(Set Profiles) renders only from among them. See reel profiles.",
+            valueName: "name"
+        )
+    )
+    var names: [String] = []
+
+    var chosen: [String] {
+        names.flatMap { $0.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) } }
+            .filter { !$0.isEmpty }
+    }
+}
+
 struct Run: AsyncParsableCommand {
     static let configuration = CommandConfiguration(abstract: "Record the tape, then render every Output.")
 
     @OptionGroup var tape: TapeArgument
+    @OptionGroup var profiles: ProfileOption
 
     func run() async throws {
         let parsed = try tape.load()
+        // Refused before recording, not after.
+        _ = try parsed.profilesToRender(chosen: profiles.chosen)
         let location = TakeLocation(tape: tape.url)
         _ = try await Recorder.record(parsed, into: location, log: say)
-        try await renderAll(parsed, from: location)
+        try await Renderer.render(tape: parsed, from: location, profiles: profiles.chosen, log: say)
     }
 }
 
@@ -58,9 +78,12 @@ struct Render: AsyncParsableCommand {
     static let configuration = CommandConfiguration(abstract: "Only render the Outputs from the tape's last take.")
 
     @OptionGroup var tape: TapeArgument
+    @OptionGroup var profiles: ProfileOption
 
     func run() async throws {
-        try await renderAll(tape.load(), from: TakeLocation(tape: tape.url))
+        try await Renderer.render(
+            tape: tape.load(), from: TakeLocation(tape: tape.url), profiles: profiles.chosen, log: say
+        )
     }
 }
 
@@ -68,9 +91,11 @@ struct Check: AsyncParsableCommand {
     static let configuration = CommandConfiguration(abstract: "Parse the tape and say what it would do.")
 
     @OptionGroup var tape: TapeArgument
+    @OptionGroup var profiles: ProfileOption
 
     func run() async throws {
         let parsed = try tape.load()
+        let rendered = try parsed.profilesToRender(chosen: profiles.chosen)
         switch parsed.launch {
         case let .bundleID(id): say("launch \(id)")
         case let .app(url): say("launch \(url.path)")
@@ -91,8 +116,32 @@ struct Check: AsyncParsableCommand {
         say(
             "\(parsed.actions.count) action\(parsed.actions.count == 1 ? "" : "s"), \(captions) caption\(captions == 1 ? "" : "s")"
         )
-        for output in parsed.outputs {
-            say("output \(output.url.path)")
+        for profile in rendered {
+            let read = profile == nil ? parsed : try parsed.with(profile: profile)
+            if let profile { say("profile \(profile.name): \(profile.purpose)") }
+            for output in read.outputs {
+                say("output \(output.url.path)")
+            }
+            for output in read.skipped {
+                say("skips \(output.url.lastPathComponent): \(profile?.name ?? "the tape") writes no .\(output.format)")
+            }
+        }
+    }
+}
+
+struct Profiles: AsyncParsableCommand {
+    static let configuration = CommandConfiguration(
+        abstract: "List the profiles a tape can render for, and what each sets.",
+        discussion: "Set Profiles github, social in a tape renders every Output once for each, as name-github.mp4 "
+            + "and name-social.mp4; --profile on run, render and check picks among them."
+    )
+
+    func run() async throws {
+        for profile in Profile.builtIn {
+            say("\(profile.name): \(profile.purpose)")
+            for setting in profile.settings {
+                say("  Set \(setting.name) \(setting.value)")
+            }
         }
     }
 }
@@ -119,10 +168,6 @@ struct Doctor: AsyncParsableCommand {
             throw ExitCode(1)
         }
     }
-}
-
-private func renderAll(_ tape: Tape, from location: TakeLocation) async throws {
-    try await Renderer.render(tape: tape, from: location, log: say)
 }
 
 private func say(_ line: String) {
