@@ -33,7 +33,8 @@ public struct Profile: Equatable, Sendable {
         return url.deletingLastPathComponent().appending(path: "\(base)-\(name).\(ext)")
     }
 
-    /// The profiles reel knows. The social ones frame on the exact sizes the platforms show. Platform limits are the strictest common ones, from third-party guides where the
+    /// The profiles reel knows. The social ones frame on the exact sizes the platforms show. Platform limits are the
+    /// strictest common ones, from third-party guides where the
     /// platform publishes none: GitHub's 10 MB for an attached video or GIF is its own; Mastodon's 40 MB default,
     /// X's 2:20 for standard accounts and TikTok's 287 MB on mobile are not.
     public static let builtIn: [Profile] = [
