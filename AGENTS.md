@@ -30,6 +30,14 @@ or both. Read `PLAN.md` first.
   stays yours.
 - `mise run demos` records reel's own demos (`demos/*.reel`, the Musicbox hero first) into `docs/media/`, which git
   ignores until the videos have a home. It plays music and takes the mouse and keyboard; CI only checks the tapes parse.
+- `mise run docs` builds the website as CI does (docs-builder over `docs/`, then `docs/reel-landing.html` over its
+  home page, by `scripts/docs-landing.sh`) and serves it on http://localhost:4000/reel/. The `docs` workflow publishes
+  it to GitHub Pages, mpdreamz.github.io/reel, on every push to main. A change to the tape language or the command line
+  updates `docs/` in the same pull request, as it does PLAN.md. The landing page's video, `docs/landing/reel-demo.mp4`,
+  and `reel-demo.gif` are the Musicbox demo's `web` cut: copy `docs/media/musicbox-web.mp4` and `.gif` over them
+  after `mise run demos`.
+- The brand (logo, icons, colours, fonts, editor themes) is in `design/brand`, social images in `design/social`, the
+  designed stings in `design/motion`; the demos' backgrounds in `demos/backgrounds`.
 - Branch names: `feature/`, `fix/`, `docs/`, `chore/`, `ci/`. Pull requests are squash-merged.
 
 ## Releasing

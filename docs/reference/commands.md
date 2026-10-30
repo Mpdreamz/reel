@@ -1,0 +1,53 @@
+---
+description: "Every command a tape can hold."
+---
+
+# Commands
+
+## What it records
+
+| Command | |
+|---|---|
+| `Import <path>` | A [preset](../outputs/presets.md) to read first. Only on the first lines, before `Launch` or `Open`. |
+| `Launch <bundle id or .app path>` | The app to record: a bundle id, or a path with a slash (`./Name.app`). reel waits for its first window. |
+| `Open <url>` | A web page to record instead: `https://…`, `http://…`, `file://…` or an `.html` path. Later in the tape, goes to another page. |
+
+## Setup
+
+Before the first step.
+
+| Command | |
+|---|---|
+| `Output <path>` | A file to write: `.mp4`, `.mov` or `.gif`. At least one. |
+| `Output@<shape> <path>` | Framed on a canvas: `@16:9`, `@1:1`, `@9:16`, or an exact size such as `@1080x1920`. |
+| `Set <setting> <value>` | See [Settings](settings.md). |
+| `Intro "<title>" ["<subtitle>"] [duration]` | A title card before the demo. |
+| `Outro "<title>" ["<subtitle>"] [duration]` | One after it. |
+| `Intro [duration]`, `Outro [duration]` | The background video alone. |
+| `Intro@<kind>,<easing>,<duration> …` | How it moves into the demo (an outro: out of it). See [Intro and outro](../demos/intro-and-outro.md). |
+| `Profile <name> [extends <profile>] ["purpose"]` | A [profile](../outputs/presets.md), with indented `Set` lines under it. |
+
+## Steps
+
+| Command | |
+|---|---|
+| `Sleep <duration>` | Waits. |
+| `Wait <element>` | Waits until the element shows, up to `WaitTimeout`. |
+| `Wait [marker]` | Waits until the narration reaches a `[marker]` in an earlier `Say@over`. |
+| `Click <element or @x,y>` | Glides the cursor there and clicks. |
+| `Type "<text>"`, `Type@<duration> "<text>"` | Types a character at a time. `\n` is return, `\t` tab. |
+| `Key <combo> [count]` | `return`, `a`, `cmd+s`, `ctrl+shift+tab`, `f5`, `fn+left`; repeated `count` times (1 to 100). |
+| `Scroll <up\|down\|left\|right> [lines] [element or @x,y]` | Scrolls, over the element when one is named. |
+| `Say "<text>"` | Narrates the line and waits for it to end. |
+| `Say@over "<text>"` | Narrates and carries on. |
+| `Caption "<text>" [duration]` | A caption from here until the next one, or for `duration`. |
+| `Caption off` | Ends the caption showing. |
+| `Zoom <element> [scale]` | Onto the element, locked and following it. Fitted, at most 4×, without a scale. |
+| `Zoom @x,y [scale]`, `Zoom cursor [scale]` | Onto a point, or following the cursor; 2× unless a scale is given. Scales are 1× to 8×. |
+| `Zoom off` | Back to the whole window. |
+| `Zoom@<easing>,<duration> …` | A zoom with its own move. |
+| `Speed <rate>x` … `Speed off` | Plays the stretch faster, above 1× up to 16×. |
+| `Hide` … `Show` | Leaves the stretch out. A `Hide` with no `Show` runs to the end. |
+
+Elements are `"Label"`, `#identifier`, `@x,y` points, or on a web page `css:<selector>`: see
+[Elements](../tapes/elements.md).

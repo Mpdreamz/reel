@@ -6,3 +6,4 @@ build/
 mise.local.toml
 .reel/
 docs/media/
+.artifacts/
