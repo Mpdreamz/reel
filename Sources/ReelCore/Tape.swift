@@ -1145,7 +1145,11 @@ func tokenize(_ line: String, line number: Int) throws -> [Token] {
             case "\\":
                 guard let next = chars.popFirst() else { break }
                 source.append(next)
-                current.append(next)
+                switch next {
+                case "n": current.append("\n")
+                case "t": current.append("\t")
+                default: current.append(next)
+                }
             default: current.append(c)
             }
         } else if c == "\"" {

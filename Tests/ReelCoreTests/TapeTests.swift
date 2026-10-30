@@ -157,6 +157,13 @@ struct TapeTests {
         #expect(failure(text) == TapeError(line: line, message: message))
     }
 
+    @Test func escapesInQuotedText() throws {
+        let tape = try parse("Launch x\nOutput a.mp4\n" + #"Type "one\ntwo \"three\" back\\slash\tend""#)
+        #expect(tape.steps.first?.command == .type("one\ntwo \"three\" back\\slash\tend", pause: nil))
+        // The line as written, escapes and all: a take compares it.
+        #expect(tape.steps.first?.source == #"Type "one\ntwo \"three\" back\\slash\tend""#)
+    }
+
     @Test func parsesDrivingTheApp() throws {
         let tape = try parse("""
         Launch com.example.app
