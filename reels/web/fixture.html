@@ -16,7 +16,7 @@
 </style>
 </head>
 <body>
-<!-- The page reel's web tape drives: what happens is written to #log, so the tape can Wait for it. -->
+<!-- The page reel's web reel drives: what happens is written to #log, so the reel can Wait for it. -->
 <h1>reel web fixture</h1>
 <div class="row">
   <button id="play">Play</button>
@@ -26,7 +26,7 @@
 <div id="list"></div>
 <div id="log"></div>
 <script>
-  // One element an entry, so a tape's Wait "<entry>" matches it exactly.
+  // One element an entry, so a reel's Wait "<entry>" matches it exactly.
   const log = text => { const entry = document.createElement('div'); entry.textContent = text; document.getElementById('log').append(entry); };
   const list = document.getElementById('list');
   for (let i = 1; i <= 100; i++) { const row = document.createElement('div'); row.textContent = 'Row ' + i; list.append(row); }

@@ -30,5 +30,5 @@ its click shows.
 
 ## The cursor
 
-An app tape records the real cursor. A web tape draws an arrow along the path reel moved it, through cuts,
+An app reel records the real cursor. A web reel draws an arrow along the path reel moved it, through cuts,
 speed-ups and zooms.

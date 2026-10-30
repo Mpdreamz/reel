@@ -25,7 +25,7 @@ struct Preset: Equatable, Sendable {
     static func load(_ url: URL, paths: Paths, chain: [URL]) throws -> Preset {
         let name = url.lastPathComponent
         guard url.pathExtension == fileExtension else {
-            throw TapeError(message: "\(name) is not a .\(fileExtension); Import reads presets, not tapes")
+            throw TapeError(message: "\(name) is not a .\(fileExtension); Import reads presets, not reels")
         }
         if chain.contains(url) {
             let loop = (chain + [url]).map(\.lastPathComponent).joined(separator: " → ")
@@ -77,7 +77,7 @@ struct Preset: Equatable, Sendable {
                 preset.definitions.append(definition)
                 index += used
             default:
-                throw fail("a preset holds Import, Set and Profile lines; \(first.text) belongs in a tape")
+                throw fail("a preset holds Import, Set and Profile lines; \(first.text) belongs in a reel")
             }
         }
         return preset

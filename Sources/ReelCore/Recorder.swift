@@ -13,7 +13,7 @@ public enum Recorder {
     public static func record(_ tape: Tape, into location: TakeLocation, log: (String) -> Void) async throws -> Take {
         if tape.drivesTheApp, !tape.launch.isWeb, !AXIsProcessTrusted() {
             throw ReelError(
-                "this tape drives the app, which needs Accessibility for this terminal: System Settings → "
+                "this reel drives the app, which needs Accessibility for this terminal: System Settings → "
                     + "Privacy & Security → Accessibility, then run reel again"
             )
         }
@@ -286,7 +286,7 @@ public enum Recorder {
         switch target {
         case let .bundleID(id):
             guard let found = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) else {
-                let hint = id.hasSuffix(".app") ? "; for an app beside the tape, write ./\(id)" : ""
+                let hint = id.hasSuffix(".app") ? "; for an app beside the reel, write ./\(id)" : ""
                 throw ReelError("no app with bundle id \(id) is installed\(hint)")
             }
             url = found

@@ -17,10 +17,10 @@ struct Reel: AsyncParsableCommand {
 
 struct TapeArgument: ParsableArguments {
     @Argument(help: "The .reel to play.", completion: .file(extensions: ["reel"]))
-    var tape: String
+    var reel: String
 
     var url: URL {
-        URL(fileURLWithPath: (tape as NSString).expandingTildeInPath).standardizedFileURL
+        URL(fileURLWithPath: (reel as NSString).expandingTildeInPath).standardizedFileURL
     }
 
     func load() throws -> Tape {
@@ -34,7 +34,7 @@ struct ProfileOption: ParsableArguments {
     @Option(
         name: .customLong("profile"),
         help: ArgumentHelp(
-            "Render only these profiles (repeat it, or separate with commas); a tape that lists its profiles "
+            "Render only these profiles (repeat it, or separate with commas); a reel that lists its profiles "
                 + "(Set Profiles) renders only from among them. See reel profiles.",
             valueName: "name"
         )
@@ -48,7 +48,7 @@ struct ProfileOption: ParsableArguments {
 }
 
 struct Run: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(abstract: "Record the tape, then render every Output.")
+    static let configuration = CommandConfiguration(abstract: "Record the reel, then render every Output.")
 
     @OptionGroup var tape: TapeArgument
     @OptionGroup var profiles: ProfileOption
@@ -66,7 +66,7 @@ struct Run: AsyncParsableCommand {
 }
 
 struct Record: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(abstract: "Only capture the take, into .reel/<tape name>/.")
+    static let configuration = CommandConfiguration(abstract: "Only capture the take, into .reel/<reel name>/.")
 
     @OptionGroup var tape: TapeArgument
 
@@ -78,7 +78,7 @@ struct Record: AsyncParsableCommand {
 }
 
 struct Render: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(abstract: "Only render the Outputs from the tape's last take.")
+    static let configuration = CommandConfiguration(abstract: "Only render the Outputs from the reel's last take.")
 
     @OptionGroup var tape: TapeArgument
     @OptionGroup var profiles: ProfileOption
@@ -91,7 +91,7 @@ struct Render: AsyncParsableCommand {
 }
 
 struct Check: AsyncParsableCommand {
-    static let configuration = CommandConfiguration(abstract: "Parse the tape and say what it would do.")
+    static let configuration = CommandConfiguration(abstract: "Parse the reel and say what it would do.")
 
     @OptionGroup var tape: TapeArgument
     @OptionGroup var profiles: ProfileOption
@@ -134,20 +134,20 @@ struct Check: AsyncParsableCommand {
 
 struct Profiles: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "List the profiles a tape can render for, and what each sets.",
-        discussion: "Set Profiles github, social in a tape renders every Output once for each, as name-github.mp4 "
-            + "and name-social.mp4; --profile on run, render and check picks among them. Given a tape, the list "
-            + "has what its presets and the tape itself define and amend, with where each setting comes from."
+        abstract: "List the profiles a reel can render for, and what each sets.",
+        discussion: "Set Profiles github, social in a reel renders every Output once for each, as name-github.mp4 "
+            + "and name-social.mp4; --profile on run, render and check picks among them. Given a reel, the list "
+            + "has what its presets and the reel itself define and amend, with where each setting comes from."
     )
 
     @Argument(
         help: "A .reel whose profiles to list; without one, the built-in ones.",
         completion: .file(extensions: ["reel"])
     )
-    var tape: String?
+    var reel: String?
 
     func run() async throws {
-        let known = try tape.map { try TapeArgument.parse([$0]).load().known } ?? Profile.builtIn
+        let known = try reel.map { try TapeArgument.parse([$0]).load().known } ?? Profile.builtIn
         for profile in known {
             say("\(profile.name): \(profile.purpose)")
             for setting in profile.settings {
@@ -159,7 +159,7 @@ struct Profiles: AsyncParsableCommand {
 
 struct Doctor: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
-        abstract: "Report the permissions reel needs, without asking for them, and the browsers web tapes can use."
+        abstract: "Report the permissions reel needs, without asking for them, and the browsers web reels can use."
     )
 
     func run() async throws {

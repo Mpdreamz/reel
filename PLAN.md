@@ -2,41 +2,41 @@
 
 ## Milestones
 
-1. **Record a window with its sound.** The tape parser, `Launch`, `Sleep`, `Output` (`.mp4`, `.mov`) and `Set`;
+1. **Record a window with its sound.** The reel parser, `Launch`, `Sleep`, `Output` (`.mp4`, `.mov`) and `Set`;
    a take is the app's window and the app's audio captured with ScreenCaptureKit, plus a timeline; render exports
    it. `reel doctor`.
 2. **Drive the app.** `Click`, `Type`, `Key`, `Wait`, `Scroll` and `Set Size`, through Accessibility: elements by
-   label or identifier, points as the last resort. Input is real (see "How a tape drives the app").
+   label or identifier, points as the last resort. Input is real (see "How a reel drives the app").
 3. **Overlays.** Captions, key badges and click ripples, drawn with Core Animation at render time from the
    timeline (see "Overlays").
 4. **GIF.** `Output demo.gif`, sampled from the rendered movie and written with ImageIO (see "GIFs").
-5. **Narration.** `Say` lines voiced by macOS or a voicebox server, the tape timed by them, mixed in with the
+5. **Narration.** `Say` lines voiced by macOS or a voicebox server, the reel timed by them, mixed in with the
    app's sound ducked under them (see "Narration").
 6. **Zoom, speed and trim.** `Zoom` on an element (locked and followed), a point or the cursor; `Speed` up
    stretches, narration kept at its pace; `Hide` … `Show` cuts (see "Zoom, speed and trim").
 7. **Intro and outro.** Title cards before and after the demo, over a colour, an image or a video (its sound kept),
    with transitions into and out of the demo (see "Intro and outro").
 8. **Web pages.** `Open <url>` instead of `Launch`: in WebKit by default, or a Chromium-based browser over DevTools,
-   only the page recorded, with a drawn cursor (see "Web pages"). macOS only, tapes only; Playwright journeys and other
+   only the page recorded, with a drawn cursor (see "Web pages"). macOS only, reels only; Playwright journeys and other
    platforms are still to be discussed.
 
-## The tape
+## The reel
 
-A tape is a `.reel` file (not `.tape`, which is VHS's, and which editors and GitHub would take for a VHS tape); any
+A reel is a `.reel` file (not `.tape`, which is VHS's, and which editors and GitHub would take for a VHS tape); any
 other file is refused. One command per line. `#` starts a comment at the start of a line or followed by a space (`#play` after a command
-is an identifier). A tape starts with `Launch <app>` or `Open <url>` (after any `Import` lines, see "Presets"), which says what it records; the rest is read
-knowing it, so a setting for the other kind (`Set Viewport` in an app tape, `Set Size` in a web tape, a `css:`
-target in an app tape) is refused at its line rather than ignored. Setup (`Output`, `Set`, `Intro`, `Outro`) comes
+is an identifier). A reel starts with `Launch <app>` or `Open <url>` (after any `Import` lines, see "Presets"), which says what it records; the rest is read
+knowing it, so a setting for the other kind (`Set Viewport` in an app reel, `Set Size` in a web reel, a `css:`
+target in an app reel) is refused at its line rather than ignored. Setup (`Output`, `Set`, `Intro`, `Outro`) comes
 next, and recording starts at the first command after it. Durations are `500ms`, `2s`, `1.5s`, `1m` or a bare number of seconds.
 
 A path is relative to the file it is written in, from home with `~`, absolute with `/`, or from the git root with
-`//` (`Output //docs/media/demo.mp4`), so a tape or a preset need not count `../`; `//` outside a git repository is
+`//` (`Output //docs/media/demo.mp4`), so a reel or a preset need not count `../`; `//` outside a git repository is
 an error. A relative path that leads out of the git root plays, with a warning: it works only where the repository
 sits next to the same things.
 
 | Command | Meaning |
 | --- | --- |
-| `Output <path>` | A file to render: `.mp4`, `.mov` or `.gif` (no sound). Relative to the tape. At least one. |
+| `Output <path>` | A file to render: `.mp4`, `.mov` or `.gif` (no sound). Relative to the reel. At least one. |
 | `Output@<shape> <path>` | The recording framed on a canvas: an aspect (`@16:9`, `@1:1`, `@9:16`) or an exact size (`@1080x1080`). |
 | `Set Background <bg>` | Frame the recording on a backdrop in every output: `#rrggbb`, an image, or a video (looped, silent). |
 | `Set Padding <n%>` | Room around a framed recording, a share of the canvas's shorter side; default 6%, up to 30%. |
@@ -45,8 +45,8 @@ sits next to the same things.
 | `Set Size <w>x<h>` | The window's size in points, before recording. |
 | `Set TypingSpeed <duration>` | The pause after each typed character, default 50ms. |
 | `Set WaitTimeout <duration>` | How long `Wait` and `Click` look for an element, default 10s. |
-| `Launch <bundle id or .app path>` | The app to record: a bundle id, or a path with a slash (`./Name.app` beside the tape). Reel waits for its first window. |
-| `Open <url>` | A web page to record instead of an app: `https://…`, `file://…` or an `.html` path. Later in the tape, goes to another page. |
+| `Launch <bundle id or .app path>` | The app to record: a bundle id, or a path with a slash (`./Name.app` beside the reel). Reel waits for its first window. |
+| `Open <url>` | A web page to record instead of an app: `https://…`, `file://…` or an `.html` path. Later in the reel, goes to another page. |
 | `Set Browser webkit\|chromium\|<app>` | WebKit, built in, is the default. `chromium` is any Chromium-based browser reel finds; an `.app` is that one. A chosen browser that cannot be had refuses the take; it never falls back. |
 | `Set Viewport <w>x<h>` | The page's size in points, default 1280x800. |
 | `Sleep <duration>` | Wait. |
@@ -95,14 +95,14 @@ An element is `"Label"` (its title, description or value, exactly; quoted is alw
 accessibility identifier) or a bare word as a label. `@x,y` is points from the window's top left. Elements are found
 breadth first across the app's windows, so sheets and popovers count, and must be on a screen.
 
-## How a tape drives the app
+## How a reel drives the app
 
 - **Real input, not `AXPress`.** The cursor glides to what it clicks and the click is a real one; keys are real key
   presses, text is typed a character at a time. A demo is meant to show a person using the app, and an `AXPress`
-  click shows a button reacting with no cursor near it. The cost: the tape takes the mouse and keyboard while it
+  click shows a button reacting with no cursor near it. The cost: the reel takes the mouse and keyboard while it
   plays.
 - **Never into another app.** Before every input step the driver checks the app is frontmost, brings it back once,
-  and otherwise stops the tape, so typing cannot land in the terminal.
+  and otherwise stops the reel, so typing cannot land in the terminal.
 - **Window managers.** A tiling window manager (yabai, Rectangle) resizes the window after `Set Size`; reel reads
   the size back and warns. `scripts/live.sh` floats the fixture with a yabai rule that only lives while it runs.
 - **Timeline.** Each step's event records when it ran and, for a click, where it landed in window points: what
@@ -122,9 +122,9 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 ## Narration
 
 - **Voiced before recording.** Every `Say` is voiced before the app opens, each piece of text between `[markers]`
-  on its own, and cached in `.reel/<tape>/voice/` by text, voice and seed. A marker's time is the length of the
+  on its own, and cached in `.reel/<reel>/voice/` by text, voice and seed. A marker's time is the length of the
   pieces before it, exactly; no alignment or speech recognition. The cost is a seam in intonation at each marker.
-- **The tape runs on a speech clock.** `Say` blocks for its line's length; `Say@over` starts it and carries on;
+- **The reel runs on a speech clock.** `Say` blocks for its line's length; `Say@over` starts it and carries on;
   `Wait [marker]` sleeps until the line reaches the marker. Lines never overlap: one starts when the line before
   ends. The take runs until the last line has been said. Nothing is played aloud while recording.
 - **Mixed at render time.** Each line is placed where the take recorded it, the app's sound ramps (0.2 s) down to
@@ -143,7 +143,7 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   recording finds the element, keeps its frame in the timeline, and reads it again after every step while the zoom
   holds, so render follows it if it moves. Changing it needs a new take.
 - **Zoom** is a transform on the picture, sampled 30 times a second into transform ramps, each move eased by its
-  `Zoom@` option or the tape's `ZoomEasing` and `ZoomDuration` (ease-in-out over 0.4 s unless set): cubic `ease-in`,
+  `Zoom@` option or the reel's `ZoomEasing` and `ZoomDuration` (ease-in-out over 0.4 s unless set): cubic `ease-in`,
   `ease-out` and `ease-in-out`, `linear`, `smooth` (half a sine) or `snap` (no move). An element zoom's timeline
   names the element alone, so its scale and easing change without a new take. The
   region keeps the window's shape and stays inside it. A fitted element gets 8% room and at most 4×; render says so
@@ -151,13 +151,13 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   so they stay put; a ripple is moved to where its click shows under the zoom.
 - **The cursor** is sampled about 30 times a second through every take (`Take.cursor`); `Zoom cursor` follows it
   averaged over 0.3 s, so the zoom glides rather than jitters.
-- **Time.** The edit (`.reel/<tape>/edit.json`) lists what is kept of the take and how fast; everything timed
+- **Time.** The edit (`.reel/<reel>/edit.json`) lists what is kept of the take and how fast; everything timed
   (overlays, narration, ducking, zoom) is mapped through it. A sped-up stretch carries no app sound; narration is
   never sped up, and a `Hide` that would cut a narrated line is refused.
 
 ## Web pages
 
-- **Which browser.** WebKit, built into macOS, unless the tape says otherwise: nothing to install. `Set Browser
+- **Which browser.** WebKit, built into macOS, unless the reel says otherwise: nothing to install. `Set Browser
   chromium` is the first installed of Chrome, Chromium, Brave and Edge, else the newest Chromium Playwright
   downloaded (`~/Library/Caches/ms-playwright/chromium-<build>`); `Set Browser <path>.app` is that browser. A chosen
   browser that is not there refuses the take rather than fall back. `reel doctor` says what `chromium` would be.
@@ -179,8 +179,8 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 - **Recording.** ScreenCaptureKit, as for an app, cropped to the page under the title bar, the browser's helper
   processes' sound kept. Neither takes the mouse or the keyboard, and neither needs Accessibility. The real cursor
   is hidden; render draws an arrow along the driver's path, through edits and zooms.
-- `mise run live-web` records `tapes/web.reel` against `tapes/web/fixture.html` twice, in WebKit and with `Set
-  Browser chromium`: the page logs what happened and the tape waits for each entry, so a step that did not work stops
+- `mise run live-web` records `reels/web.reel` against `reels/web/fixture.html` twice, in WebKit and with `Set
+  Browser chromium`: the page logs what happened and the reel waits for each entry, so a step that did not work stops
   the take.
 
 ## Framing
@@ -199,7 +199,7 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 ## Intro and outro
 
 - **A second pass.** With an intro or an outro, the demo is rendered once, losslessly (ProRes and PCM), to
-  `.reel/<tape>/demo.mov`, and each output is assembled from it: the intro, the demo and the outro on one timeline,
+  `.reel/<reel>/demo.mov`, and each output is assembled from it: the intro, the demo and the outro on one timeline,
   each on its own track. A colour or image background becomes a still clip of the section's length; a video fills the
   frame (cropped evenly) and keeps its sound. `sections.json` says where the demo starts in the finished movie.
 - **Transitions are one function.** For each moment of a transition, `Look.of` gives each section's opacity, offset,
@@ -212,7 +212,7 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 
 ## GIFs
 
-- **From the rendered movie**, overlays included: the tape's first `.mp4` or `.mov` Output, or a temporary
+- **From the rendered movie**, overlays included: the reel's first `.mp4` or `.mov` Output, or a temporary
   `rendered.mov` in the take's directory when it has none. Frames are sampled at `GifFrameRate` and scaled to
   `GifWidth`, then written by ImageIO, looping forever.
 - **Still stretches are one frame.** A frame that looks the same as the one being held (every channel within 16
@@ -226,9 +226,9 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 A profile is a named set of render settings for where a video is going. `Set Profiles github, social` renders every
 Output once for each, as `musicbox-github.mp4` and `musicbox-social.mp4`, from the one take; the suffix is there
 whenever a profile is, so a file's name never depends on how many were rendered. A profile's settings apply after
-the tape's own, so a plain `Set` never cancels one. `--profile` on `run`, `render` and `check` renders only some
-(repeated, or `github,social`): from among the tape's when it lists any, from all of them when it does not. An
-unknown name, or one the tape does not list, is refused before anything is recorded. `reel profiles` lists them:
+the reel's own, so a plain `Set` never cancels one. `--profile` on `run`, `render` and `check` renders only some
+(repeated, or `github,social`): from among the reel's when it lists any, from all of them when it does not. An
+unknown name, or one the reel does not list, is refused before anything is recorded. `reel profiles` lists them:
 
 | Profile | For | Sets |
 |---|---|---|
@@ -245,7 +245,7 @@ feeds play muted. A landscape app framed at 9:16 is mostly background: `Zoom` is
 
 ### Presets
 
-Settings and profiles a team shares live in a `.reelpreset`, which tapes import on their first lines, before
+Settings and profiles a team shares live in a `.reelpreset`, which reels import on their first lines, before
 `Launch` or `Open` (comments may come before):
 
 ```
@@ -254,8 +254,8 @@ Launch ~/Projects/musicbox/build/App/Musicbox.app
 ```
 
 A preset holds `Import` lines (first; presets import presets, in order, and one that comes back round is an error),
-`Set` lines and `Profile` blocks, and nothing that records. Its `Set` lines are defaults: they apply as the tape says
-what it records, before the tape's own, which override them; a profile overrides both. A path in a preset is
+`Set` lines and `Profile` blocks, and nothing that records. Its `Set` lines are defaults: they apply as the reel says
+what it records, before the reel's own, which override them; a profile overrides both. A path in a preset is
 relative to the preset. An error in one names the file and line.
 
 ```
@@ -272,11 +272,11 @@ Profile docs extends web "Our docs site"
 ```
 
 `Profile <name> [extends <profile>] ["what it is for"]` and the indented `Set` lines under it define a profile, in a
-preset or in a tape; the block ends at the first line that is not indented. A known name amends that profile; a new
+preset or in a reel; the block ends at the first line that is not indented. A known name amends that profile; a new
 one starts from the profile it extends, or from nothing. Names are lowercase letters, digits and dashes, and not an
 Output's type (`mp4`, `mov`, `gif`). A profile cannot set what is fixed when recording (`FrameRate`, `Audio`, `Size`,
 `TypingSpeed`, `WaitTimeout`, the `Voice` settings, `Browser`, `Viewport`), since one take serves every profile, nor
-choose profiles. `reel profiles demo.reel` lists what a tape can render for, with where each setting comes from;
+choose profiles. `reel profiles demo.reel` lists what a reel can render for, with where each setting comes from;
 `reel run` reads every profile it will render before recording, so a bad value is refused first.
 
 ### Conditions
@@ -295,7 +295,7 @@ Caption github ? "brew install --cask mpdreamz/tap/reel"
 ```
 
 Conditions work where render decides: `Set` (but not the settings fixed when recording, nor `Profiles`), `Caption`,
-`Intro` and `Outro`, in a tape, a preset or a profile. A condition covers all of a command's values (`Outro social ?
+`Intro` and `Outro`, in a reel, a preset or a profile. A condition covers all of a command's values (`Outro social ?
 "Title" "Subtitle" : "Title" "Other subtitle"`). Anything that happens while recording (`Say`, `Type`, `Click` and
 the rest) is the same for every profile, since one take serves them all; a condition there is refused. A name a
 condition tests must be a known profile or a type.
@@ -318,7 +318,7 @@ it reached and what to lower, and leaves no file. A GIF over its size is drawn a
 - Audio is ScreenCaptureKit's own, scoped by the same filter to the app: no loopback driver.
 - Known gaps: the window's rounded corners show what is behind them (the wallpaper), the window keeps the size and
   place it opened with, and an app that starts after the first frame is not excluded.
-- The take lives in `.reel/<tape name>/` next to the tape: `take.mov` (H.264 and AAC) and `take.json` (size, scale,
+- The take lives in `.reel/<reel name>/` next to the reel: `take.mov` (H.264 and AAC) and `take.json` (size, scale,
   and when each command ran, in milliseconds from the first frame).
 
 ## Prior art

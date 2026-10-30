@@ -1,4 +1,4 @@
-// Checks the take scripts/live.sh records of the fixture app: the window has the tape's size, the sound is silent
+// Checks the take scripts/live.sh records of the fixture app: the window has the reel's size, the sound is silent
 // until `Click "Play"` and a 440 Hz tone after it, and the fixture logged the click, the typing and the scroll.
 //
 // swift scripts/check-take.swift <take directory> <fixture-events.log> <rendered movie> <rendered gif>

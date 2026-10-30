@@ -17,8 +17,8 @@ toc:
       - file: index.md
       - file: installation.md
       - file: permissions.md
-      - file: first-tape.md
-  - folder: tapes
+      - file: first-reel.md
+  - folder: reels
     children:
       - file: index.md
       - file: elements.md

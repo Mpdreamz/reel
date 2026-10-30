@@ -1,6 +1,6 @@
-// Checks the take scripts/live-web.sh records of tapes/web/fixture.html: the page's size, its sound (silent until
+// Checks the take scripts/live-web.sh records of reels/web/fixture.html: the page's size, its sound (silent until
 // Click "Play", a 440 Hz tone after), the drawn cursor's path, and the rendered movie. That each step did what it
-// should, the tape itself waited for.
+// should, the reel itself waited for.
 //
 // swift scripts/check-web.swift <take directory> <rendered movie>
 import AVFoundation

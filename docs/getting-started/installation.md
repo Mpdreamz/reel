@@ -19,7 +19,7 @@ Nothing else is needed: reel records with ScreenCaptureKit, encodes with AVFound
 voices. Two things are optional:
 
 - **[voicebox](https://github.com/jamiepine/voicebox)**, a local voice server, for narration in a cloned voice.
-- **A Chromium-based browser** (Chrome, Chromium, Brave or Edge), for web tapes that ask for it with
+- **A Chromium-based browser** (Chrome, Chromium, Brave or Edge), for web reels that ask for it with
   `Set Browser chromium`. WebKit is built in and the default.
 
 ## From source

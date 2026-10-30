@@ -1,5 +1,5 @@
 ---
-description: "Every command a tape can hold."
+description: "Every command a reel can hold."
 ---
 
 # Commands
@@ -10,7 +10,7 @@ description: "Every command a tape can hold."
 |---|---|
 | `Import <path>` | A [preset](../outputs/presets.md) to read first. Only on the first lines, before `Launch` or `Open`. |
 | `Launch <bundle id or .app path>` | The app to record: a bundle id, or a path with a slash (`./Name.app`). reel waits for its first window. |
-| `Open <url>` | A web page to record instead: `https://…`, `http://…`, `file://…` or an `.html` path. Later in the tape, goes to another page. |
+| `Open <url>` | A web page to record instead: `https://…`, `http://…`, `file://…` or an `.html` path. Later in the reel, goes to another page. |
 
 ## Setup
 
@@ -50,4 +50,4 @@ Before the first step.
 | `Hide` … `Show` | Leaves the stretch out. A `Hide` with no `Show` runs to the end. |
 
 Elements are `"Label"`, `#identifier`, `@x,y` points, or on a web page `css:<selector>`: see
-[Elements](../tapes/elements.md).
+[Elements](../reels/elements.md).

@@ -121,7 +121,7 @@ struct ProfileTests {
         #expect(try listed.profilesToRender(chosen: []) == [Profile.named("github"), Profile.named("social")])
         #expect(try listed.profilesToRender(chosen: ["social"]) == [Profile.named("social")])
         #expect(failure { try listed.profilesToRender(chosen: ["feed"]) }
-            == "the tape renders github, social; 'feed' is not one of them")
+            == "the reel renders github, social; 'feed' is not one of them")
         #expect(failure { try plain.profilesToRender(chosen: ["tiktok"]) }
             == "there is no profile 'tiktok'; there are highest, github, web, social, feed or square")
     }

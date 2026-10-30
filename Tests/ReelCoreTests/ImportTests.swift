@@ -103,7 +103,7 @@ struct ImportTests {
         #expect(repo.failure("a.reel", "Launch x\nImport house.reelpreset\nOutput a.mp4")
             == "line 2: Import comes first, before Launch or Open")
         #expect(repo.failure("a.reel", "Import other.reel\nLaunch x\nOutput a.mp4")
-            == "line 1: other.reel is not a .reelpreset; Import reads presets, not tapes")
+            == "line 1: other.reel is not a .reelpreset; Import reads presets, not reels")
         #expect(repo.failure("a.reel", "Import missing.reelpreset\nLaunch x\nOutput a.mp4")
             == "line 1: cannot read \(repo.root.path)/missing.reelpreset")
         // Comments may come before.
@@ -131,14 +131,14 @@ struct ImportTests {
         let repo = try Repo()
         try repo.write("bad.reelpreset", "Set Quality 50\nLaunch y")
         #expect(repo.failure("a.reel", "Import bad.reelpreset\nLaunch x\nOutput a.mp4")
-            == "line 1: bad.reelpreset line 2: a preset holds Import, Set and Profile lines; Launch belongs in a tape")
+            == "line 1: bad.reelpreset line 2: a preset holds Import, Set and Profile lines; Launch belongs in a reel")
         try repo.write("value.reelpreset", "Set Quality lots")
         #expect(repo.failure("b.reel", "Import value.reelpreset\nLaunch x\nOutput a.mp4")
             == "value.reelpreset line 1: Quality must be a whole number from 1 to 100, not 'lots'")
         // Read knowing what the tape records: a web setting in an app tape is refused, naming the preset.
         try repo.write("web.reelpreset", "Set Viewport 1280x800")
         #expect(repo.failure("c.reel", "Import web.reelpreset\nLaunch x\nOutput a.mp4")
-            == "web.reelpreset line 1: Set Viewport is for web pages (Open); this tape Launches an app")
+            == "web.reelpreset line 1: Set Viewport is for web pages (Open); this reel Launches an app")
     }
 
     @Test func presetsDefineAndAmendProfiles() throws {

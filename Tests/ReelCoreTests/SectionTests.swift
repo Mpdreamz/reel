@@ -46,7 +46,7 @@ struct SectionParsingTests {
         ("Intro Musicbox", "expected Intro [\"<title>\" [\"<subtitle>\"]] [duration]"),
         ("Intro 2s 3s", "expected Intro [\"<title>\" [\"<subtitle>\"]] [duration]"),
         ("Intro \"A\" 2s \"B\"", "expected Intro [\"<title>\" [\"<subtitle>\"]] [duration]"),
-        ("Outro \"A\"\nOutro \"B\"", "a tape has one Outro"),
+        ("Outro \"A\"\nOutro \"B\"", "a reel has one Outro"),
         (
             "Intro@spin \"A\"",
             "'@spin' is not a transition; write a kind (crossfade, fade, slide-left, slide-right, slide-up, slide-down, zoom, wipe-left, wipe-right, wipe-up, wipe-down, cut), an easing and a duration, such as @slide-left,ease-out,800ms"

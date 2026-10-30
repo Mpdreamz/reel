@@ -1,5 +1,5 @@
 ---
-description: "How a tape names what to click, wait for, scroll over and zoom on."
+description: "How a reel names what to click, wait for, scroll over and zoom on."
 ---
 
 # Elements

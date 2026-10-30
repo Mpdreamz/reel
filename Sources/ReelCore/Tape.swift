@@ -76,7 +76,7 @@ public struct Tape: Equatable, Sendable {
     public static let defaultGifColors = 256
 
     /// What every tape starts with, and the error a tape gets when it does not.
-    static let preface = "a tape starts with Launch <app> or Open <url> (after any Import lines), which says what it records"
+    static let preface = "a reel starts with Launch <app> or Open <url> (after any Import lines), which says what it records"
 
     /// Whether playing the tape needs Accessibility: anything that finds, moves or types into the app.
     public var drivesTheApp: Bool {
@@ -171,13 +171,13 @@ public extension BrowserChoice {
         case .chromium:
             guard let app = locate() else {
                 throw ReelError(
-                    "the tape Sets Browser chromium, but none is installed (Chrome, Chromium, Brave, Edge) or "
+                    "the reel Sets Browser chromium, but none is installed (Chrome, Chromium, Brave, Edge) or "
                         + "downloaded by Playwright (`npx playwright install chromium`)"
                 )
             }
             return .chromium(app)
         case let .app(app):
-            guard exists(app) else { throw ReelError("the tape Sets Browser \(app.path), which is not there") }
+            guard exists(app) else { throw ReelError("the reel Sets Browser \(app.path), which is not there") }
             return .chromium(app)
         }
     }
@@ -328,7 +328,7 @@ public extension Tape {
         }
         if !profiles.isEmpty, let outside = chosen.first(where: { !profiles.contains($0) }) {
             throw TapeError(
-                message: "the tape renders \(profiles.joined(separator: ", ")); '\(outside)' is not one of them"
+                message: "the reel renders \(profiles.joined(separator: ", ")); '\(outside)' is not one of them"
             )
         }
         let names = chosen.isEmpty ? profiles : chosen
@@ -422,7 +422,7 @@ public extension Tape {
                 tested += names.map { ($0, origin) }
             }
             func forWeb(_ what: String) throws {
-                if !isWeb { throw fail("\(what) is for web pages (Open); this tape Launches an app") }
+                if !isWeb { throw fail("\(what) is for web pages (Open); this reel Launches an app") }
             }
             switch setting {
             case "FrameRate":
@@ -696,11 +696,11 @@ public extension Tape {
                     transition: option.map { try SectionTransition($0, fail: fail) } ?? .standard
                 )
                 if name == "Intro" {
-                    guard intro == nil else { throw fail("a tape has one Intro") }
+                    guard intro == nil else { throw fail("a reel has one Intro") }
                     intro = section
                     introLine = line
                 } else {
-                    guard outro == nil else { throw fail("a tape has one Outro") }
+                    guard outro == nil else { throw fail("a reel has one Outro") }
                     outro = section
                     outroLine = line
                 }
@@ -739,7 +739,7 @@ public extension Tape {
                     try applyImports(isWeb: true)
                 } else {
                     // Any later Open goes to another page, as a step.
-                    guard isWeb else { throw fail("Open goes to a web page; this tape Launches an app") }
+                    guard isWeb else { throw fail("Open goes to a web page; this reel Launches an app") }
                     step(.open(url))
                 }
 
@@ -748,8 +748,8 @@ public extension Tape {
                 let target = try single(words, usage: "Launch <bundle id or .app path>", fail: fail)
                 if let earlier = launch {
                     throw fail(
-                        isWeb ? "a web tape Opens pages; line \(earlier.line) already does, so there is no app to Launch"
-                            : "a tape launches one app; line \(earlier.line) already does"
+                        isWeb ? "a web reel Opens pages; line \(earlier.line) already does, so there is no app to Launch"
+                            : "a reel launches one app; line \(earlier.line) already does"
                     )
                 }
                 // A path has a slash (`./Name.app` beside the tape); anything else is a bundle id, which may itself end
@@ -901,7 +901,7 @@ public extension Tape {
         }
 
         guard let launch else { throw TapeError(message: Tape.preface) }
-        guard !outputs.isEmpty else { throw TapeError(message: "the tape has no Output") }
+        guard !outputs.isEmpty else { throw TapeError(message: "the reel has no Output") }
         for (name, section, background, line) in [
             ("Intro", intro, introBackground ?? intro?.background, introLine),
             ("Outro", outro, outroBackground ?? outro?.background, outroLine),

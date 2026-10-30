@@ -10,7 +10,7 @@ render. That split decides what needs a new recording.
 | Changing | Needs |
 |---|---|
 | What happens in the app: `Click`, `Type`, `Key`, `Scroll`, `Wait`, `Launch`, `Set Size` | A new take: `reel demo.reel` |
-| A `Say` line's text, or the voice | A new take: the tape is timed by the narration |
+| A `Say` line's text, or the voice | A new take: the reel is timed by the narration |
 | Which element a `Zoom` is on | A new take: recording finds the element |
 | Captions, badges, ripples, subtitles | Only `reel render demo.reel` |
 | Zooms on a point or the cursor, their scale and easing | Only a render |
@@ -18,7 +18,7 @@ render. That split decides what needs a new recording.
 | Intro, outro, backgrounds, framing | Only a render |
 | Every output setting: quality, size, shape, GIFs, profiles | Only a render |
 
-`reel render` refuses a take whose actions no longer match the tape, and says which line changed.
+`reel render` refuses a take whose actions no longer match the reel, and says which line changed.
 
 | | |
 |---|---|

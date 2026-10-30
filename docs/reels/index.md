@@ -1,10 +1,10 @@
 ---
-description: "How a tape is laid out: what it records, its setup, and the steps it plays."
+description: "How a reel is laid out: what it records, its setup, and the steps it plays."
 ---
 
-# Writing tapes
+# Writing reels
 
-A tape is a `.reel` file, one command per line, in three parts:
+A reel is a `.reel` file, one command per line, in three parts:
 
 ```
 # 1. What it records: the first line (after any Import lines and comments).
@@ -22,9 +22,9 @@ Say "The chords lane drives the others."
 ```
 
 - **What it records.** `Launch` an app, by bundle id or path, or `Open` a web page. Everything after is read knowing
-  which, so a setting for the other kind (`Set Viewport` in an app tape, `Set Size` in a web tape) is refused at its
+  which, so a setting for the other kind (`Set Viewport` in an app reel, `Set Size` in a web reel) is refused at its
   line rather than ignored.
-- **Setup** is `Output`, `Set`, `Intro`, `Outro` and `Profile`, before the first step. A tape needs at least one
+- **Setup** is `Output`, `Set`, `Intro`, `Outro` and `Profile`, before the first step. A reel needs at least one
   `Output`.
 - **Steps** are everything else: `Click`, `Type`, `Key`, `Say`, `Caption`, `Zoom`, and the rest. See
   [Commands](../reference/commands.md).
@@ -49,17 +49,17 @@ Click #play         # #play here is an identifier, not a comment
 
 ## When a line is wrong
 
-reel reads the whole tape before it records anything, and an error names its line:
+reel reads the whole reel before it records anything, and an error names its line:
 
 ```
 $ reel check demo.reel
 Error: line 7: 'cmd+nope' is not a key; write a key name such as return or a, with modifiers: cmd+s
 ```
 
-`reel check` reads a tape and says what it would do: what it launches, the narration, how many actions and
+`reel check` reads a reel and says what it would do: what it launches, the narration, how many actions and
 captions, and every file it would write, for each profile.
 
 | | |
 |---|---|
-| [Elements](elements.md) | How a tape names what to click, wait for and zoom on. |
+| [Elements](elements.md) | How a reel names what to click, wait for and zoom on. |
 | [Paths](paths.md) | Relative paths, `~`, and `//` for the root of the git repository. |

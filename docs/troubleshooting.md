@@ -1,5 +1,5 @@
 ---
-description: "When a tape stops, a window is the wrong size, an element isn't found, or a file is too big."
+description: "When a reel stops, a window is the wrong size, an element isn't found, or a file is too big."
 ---
 
 # Troubleshooting
@@ -13,10 +13,10 @@ reel doctor
 It says whether Screen Recording and Accessibility are granted, and to which terminal they need to be granted: the
 one reel runs in. After granting one, quit and reopen that terminal.
 
-## The tape stopped: the app isn't in front
+## The reel stopped: the app isn't in front
 
 reel checks the app is in front before every input step, and stops rather than type into another app. Something
-took focus: a notification, a dialog, another app opening. Leave the Mac alone while an app tape plays.
+took focus: a notification, a dialog, another app opening. Leave the Mac alone while an app reel plays.
 
 ## The window is the wrong size
 
@@ -24,7 +24,7 @@ took focus: a notification, a dialog, another app opening. Leave the Mac alone w
 warning: the window is 1000x900, not 1440x900: the app limits its size, or a window manager (yabai, Rectangle) tiles it
 ```
 
-Let the app's windows float while the tape plays. With yabai:
+Let the app's windows float while the reel plays. With yabai:
 
 ```sh
 yabai -m rule --add label=demo app='^Musicbox$' manage=off
@@ -42,7 +42,7 @@ element must be on a screen.
 
 ## reel render says an action changed
 
-The tape's clicks, typing or keys no longer match the take. Record again with `reel demo.reel`. Captions, zooms on a
+The reel's clicks, typing or keys no longer match the take. Record again with `reel demo.reel`. Captions, zooms on a
 point, speed-ups, cuts and every output setting change without one: see [Making a demo](demos/index.md).
 
 ## A file is too big, or a render fails to fit
@@ -55,7 +55,7 @@ When even that is too big, the render fails and says the size it reached. Lower 
 ## Narration lands in the wrong place
 
 A marker's time is when the voice reaches it, measured when the line was voiced. Changing a line's text or voice
-needs a new recording, so the tape is timed by the new line.
+needs a new recording, so the reel is timed by the new line.
 
 ## A web page doesn't hover or scroll
 

@@ -1,5 +1,5 @@
 ---
-description: "Say lines voiced by macOS or voicebox, the tape timed by them, clicks landing on a word, the app ducked under the voice."
+description: "Say lines voiced by macOS or voicebox, the reel timed by them, clicks landing on a word, the app ducked under the voice."
 ---
 
 # Narration
@@ -33,7 +33,7 @@ Lines never overlap: one starts when the line before it ends. The take runs unti
 For voicebox, `Set VoiceServer` is its address (`http://127.0.0.1:17493` unless set), `Set VoiceSeed` its seed
 (`1`) and `Set VoiceLanguage` its language (`en`).
 
-Every line is voiced before the app opens and cached in `.reel/<tape>/voice/`, by text, voice and seed, so an
+Every line is voiced before the app opens and cached in `.reel/<reel>/voice/`, by text, voice and seed, so an
 unchanged line isn't voiced again. Nothing is played aloud while recording. The voice is mixed in when rendering.
 
 Each stretch between markers is voiced on its own, which is how reel knows exactly when a marker is reached. The cost
@@ -53,5 +53,5 @@ them on, since feeds play muted.
 
 ## Changing a line
 
-A line's text, voice or seed is part of the take: the tape's timing came from it, and voiced again it may come out a
+A line's text, voice or seed is part of the take: the reel's timing came from it, and voiced again it may come out a
 different length. Change one and record again. Volumes, ducking and subtitles change with a render.
