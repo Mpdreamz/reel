@@ -392,6 +392,7 @@ public extension Tape {
         var padding = Framing.defaultPadding
         var web = WebSettings()
         var intro: Section?, outro: Section?
+        var introLine = 0, outroLine = 0
         var introBackground: Background?, outroBackground: Background?
         var launch: (target: LaunchTarget, line: Int)?
         var steps: [Step] = []
@@ -677,22 +678,31 @@ public extension Tape {
 
             case "Intro", "Outro":
                 try setup(name)
-                let usage = "expected \(name) \"<title>\" [\"<subtitle>\"] [duration]"
-                guard (1 ... 3).contains(args.count), args[0].quoted else { throw fail(usage) }
-                var rest = args.dropFirst()
-                let subtitle = rest.first?.quoted == true ? rest.popFirst()?.text : nil
+                let usage = "expected \(name) [\"<title>\" [\"<subtitle>\"]] [duration]"
+                guard args.count <= 3 else { throw fail(usage) }
+                // No title: the background on its own, such as a designed sting (it must be a video; checked once
+                // the backgrounds are known).
+                let titled = args.first?.quoted == true
+                var rest = titled ? args.dropFirst() : args[...]
+                let subtitle = titled && rest.first?.quoted == true ? rest.popFirst()?.text : nil
+                // Untitled, all that may follow is a duration: an unquoted word is a title missing its quotes.
+                if !titled, let word = rest.first, rest.count > 1 || Tape.parseDuration(word.text) == nil {
+                    throw fail(usage)
+                }
                 let length = try rest.popFirst().map { try duration($0.text, fail: fail) }
                 guard rest.isEmpty else { throw fail(usage) }
                 let section = try Section(
-                    title: args[0].text, subtitle: subtitle, duration: length,
+                    title: titled ? args[0].text : "", subtitle: subtitle, duration: length,
                     transition: option.map { try SectionTransition($0, fail: fail) } ?? .standard
                 )
                 if name == "Intro" {
                     guard intro == nil else { throw fail("a tape has one Intro") }
                     intro = section
+                    introLine = line
                 } else {
                     guard outro == nil else { throw fail("a tape has one Outro") }
                     outro = section
+                    outroLine = line
                 }
 
             case "Output":
@@ -892,6 +902,18 @@ public extension Tape {
 
         guard let launch else { throw TapeError(message: Tape.preface) }
         guard !outputs.isEmpty else { throw TapeError(message: "the tape has no Output") }
+        for (name, section, background, line) in [
+            ("Intro", intro, introBackground ?? intro?.background, introLine),
+            ("Outro", outro, outroBackground ?? outro?.background, outroLine),
+        ] {
+            guard let section, section.title.isEmpty else { continue }
+            if case .video = background { continue }
+            throw TapeError(
+                line: line,
+                message: "an \(name) without a title shows its background on its own, so that must be a video: "
+                    + "Set \(name)Background <video>"
+            )
+        }
         let knownProfiles = try Profile.resolve(imported.definitions + definitions)
         for (name, origin) in tested
             where !Condition.formats.contains(name) && !knownProfiles.contains(where: { $0.name == name })

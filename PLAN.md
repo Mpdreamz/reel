@@ -84,6 +84,7 @@ sits next to the same things.
 | `Zoom@<easing>,<duration> …` | Any zoom with its own move: `Zoom@ease-out #list`, `Zoom@600ms off`, `Zoom@smooth,1s cursor`. |
 | `Intro "<title>" ["<subtitle>"] [duration]` | A title card before the demo; 3 s, or a background video's own length. |
 | `Outro "<title>" ["<subtitle>"] [duration]` | One after it. |
+| `Intro [duration]`, `Outro [duration]` | No title: the background video on its own, such as a designed sting. Needs a video background (`Set IntroBackground`, `Set OutroBackground`). |
 | `Intro@<kind>,<easing>,<duration> …` | How the intro moves into the demo (an outro: how the demo moves into it): `crossfade` (default, 600ms), `fade` (through black), `slide-left`/`-right`/`-up`/`-down`, `zoom`, `wipe-left`/`-right`/`-up`/`-down`, `cut`; any easing. |
 | `Set IntroBackground <bg>`, `Set OutroBackground <bg>` | `#rrggbb`, an image (`.png`, `.jpg`, `.heic`) or a video (`.mov`, `.mp4`), whose sound plays with it; default a near-black. |
 | `Set ZoomEasing <easing>`, `Set ZoomDuration <duration>` | How zooms move when they say nothing: `linear`, `ease-in`, `ease-out`, `ease-in-out` (default), `smooth` or `snap`; 400ms by default. |
