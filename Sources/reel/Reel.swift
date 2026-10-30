@@ -16,7 +16,7 @@ struct Reel: AsyncParsableCommand {
 }
 
 struct TapeArgument: ParsableArguments {
-    @Argument(help: "The .reel to play.", completion: .file(extensions: ["reel", "tape"]))
+    @Argument(help: "The .reel to play.", completion: .file(extensions: ["reel"]))
     var tape: String
 
     var url: URL {
@@ -24,7 +24,6 @@ struct TapeArgument: ParsableArguments {
     }
 
     func load() throws -> Tape {
-        if let note = Tape.extensionNote(for: url) { warn(note) }
         let tape = try Tape.load(url)
         tape.warnings.forEach(warn)
         return tape

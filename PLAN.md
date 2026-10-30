@@ -22,8 +22,8 @@
 
 ## The tape
 
-A tape is a `.reel` file. A `.tape` file still plays, with a warning to rename it: `.tape` is VHS's extension, and
-editors and GitHub take such a file for a VHS tape. One command per line. `#` starts a comment at the start of a line or followed by a space (`#play` after a command
+A tape is a `.reel` file (not `.tape`, which is VHS's, and which editors and GitHub would take for a VHS tape); any
+other file is refused. One command per line. `#` starts a comment at the start of a line or followed by a space (`#play` after a command
 is an identifier). A tape starts with `Launch <app>` or `Open <url>` (after any `Import` lines, see "Presets"), which says what it records; the rest is read
 knowing it, so a setting for the other kind (`Set Viewport` in an app tape, `Set Size` in a web tape, a `css:`
 target in an app tape) is refused at its line rather than ignored. Setup (`Output`, `Set`, `Intro`, `Outro`) comes

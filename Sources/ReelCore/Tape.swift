@@ -311,17 +311,6 @@ public struct TapeError: Error, Equatable, CustomStringConvertible, LocalizedErr
 }
 
 public extension Tape {
-    /// What to say about a script's file name: `.reel` is reel's; `.tape` still plays, but it is VHS's extension,
-    /// and editors and GitHub take such a file for a VHS tape.
-    static func extensionNote(for url: URL) -> String? {
-        switch url.pathExtension {
-        case "reel": nil
-        case "tape": "\(url.lastPathComponent) plays, but .tape is VHS's extension: rename it to "
-            + "\(url.deletingPathExtension().lastPathComponent).reel"
-        default: "\(url.lastPathComponent) plays, but reel scripts are .reel files"
-        }
-    }
-
     /// Settings whose value is a list, which may have spaces in it: `Set Profiles github, social`.
     static let listSettings: Set<String> = ["Profiles", "Formats"]
 
@@ -351,7 +340,10 @@ public extension Tape {
     }
 
     static func load(_ url: URL) throws -> Tape {
-        try parse(String(contentsOf: url, encoding: .utf8), relativeTo: url.deletingLastPathComponent())
+        guard url.pathExtension == "reel" else {
+            throw TapeError(message: "\(url.lastPathComponent) is not a reel script; those are .reel files")
+        }
+        return try parse(String(contentsOf: url, encoding: .utf8), relativeTo: url.deletingLastPathComponent())
     }
 
     /// Parses a tape. Relative paths (`Output`, `Launch` of an `.app`) resolve against `directory`. With a profile,
