@@ -282,6 +282,7 @@ public enum Encoder {
         guard writer.status == .completed else {
             throw ReelError("cannot write \(output.url.path): \(writer.error?.localizedDescription ?? "unknown error")")
         }
+        removeLeftovers(of: output.url)
         let bytes = fileSize(output.url)
         return Result(size: size, bytes: bytes, encoding: encoding)
     }
@@ -337,4 +338,15 @@ private final class Pump: @unchecked Sendable {
 /// under the same URL would read as its first size.
 func fileSize(_ url: URL) -> Int {
     ((try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? NSNumber)?.intValue ?? 0
+}
+
+/// Removes the file AVFoundation writes a movie through when it moves the index to the front (`name.mp4.sb-…`, the
+/// data first). The movie is complete by now; AVFoundation would remove it only once the writer goes, which the last
+/// movie a run writes does not live to see.
+func removeLeftovers(of url: URL) {
+    let folder = url.deletingLastPathComponent()
+    let prefix = url.lastPathComponent + ".sb-"
+    for name in (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [] where name.hasPrefix(prefix) {
+        try? FileManager.default.removeItem(at: folder.appending(path: name))
+    }
 }
