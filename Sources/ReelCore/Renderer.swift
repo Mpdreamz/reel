@@ -38,7 +38,7 @@ public enum Renderer {
         func key(_ output: Output) -> String {
             framing(output) == nil ? "bare" : (output.shape?.description ?? "framed")
         }
-        // With an intro, an outro or a framing, the demo is rendered once, losslessly, and outputs made from it.
+        // With an intro, an outro or a framing, the demo is rendered once, losslessly, and each framing made from it.
         let sectioned = tape.intro != nil || tape.outro != nil
         let staged = sectioned || tape.outputs.contains { framing($0) != nil }
         let demo = location.directory.appending(path: "demo.mov")
@@ -49,22 +49,25 @@ public enum Renderer {
             )
         }
 
-        /// A finished movie at `output`, framed as it asks, with the intro and outro around it.
-        func finish(_ output: Output) async throws {
+        /// The finished movie, lossless (ProRes and PCM), framed as `output` asks, with the intro and outro around
+        /// it: what each movie Output is compressed from, and each GIF drawn from.
+        func finish(_ output: Output, losslessAt url: URL) async throws {
+            let lossless = Output(url: url, format: .mov, shape: output.shape)
             let framed = framing(output)
             guard staged, framed != nil || sectioned else {
                 try await render(
-                    location.movie, take: take, overlays: overlays, soundtrack: soundtrack, cut: cut, to: output
+                    location.movie, take: take, overlays: overlays, soundtrack: soundtrack, cut: cut, to: lossless,
+                    lossless: true
                 )
                 return
             }
             var main = demo
             if let framed {
                 guard sectioned else {
-                    try await Framer.frame(demo, with: framed, frameRate: take.frameRate, to: output, lossless: false)
+                    try await Framer.frame(demo, with: framed, frameRate: take.frameRate, to: lossless, lossless: true)
                     return
                 }
-                // Framed losslessly first: the intro and outro then fill the whole canvas around it.
+                // Framed first: the intro and outro then fill the whole canvas around it.
                 main = location.directory
                     .appending(path: "framed-\(key(output).replacingOccurrences(of: ":", with: "x")).mov")
                 try await Framer.frame(
@@ -73,7 +76,7 @@ public enum Renderer {
             }
             let arrangement = try await Assembler.assemble(
                 main: main, intro: tape.intro, outro: tape.outro, frameRate: take.frameRate,
-                in: location.directory, to: output
+                in: location.directory, to: lossless, lossless: true
             )
             // Where the demo sits in the finished movie, next to the take, for anyone matching the two up.
             try JSONSerialization.data(
@@ -82,28 +85,45 @@ public enum Renderer {
             ).write(to: location.directory.appending(path: "sections.json"))
         }
 
-        // A finished movie for each framing, for the GIFs of that framing.
-        var finished: [String: URL] = [:]
+        // One lossless movie for each framing, shared by the movies and GIFs of that framing, and removed once they
+        // are written: lossless is large.
+        var made: [String: URL] = [:]
+        defer { made.values.forEach { try? FileManager.default.removeItem(at: $0) } }
+        func lossless(for output: Output) async throws -> URL {
+            if let url = made[key(output)] { return url }
+            let url = location.directory
+                .appending(path: "lossless-\(key(output).replacingOccurrences(of: ":", with: "x")).mov")
+            try await finish(output, losslessAt: url)
+            made[key(output)] = url
+            return url
+        }
+
         for output in tape.outputs where output.format != .gif {
-            try await finish(output)
-            finished[key(output)] = finished[key(output)] ?? output.url
-            log("wrote \(output.url.path)")
+            let result = try await Encoder.encode(
+                lossless(for: output), to: output, with: tape.encoding, frameRate: take.frameRate
+            )
+            log("wrote \(output.url.path) (\(describe(result, tape.encoding)))")
         }
         for gif in tape.outputs where gif.format == .gif {
-            let source: URL
-            if let movie = finished[key(gif)] {
-                source = movie
-            } else {
-                source = location.directory
-                    .appending(path: "gif-\(key(gif).replacingOccurrences(of: ":", with: "x")).mov")
-                try await finish(Output(url: source, format: .mov, shape: gif.shape))
-                finished[key(gif)] = source
-            }
             let result = try await GifWriter.write(
-                from: source, to: gif.url, frameRate: tape.gifFrameRate, width: tape.gifWidth
+                from: lossless(for: gif), to: gif.url, frameRate: tape.gifFrameRate, width: tape.gifWidth,
+                colors: tape.gifColors
             )
-            log("wrote \(gif.url.path) (\(result.frames) frames of \(result.sampled) sampled)")
+            log(
+                "wrote \(gif.url.path) (\(result.frames) frames of \(result.sampled) sampled, \(megabytes(result.bytes)))"
+            )
         }
+    }
+
+    /// `4.4 MB, HEVC 1920x1200, quality 65`: what a movie Output came out as.
+    static func describe(_ result: Encoder.Result, _ encoding: Encoding) -> String {
+        let codec = encoding.codec == .hevc ? "HEVC" : "H.264"
+        return "\(megabytes(result.bytes)), \(codec) \(Int(result.size.width))x\(Int(result.size.height)), "
+            + "quality \(encoding.quality)"
+    }
+
+    static func megabytes(_ bytes: Int) -> String {
+        String(format: "%.1f MB", Double(bytes) / 1_000_000)
     }
 
     /// How the take is edited: its time (`Hide`, `Speed`) and what part of the window shows (`Zoom`).

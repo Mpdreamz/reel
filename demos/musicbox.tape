@@ -7,6 +7,8 @@ Output@16:9 ../docs/media/musicbox-wide.mp4
 Output@1:1 ../docs/media/musicbox-square.mp4
 Output ../docs/media/musicbox.gif
 Set Size 1440x900
+# 1920 wide: under GitHub's 10 MB for a video in a README or an issue.
+Set VideoWidth 1920
 # Placeholders until the designed backgrounds arrive (design/backgrounds).
 Set Background #1d2b3a
 Set OutroBackground #1d2b3a

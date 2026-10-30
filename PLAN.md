@@ -54,6 +54,10 @@ next, and recording starts at the first command after it. Durations are `500ms`,
 | `Set ClickRipples on\|off` | A ripple where each click lands, default on. |
 | `Set GifFrameRate <n>` | Frames a second in a GIF, 1–50, default 15. |
 | `Set GifWidth <pixels>` | A GIF's width, 100–4000, default 800, never wider than the video. |
+| `Set GifColors <n>` | Colours in a GIF, 2–256, default 256. Fewer make a smaller file; one palette serves every frame. |
+| `Set Quality <n>` | How a movie is compressed, 1–100, default 65: a fraction of the size of the best, since screen recordings are mostly still. |
+| `Set Codec h264\|hevc` | A movie's codec, default `h264`, which plays everywhere; `hevc` is about half the size and plays on Apple devices and in most current browsers. |
+| `Set VideoWidth <pixels>` | Scale movies down to this width, 100–8000, never up; default the full Retina size. |
 | `Say "<text>"`, `Say@over "<text>"` | Narrate; blocks until the line ends, or with `@over` carries on while it plays. |
 | `Wait [marker]` | Until the narration reaches a `[marker]` in the text of an earlier `Say@over`. |
 | `Set Voice <voice>` | `system` (default), `system:Samantha`, or `voicebox:<profile name or id>`. |

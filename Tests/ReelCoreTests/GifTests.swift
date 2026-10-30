@@ -13,7 +13,8 @@ struct GifTests {
         try await writer.writeTake(to: movie, seconds: 2, audio: false, shade: 128)
         let gif = dir.appending(path: "still.gif")
         let result = try await GifWriter.write(from: movie, to: gif, frameRate: 15, width: 800)
-        #expect(result == GifWriter.Result(frames: 1, sampled: 30))
+        #expect(result.frames == 1)
+        #expect(result.sampled == 30)
         let read = try GifFile(gif)
         #expect(read.delays == [2])
         #expect(read.loopCount == 0)
@@ -35,6 +36,48 @@ struct GifTests {
         // Frames start at k/15 s, rounded to hundredths (0, 7, 13, 20, 27, 33, 40) and the last runs to 50.
         #expect(read.delays == [0.07, 0.06, 0.07, 0.07, 0.06, 0.07, 0.10])
         #expect(abs(read.delays.reduce(0, +) - 0.5) < 0.001)
+    }
+
+    @Test func fewerColoursMakeASmallerGifInNoMoreColoursThanAsked() async throws {
+        let dir = try writer.temporaryDirectory()
+        let movie = dir.appending(path: "take.mov")
+        try await writer.writeTake(to: movie, seconds: 0.5, audio: false, noise: true)
+        let full = try await GifWriter.write(
+            from: movie,
+            to: dir.appending(path: "full.gif"),
+            frameRate: 15,
+            width: 320
+        )
+        let few = try await GifWriter.write(
+            from: movie, to: dir.appending(path: "few.gif"), frameRate: 15, width: 320, colors: 16
+        )
+        #expect(few.frames == full.frames)
+        #expect(few.bytes * 2 < full.bytes)
+        let source = try #require(CGImageSourceCreateWithURL(dir.appending(path: "few.gif") as CFURL, nil))
+        for index in 0 ..< CGImageSourceGetCount(source) {
+            let frame = try #require(CGImageSourceCreateImageAtIndex(source, index, nil))
+            #expect(colours(in: frame) <= 16)
+        }
+        // Without the cut, ImageIO keeps up to 256.
+        let fullSource = try #require(CGImageSourceCreateWithURL(dir.appending(path: "full.gif") as CFURL, nil))
+        #expect(try colours(in: #require(CGImageSourceCreateImageAtIndex(fullSource, 0, nil))) > 16)
+    }
+
+    @Test func aPaletteKeepsTheColoursAnImageHasWhenItHasFewEnough() throws {
+        let picked: [Palette.Color] = [
+            .init(r: 8, g: 8, b: 8), .init(r: 248, g: 248, b: 248), .init(r: 200, g: 40, b: 40),
+        ]
+        let image = try #require(stripes(picked))
+        let palette = Palette(for: [image], count: 4)
+        #expect(palette.colors.count == 3)
+        for colour in picked {
+            #expect(palette.colors.contains(colour))
+        }
+        // Down to two: the red goes to whichever is nearer, and black and white stay.
+        let two = Palette(for: [image], count: 2)
+        #expect(two.colors.count == 2)
+        let drawn = try #require(two.apply(to: image))
+        #expect(colours(in: drawn) == 2)
     }
 
     @Test func compressionNoiseIsTheSameFrameAndARealChangeIsNot() {
@@ -67,8 +110,47 @@ struct GifTests {
         #expect(read.delays.count > 1)
         #expect(abs(read.delays.reduce(0, +) - 1) < 0.001)
         #expect(lines.count == 1)
-        #expect(lines[0].hasSuffix("demo.gif (\(read.delays.count) frames of 15 sampled)"))
+        #expect(lines[0].contains("demo.gif (\(read.delays.count) frames of 15 sampled, "))
     }
+}
+
+/// How many different colours `image` has.
+private func colours(in image: CGImage) -> Int {
+    let width = image.width, height = image.height
+    var bytes = [UInt8](repeating: 0, count: width * height * 4)
+    bytes.withUnsafeMutableBytes { buffer in
+        let context = CGContext(
+            data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.noneSkipLast.rawValue
+        )
+        context?.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+    }
+    var seen = Set<UInt32>()
+    for index in stride(from: 0, to: bytes.count, by: 4) {
+        seen.insert(UInt32(bytes[index]) << 16 | UInt32(bytes[index + 1]) << 8 | UInt32(bytes[index + 2]))
+    }
+    return seen.count
+}
+
+/// Vertical stripes of `colours`, 10 pixels each, 30 high.
+private func stripes(_ colours: [Palette.Color]) -> CGImage? {
+    let width = colours.count * 10, height = 30
+    var bytes = [UInt8](repeating: 0, count: width * height * 4)
+    for y in 0 ..< height {
+        for x in 0 ..< width {
+            let colour = colours[x / 10], at = (y * width + x) * 4
+            bytes[at] = colour.r
+            bytes[at + 1] = colour.g
+            bytes[at + 2] = colour.b
+        }
+    }
+    guard let provider = CGDataProvider(data: Data(bytes) as CFData) else { return nil }
+    return CGImage(
+        width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: width * 4,
+        space: CGColorSpace(name: CGColorSpace.sRGB)!,
+        bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.noneSkipLast.rawValue), provider: provider, decode: nil,
+        shouldInterpolate: false, intent: .defaultIntent
+    )
 }
 
 private struct GifFile {

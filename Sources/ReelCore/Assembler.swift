@@ -129,7 +129,8 @@ public enum Assembler {
 
     @discardableResult
     public static func assemble(
-        main: URL, intro: Section?, outro: Section?, frameRate: Int, in directory: URL, to output: Output
+        main: URL, intro: Section?, outro: Section?, frameRate: Int, in directory: URL, to output: Output,
+        lossless: Bool = false
     ) async throws -> Arrangement {
         precondition(output.format != .gif, "a GIF is written from a rendered movie by GifWriter")
         let demo = AVURLAsset(url: main)
@@ -262,7 +263,8 @@ public enum Assembler {
         }
         video.animationTool = AVVideoCompositionCoreAnimationTool(postProcessingAsVideoLayer: picture, in: parent)
 
-        guard let session = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetHighestQuality)
+        let preset = lossless ? AVAssetExportPresetAppleProRes422LPCM : AVAssetExportPresetHighestQuality
+        guard let session = AVAssetExportSession(asset: composition, presetName: preset)
         else { throw ReelError("cannot assemble \(output.url.path)") }
         session.videoComposition = video
         if !mix.isEmpty {
