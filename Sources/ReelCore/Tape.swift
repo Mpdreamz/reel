@@ -39,6 +39,10 @@ public struct Tape: Equatable, Sendable {
     public var skipped: [Output]
     /// The text the tape was read from, to read it again for a profile.
     public var source: Source?
+    /// The profiles the tape can render for: the built-in ones, amended and added to by its presets and itself.
+    public var known: [Profile]
+    /// What reading it found worth saying but not refusing: relative paths that lead out of the git root.
+    public var warnings: [String]
 
     public struct Source: Equatable, Sendable {
         public var text: String
@@ -70,7 +74,7 @@ public struct Tape: Equatable, Sendable {
     public static let defaultGifColors = 256
 
     /// What every tape starts with, and the error a tape gets when it does not.
-    static let preface = "a tape starts with Launch <app> or Open <url>, which says what it records"
+    static let preface = "a tape starts with Launch <app> or Open <url> (after any Import lines), which says what it records"
 
     /// Whether playing the tape needs Accessibility: anything that finds, moves or types into the app.
     public var drivesTheApp: Bool {
@@ -328,8 +332,8 @@ public extension Tape {
     /// The profiles to render: those `chosen` on the command line, which must be among the tape's own when it names
     /// any (`Set Profiles`), or else the tape's; nil, once, when there are none, to render each Output as named.
     func profilesToRender(chosen: [String]) throws -> [Profile?] {
-        for name in chosen where Profile.named(name) == nil {
-            throw TapeError(message: "there is no profile '\(name)'; reel has \(Profile.names)")
+        for name in chosen where profile(named: name) == nil {
+            throw TapeError(message: "there is no profile '\(name)'; there are \(Profile.names(known))")
         }
         if !profiles.isEmpty, let outside = chosen.first(where: { !profiles.contains($0) }) {
             throw TapeError(
@@ -337,7 +341,11 @@ public extension Tape {
             )
         }
         let names = chosen.isEmpty ? profiles : chosen
-        return names.isEmpty ? [nil] : names.map { Profile.named($0) }
+        return names.isEmpty ? [nil] : names.map { profile(named: $0) }
+    }
+
+    func profile(named name: String) -> Profile? {
+        known.first { $0.name == name }
     }
 
     static func load(_ url: URL) throws -> Tape {
@@ -347,6 +355,18 @@ public extension Tape {
     /// Parses a tape. Relative paths (`Output`, `Launch` of an `.app`) resolve against `directory`. With a profile,
     /// its settings apply after the tape's own.
     static func parse(_ text: String, relativeTo directory: URL, profile: Profile? = nil) throws -> Tape {
+        let paths = Paths(root: Paths.gitRoot(from: directory))
+        var warnings: [String] = []
+        // What the tape imports: applied as it Launches or Opens, when the settings can be read knowing which.
+        var imported = Preset()
+
+        var definitions: [Profile.Definition] = []
+        /// `text` as a URL, from `dir`; a relative one that leads out of the git root is noted at `origin`.
+        func locate(_ text: String, from dir: URL, at origin: String, fail: (String) -> TapeError) throws -> URL {
+            let (url, warning) = try paths.resolve(text, against: dir, fail: fail)
+            if let warning { warnings.append("\(origin): \(warning)") }
+            return url
+        }
         var outputs: [Output] = []
         var frameRate: Int?
         var audio: Bool?
@@ -379,7 +399,13 @@ public extension Tape {
         var steps: [Step] = []
 
         /// One `Set`, from the tape or from its profile.
-        func set(_ setting: String, _ value: String, isWeb: Bool, fail: (String) -> TapeError) throws {
+        func set(
+            _ setting: String, _ value: String, isWeb: Bool, from dir: URL, at origin: String,
+            fail: (String) -> TapeError
+        ) throws {
+            func find(_ text: String) throws -> URL {
+                try locate(text, from: dir, at: origin, fail: fail)
+            }
             func forWeb(_ what: String) throws {
                 if !isWeb { throw fail("\(what) is for web pages (Open); this tape Launches an app") }
             }
@@ -454,10 +480,8 @@ public extension Tape {
                 formats = chosen
             case "Profiles":
                 let names = value.split(whereSeparator: { $0 == "," || $0 == " " }).map(String.init)
-                for name in names where Profile.named(name) == nil {
-                    throw fail("there is no profile '\(name)'; reel has \(Profile.names)")
-                }
                 guard Set(names).count == names.count else { throw fail("Profiles names a profile twice") }
+                profilesOrigin = origin
                 profiles = names
             case "Browser":
                 try forWeb("Set Browser")
@@ -465,7 +489,7 @@ public extension Tape {
                 case "webkit": web.browser = .webkit
                 case "chromium": web.browser = .chromium
                 default:
-                    let app = resolve(value, against: directory)
+                    let app = try find(value)
                     guard app.pathExtension == "app" else {
                         throw fail(
                             "Browser is webkit, chromium or a Chromium-based .app such as "
@@ -510,7 +534,7 @@ public extension Tape {
             case "AppVolume":
                 voice.appVolume = try percent("AppVolume", value, fail: fail)
             case "Background":
-                background = try Background(value, relativeTo: directory, fail: fail)
+                background = try Background(value, resolve: find, fail: fail)
             case "Padding":
                 guard value.hasSuffix("%"), let number = Double(value.dropLast()),
                       (0 ... 30).contains(number)
@@ -519,9 +543,9 @@ public extension Tape {
                 }
                 padding = number / 100
             case "IntroBackground":
-                introBackground = try Background(value, relativeTo: directory, fail: fail)
+                introBackground = try Background(value, resolve: find, fail: fail)
             case "OutroBackground":
-                outroBackground = try Background(value, relativeTo: directory, fail: fail)
+                outroBackground = try Background(value, resolve: find, fail: fail)
             case "ZoomEasing":
                 guard let easing = Easing(rawValue: value) else { throw fail(Easing.problem(value)) }
                 zoomTransition.easing = easing
@@ -544,9 +568,28 @@ public extension Tape {
             }
         }
 
-        for (index, raw) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
+        /// What the tape imports, applied once it says what it records (the settings are read knowing which) and
+        /// before its own settings, which override them.
+        func applyImports(isWeb: Bool) throws {
+            for setting in imported.settings {
+                let origin = setting.origin ?? "an import"
+                try set(setting.name, setting.value, isWeb: isWeb, from: setting.directory ?? directory, at: origin) {
+                    TapeError(message: "\(origin): \($0)")
+                }
+            }
+        }
+
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        // Lines a Profile block took, still to skip.
+        var consumed = 0
+        var profilesOrigin = ""
+        for (index, raw) in lines.enumerated() {
+            if consumed > 0 {
+                consumed -= 1
+                continue
+            }
             let line = index + 1
-            let tokens = try tokenize(String(raw), line: line)
+            let tokens = try tokenize(raw, line: line)
             guard let first = tokens.first else { continue }
             let args = Array(tokens.dropFirst())
             let words = args.map(\.text)
@@ -565,13 +608,34 @@ public extension Tape {
                 throw fail("\(name) takes no @option")
             }
             // The first line says what the tape records; everything after is read knowing it.
-            if launch == nil, name != "Launch", name != "Open" { throw fail(Tape.preface) }
+            if launch == nil, !["Launch", "Open", "Import"].contains(name) { throw fail(Tape.preface) }
             let isWeb = launch?.target.isWeb == true
             let forWeb = { (what: String) throws in
                 if !isWeb { throw fail("\(what) is for web pages (Open); this tape Launches an app") }
             }
 
             switch name {
+            case "Import":
+                guard launch == nil else { throw fail("Import comes first, before Launch or Open") }
+                let target = try single(words, usage: "Import <path to a .\(Preset.fileExtension)>", fail: fail)
+                let url = try locate(target, from: directory, at: "line \(line)", fail: fail)
+                do {
+                    let preset = try Preset.load(url, paths: paths, chain: [])
+                    imported.settings += preset.settings
+                    imported.definitions += preset.definitions
+                    warnings += preset.warnings
+                } catch let error as TapeError {
+                    throw fail(error.message)
+                }
+
+            case "Profile":
+                try setup(name)
+                let (definition, used) = try Profile.Definition.read(
+                    args, body: lines[(index + 1)...], from: line, in: nil, directory: directory
+                )
+                definitions.append(definition)
+                consumed = used
+
             case "Intro", "Outro":
                 try setup(name)
                 let usage = "expected \(name) \"<title>\" [\"<subtitle>\"] [duration]"
@@ -595,7 +659,7 @@ public extension Tape {
             case "Output":
                 try setup(name)
                 let path = try single(words, usage: "Output <path>", fail: fail)
-                let url = resolve(path, against: directory)
+                let url = try locate(path, from: directory, at: "line \(line)", fail: fail)
                 guard let format = Output.Format(rawValue: url.pathExtension.lowercased()) else {
                     let known = Output.Format.allCases.map { ".\($0.rawValue)" }
                     let list = known.dropLast().joined(separator: ", ") + " or " + known.last!
@@ -611,13 +675,19 @@ public extension Tape {
                 guard words.count == 2 || (words.count > 2 && Tape.listSettings.contains(words[0])) else {
                     throw fail("expected Set <setting> <value>")
                 }
-                try set(words[0], words.dropFirst().joined(separator: " "), isWeb: isWeb, fail: fail)
+                try set(
+                    words[0], words.dropFirst().joined(separator: " "), isWeb: isWeb, from: directory,
+                    at: "line \(line)", fail: fail
+                )
 
             case "Open":
                 let value = try single(words, usage: "Open <url>", fail: fail)
-                let url = try webAddress(value, relativeTo: directory, fail: fail)
+                let url = try webAddress(value, resolve: {
+                    try locate($0, from: directory, at: "line \(line)", fail: fail)
+                }, fail: fail)
                 if launch == nil {
                     launch = (.web(url), line)
+                    try applyImports(isWeb: true)
                 } else {
                     // Any later Open goes to another page, as a step.
                     guard isWeb else { throw fail("Open goes to a web page; this tape Launches an app") }
@@ -636,7 +706,11 @@ public extension Tape {
                 // A path has a slash (`./Name.app` beside the tape); anything else is a bundle id, which may itself end
                 // in `.app` (`dev.musicbox.app`).
                 let isPath = target.contains("/")
-                launch = (isPath ? .app(resolve(target, against: directory)) : .bundleID(target), line)
+                launch = try (
+                    isPath ? .app(locate(target, from: directory, at: "line \(line)", fail: fail)) : .bundleID(target),
+                    line
+                )
+                try applyImports(isWeb: false)
 
             case "Sleep":
                 let value = try single(words, usage: "Sleep <duration>", fail: fail)
@@ -779,11 +853,19 @@ public extension Tape {
 
         guard let launch else { throw TapeError(message: Tape.preface) }
         guard !outputs.isEmpty else { throw TapeError(message: "the tape has no Output") }
+        let knownProfiles = try Profile.resolve(imported.definitions + definitions)
+        for name in profiles where !knownProfiles.contains(where: { $0.name == name }) {
+            throw TapeError(
+                message: "\(profilesOrigin): there is no profile '\(name)'; there are \(Profile.names(knownProfiles))"
+            )
+        }
         if let profile {
             for setting in profile.settings {
-                try set(setting.name, setting.value, isWeb: launch.target.isWeb) {
-                    TapeError(message: "profile \(profile.name): \($0)")
-                }
+                let origin = setting.origin.map { " (\($0))" } ?? ""
+                try set(
+                    setting.name, setting.value, isWeb: launch.target.isWeb, from: setting.directory ?? directory,
+                    at: setting.origin ?? "profile \(profile.name)"
+                ) { TapeError(message: "profile \(profile.name)\(origin): \($0)") }
             }
         }
         // `Set Shape` frames every Output that names no shape of its own; `Set Formats` leaves out the others; a
@@ -827,6 +909,8 @@ public extension Tape {
             profile: profile,
             skipped: skipped,
             source: Source(text: text, directory: directory),
+            known: knownProfiles,
+            warnings: warnings,
             voice: voice,
             zoomTransition: zoomTransition,
             intro: intro.map { section in
@@ -921,11 +1005,13 @@ private func target(_ token: Token, fail: (String) -> TapeError) throws -> Targe
 }
 
 /// `https://…`, `http://…`, `file://…`, or a path to an `.html` file relative to the tape.
-private func webAddress(_ value: String, relativeTo directory: URL, fail: (String) -> TapeError) throws -> URL {
+private func webAddress(
+    _ value: String, resolve: (String) throws -> URL, fail: (String) -> TapeError
+) throws -> URL {
     if let url = URL(string: value), let scheme = url.scheme, ["http", "https", "file"].contains(scheme) {
         return url
     }
-    if value.hasSuffix(".html") || value.hasSuffix(".htm") { return resolve(value, against: directory) }
+    if value.hasSuffix(".html") || value.hasSuffix(".htm") { return try resolve(value) }
     throw fail("'\(value)' is not a web address; write https://…, http://…, file://… or a path to an .html file")
 }
 
@@ -980,7 +1066,7 @@ func resolve(_ path: String, against directory: URL) -> URL {
     return url.standardizedFileURL
 }
 
-private struct Token {
+struct Token {
     var text: String
     var quoted: Bool
     /// As written, quotes and all, for the timeline.
@@ -989,7 +1075,7 @@ private struct Token {
 
 /// Splits a line into tokens: whitespace separates, double quotes group (`\"` and `\\` escape inside them). `#`
 /// starts a comment at the start of a line or followed by a space; `#play` after a command is an identifier.
-private func tokenize(_ line: String, line number: Int) throws -> [Token] {
+func tokenize(_ line: String, line number: Int) throws -> [Token] {
     var tokens: [Token] = []
     var current = "", source = ""
     var inToken = false, quoted = false, wasQuoted = false

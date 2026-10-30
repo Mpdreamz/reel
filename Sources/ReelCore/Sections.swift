@@ -36,7 +36,7 @@ public enum Background: Equatable, Sendable {
 
     /// `#1d2b3a`, an image (`.png`, `.jpg`, `.jpeg`, `.heic`) or a video (`.mov`, `.mp4`, `.m4v`), relative to the
     /// tape.
-    init(_ value: String, relativeTo directory: URL, fail: (String) -> TapeError) throws {
+    init(_ value: String, resolve: (String) throws -> URL, fail: (String) -> TapeError) throws {
         if value.hasPrefix("#") {
             let hex = value.dropFirst()
             guard hex.count == 6, let number = UInt32(hex, radix: 16) else {
@@ -47,7 +47,7 @@ public enum Background: Equatable, Sendable {
             )
             return
         }
-        let url = resolve(value, against: directory)
+        let url = try resolve(value)
         switch url.pathExtension.lowercased() {
         case "png", "jpg", "jpeg", "heic": self = .image(url)
         case "mov", "mp4", "m4v": self = .video(url)

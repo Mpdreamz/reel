@@ -24,10 +24,15 @@
 
 A tape is a `.reel` file. A `.tape` file still plays, with a warning to rename it: `.tape` is VHS's extension, and
 editors and GitHub take such a file for a VHS tape. One command per line. `#` starts a comment at the start of a line or followed by a space (`#play` after a command
-is an identifier). A tape starts with `Launch <app>` or `Open <url>`, which says what it records; the rest is read
+is an identifier). A tape starts with `Launch <app>` or `Open <url>` (after any `Import` lines, see "Presets"), which says what it records; the rest is read
 knowing it, so a setting for the other kind (`Set Viewport` in an app tape, `Set Size` in a web tape, a `css:`
 target in an app tape) is refused at its line rather than ignored. Setup (`Output`, `Set`, `Intro`, `Outro`) comes
 next, and recording starts at the first command after it. Durations are `500ms`, `2s`, `1.5s`, `1m` or a bare number of seconds.
+
+A path is relative to the file it is written in, from home with `~`, absolute with `/`, or from the git root with
+`//` (`Output //docs/media/demo.mp4`), so a tape or a preset need not count `../`; `//` outside a git repository is
+an error. A relative path that leads out of the git root plays, with a warning: it works only where the repository
+sits next to the same things.
 
 | Command | Meaning |
 | --- | --- |
@@ -236,6 +241,42 @@ unknown name, or one the tape does not list, is refused before anything is recor
 The social limits are the strictest common ones, from third-party guides where the platform publishes none
 (Mastodon's 40 MB default, X's 2:20 for standard accounts, TikTok's 287 MB on mobile). Subtitles are on because
 feeds play muted. A landscape app framed at 9:16 is mostly background: `Zoom` is what makes a vertical cut work.
+
+### Presets
+
+Settings and profiles a team shares live in a `.reelpreset`, which tapes import on their first lines, before
+`Launch` or `Open` (comments may come before):
+
+```
+Import //demos/house.reelpreset
+Launch ~/Projects/musicbox/build/App/Musicbox.app
+```
+
+A preset holds `Import` lines (first; presets import presets, in order, and one that comes back round is an error),
+`Set` lines and `Profile` blocks, and nothing that records. Its `Set` lines are defaults: they apply as the tape says
+what it records, before the tape's own, which override them; a profile overrides both. A path in a preset is
+relative to the preset. An error in one names the file and line.
+
+```
+# house.reelpreset
+Set Background //design/backdrop.png
+Set Voice system:Samantha
+
+Profile github                     # amends the built-in github: its settings after github's own
+  Set GifColors 128
+
+Profile docs extends web "Our docs site"
+  Set VideoWidth 1440
+  Set MaxSize 8MB
+```
+
+`Profile <name> [extends <profile>] ["what it is for"]` and the indented `Set` lines under it define a profile, in a
+preset or in a tape; the block ends at the first line that is not indented. A known name amends that profile; a new
+one starts from the profile it extends, or from nothing. Names are lowercase letters, digits and dashes, and not an
+Output's type (`mp4`, `mov`, `gif`). A profile cannot set what is fixed when recording (`FrameRate`, `Audio`, `Size`,
+`TypingSpeed`, `WaitTimeout`, the `Voice` settings, `Browser`, `Viewport`), since one take serves every profile, nor
+choose profiles. `reel profiles demo.reel` lists what a tape can render for, with where each setting comes from;
+`reel run` reads every profile it will render before recording, so a bad value is refused first.
 
 ### Fitting a size
 
