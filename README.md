@@ -26,14 +26,17 @@ Launch ~/Projects/musicbox/build/App/Musicbox.app
 Output //docs/media/musicbox.mp4
 Output //docs/media/musicbox.gif
 Set Size 1440x900
+Set Voice guest voicebox:Michael        # a second voice; the preset's speaks the rest
 Intro@crossfade,ease-out,600ms 2s       # reel's sting, from the preset
 
-Say "Using reel, I can demo my macOS app, Musicbox: a sketchpad for chord progressions."
-Say@over "Press space, [play] and every lane starts looping."
+Say "Reel is an app that records demos of macOS apps and web pages."
+Say@over "Press space, [play] and Musicbox plays, with its own sound."
 Wait [play]
 Key space
-Zoom #timeline.chords 1.8x
-Say "The chords lane drives the others."
+Zoom #lane.drums.mute 3x
+Say@guest,over "Mute the drums, [mute] and the chords and melody carry on alone."
+Wait [mute]
+Click #lane.drums.mute
 Zoom off
 ```
 
