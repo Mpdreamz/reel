@@ -1,4 +1,5 @@
-# reel's hero demo: Musicbox, a sketchpad for chord progressions, recorded with its own sound and narrated.
+# reel's hero demo: reel showing itself off, on Musicbox (a sketchpad for chord progressions) playing its default song,
+# recorded with its own sound and narrated by two voices.
 # `mise run demos` records it (Musicbox built in ~/Projects/musicbox: by path, since a bundle id can find another copy). It plays music and takes the mouse and keyboard.
 Import //demos/reel.reelpreset
 Launch ~/Projects/musicbox/build/App/Musicbox.app
@@ -6,6 +7,8 @@ Launch ~/Projects/musicbox/build/App/Musicbox.app
 Output //docs/media/musicbox.mp4
 Output //docs/media/musicbox.gif
 Set Size 1440x900
+# The second voice: the preset's voicebox:Main speaks every other line.
+Set Voice guest voicebox:Michael
 # reel's own stings open and close it (design/motion, set in the preset): the background alone, 2 s. The square cut
 # has no sting in its shape, so it gets title cards on the designed backgrounds instead.
 Intro@crossfade,ease-out,600ms square ? "reel" "Demo videos from a script" : 2s
@@ -13,23 +16,33 @@ Outro@fade,800ms square ? "Recorded with reel" "brew install --cask mpdreamz/tap
 
 Hide
 Wait #lanes
+# Into the window's empty title bar first: the first click into it only makes it key, and would miss the mute. Every
+# lane shows with Musicbox's drawer closed: `defaults write dev.musicbox.app drawerOpen -bool false` before recording.
+Click @175,18
 Sleep 1s
 Show
 
-Say "Using reel, I can demo my macOS app, Musicbox: a sketchpad for chord progressions."
-Say@over "Press space, [play] and every lane starts looping."
+Say "Reel is an app that records demos of macOS apps and web pages."
+Say "Here we're recording a sneak peek at Musicbox, a fun new DAW that's still being worked on."
+Say@guest "Every click, key and zoom in this video is a line in a script."
+Say@over "Press space, [play] and Musicbox plays, with its own sound."
 Wait [play]
 Key space
-Sleep 2s
-Zoom #timeline.chords 1.8x
-Say "The chords lane drives the others."
+Sleep 1.5s
+Zoom #lane.drums.mute 3x
+Say@guest,over "Mute the drums, [mute] and the chords and melody carry on alone."
+Wait [mute]
+Click #lane.drums.mute
+Sleep 1s
 Zoom #timeline.melody 1.8x
-Say "The melody follows it, snapped to the scale."
-Zoom #timeline.bass 1.8x
-Say "And the bass plays the roots."
+Say "Zooms find what they show by name, and follow it."
+Zoom #lane.drums.mute 3x
+Say@guest "Now, let's bring that beat back!"
+Click #lane.drums.mute
+Sleep 1.5s
 Zoom off
-Sleep 3s
-Say@over "Space again, [stop] and it stops."
+Say "The music ducks under our voices, subtitles carry them to muted feeds, and one reel renders every cut."
+Say@guest,over "Space again, [stop] and that's a take."
 Wait [stop]
 Key space
 Sleep 1s

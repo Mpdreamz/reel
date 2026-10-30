@@ -9,9 +9,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 swift build -q
 # A tiling yabai would resize the windows and defeat Set Size: let the recorded apps float while the reels play. The
-# rule lives only in the running yabai, and goes again on exit.
+# rule lives only in the running yabai, and goes again on exit. A rule only meets new windows: --apply floats one
+# already open too, which yabai would otherwise keep tiling.
 if pgrep -xq yabai; then
     yabai -m rule --add label=reel-demos app='^(Musicbox|reel|Google Chrome|Google Chrome for Testing|Chromium)$' manage=off
+    yabai -m rule --apply reel-demos
     trap 'yabai -m rule --remove reel-demos' EXIT
 fi
 reels=("$@")
