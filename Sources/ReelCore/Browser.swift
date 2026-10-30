@@ -71,6 +71,20 @@ public final class Browser: @unchecked Sendable {
         return nil
     }
 
+    /// What Chromium is started with: a fresh profile, a DevTools port, an app window sized close to the viewport (a
+    /// title bar more, corrected once DevTools can measure the page), and nothing that asks the user anything.
+    static func arguments(profile: URL, viewport: CGSize, url: URL) -> [String] {
+        [
+            "--user-data-dir=\(profile.path)", "--remote-debugging-port=0", "--remote-allow-origins=*",
+            "--no-first-run", "--no-default-browser-check", "--disable-sync", "--hide-crash-restore-bubble",
+            "--autoplay-policy=no-user-gesture-required", "--window-position=80,80",
+            // A fresh profile otherwise asks the login keychain for "Chromium Safe Storage", with a password dialog
+            // left on screen every take.
+            "--use-mock-keychain",
+            "--window-size=\(Int(viewport.width)),\(Int(viewport.height) + 28)", "--app=\(url.absoluteString)",
+        ]
+    }
+
     static func launch(_ app: URL, viewport: CGSize, opening url: URL, log: (String) -> Void) async throws -> Browser {
         guard let bundle = Bundle(url: app), let executable = bundle.executableURL,
               let bundleID = bundle.bundleIdentifier
@@ -79,13 +93,7 @@ public final class Browser: @unchecked Sendable {
         try FileManager.default.createDirectory(at: profile, withIntermediateDirectories: true)
         let process = Process()
         process.executableURL = executable
-        // Sized close to the viewport (a title bar more), corrected once DevTools can measure the page.
-        process.arguments = [
-            "--user-data-dir=\(profile.path)", "--remote-debugging-port=0", "--remote-allow-origins=*",
-            "--no-first-run", "--no-default-browser-check", "--disable-sync", "--hide-crash-restore-bubble",
-            "--autoplay-policy=no-user-gesture-required", "--window-position=80,80",
-            "--window-size=\(Int(viewport.width)),\(Int(viewport.height) + 28)", "--app=\(url.absoluteString)",
-        ]
+        process.arguments = arguments(profile: profile, viewport: viewport, url: url)
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
         try process.run()

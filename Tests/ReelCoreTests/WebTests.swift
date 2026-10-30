@@ -255,3 +255,17 @@ struct WebKitConfigurationTests {
         #expect(configuration.mediaTypesRequiringUserActionForPlayback == [])
     }
 }
+
+/// How reel starts Chromium.
+struct ChromiumArgumentsTests {
+    @Test func aFreshProfileThatNeverAsksForTheKeychain() {
+        let arguments = Browser.arguments(
+            profile: URL(fileURLWithPath: "/tmp/p"), viewport: CGSize(width: 1280, height: 720),
+            url: URL(string: "https://example.com")!
+        )
+        #expect(arguments.contains("--use-mock-keychain"))
+        #expect(arguments.contains("--user-data-dir=/tmp/p"))
+        #expect(arguments.contains("--window-size=1280,748"))
+        #expect(arguments.last == "--app=https://example.com")
+    }
+}
