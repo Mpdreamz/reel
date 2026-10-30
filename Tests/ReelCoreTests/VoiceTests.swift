@@ -6,7 +6,7 @@ import Testing
 /// Answers requests for a session in place of a voicebox server, and keeps what was asked.
 final class StubServer: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) static var requests: [URLRequest] = []
-    nonisolated(unsafe) static var profiles = #"[{"id":"p-1","name":"narrator"},{"id":"p-2","name":"Other"}]"#
+    nonisolated(unsafe) static var profiles = #"[{"id":"p-1","name":"narrator"},{"id":"p-2","name":"Other","default_engine":"kokoro"}]"#
 
     static func session() -> URLSession {
         let configuration = URLSessionConfiguration.ephemeral
@@ -81,6 +81,18 @@ struct VoiceboxTests {
         #expect(body["text"] as? String == "Pick a track")
         #expect(body["language"] as? String == "nl")
         #expect(body["seed"] as? Int == 7)
+        // A profile that names no engine leaves it to voicebox.
+        #expect(body["engine"] == nil)
+    }
+
+    @Test func voicesWithTheEngineTheProfileNames() async throws {
+        StubServer.requests = []
+        let file = try TakeWriterTests().temporaryDirectory().appending(path: "line.wav")
+        try await voicebox("Other").speak("Pick a track", to: file)
+        let generate = try #require(StubServer.requests.last)
+        let body = try #require(try JSONSerialization.jsonObject(with: generate.httpBody ?? Data()) as? [String: Any])
+        #expect(body["profile_id"] as? String == "p-2")
+        #expect(body["engine"] as? String == "kokoro")
     }
 
     @Test func aProfileCanBeNamedByItsId() async throws {

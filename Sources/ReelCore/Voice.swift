@@ -202,13 +202,15 @@ public struct Voicebox: Synthesizer {
     }
 
     public func speak(_ text: String, to url: URL) async throws {
-        let id = try await profileID()
+        let voice = try await lookUp()
         var request = URLRequest(url: server.appending(path: "generate/stream"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONSerialization.data(withJSONObject: [
-            "profile_id": id, "text": text, "language": language, "seed": seed,
-        ])
+        var body: [String: Any] = ["profile_id": voice.id, "text": text, "language": language, "seed": seed]
+        // The profile's own engine: voicebox otherwise uses its default, which a preset voice may not support
+        // ("Preset profile … only supports engine 'kokoro', not 'qwen'").
+        if let engine = voice.engine { body["engine"] = engine }
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
         let (data, response) = try await send(request)
         guard (response as? HTTPURLResponse)?.statusCode == 200 else {
             throw ReelError("voicebox could not voice '\(text)': \(String(decoding: data.prefix(300), as: UTF8.self))")
@@ -218,13 +220,18 @@ public struct Voicebox: Synthesizer {
 
     /// The id of the profile named `profile`, or `profile` itself when it is an id.
     func profileID() async throws -> String {
+        try await lookUp().id
+    }
+
+    /// The profile named `profile`, or whose id it is.
+    private func lookUp() async throws -> Profile {
         let (data, response) = try await send(URLRequest(url: server.appending(path: "profiles")))
         guard (response as? HTTPURLResponse)?.statusCode == 200,
               let profiles = try? JSONDecoder().decode([Profile].self, from: data)
         else {
             throw ReelError("voicebox at \(server.absoluteString) did not list its voice profiles")
         }
-        if let match = profiles.first(where: { $0.id == profile || $0.name == profile }) { return match.id }
+        if let match = profiles.first(where: { $0.id == profile || $0.name == profile }) { return match }
         let names = profiles.map(\.name).joined(separator: ", ")
         throw ReelError("voicebox has no profile '\(profile)'; it has \(names.isEmpty ? "none" : names)")
     }
@@ -232,6 +239,13 @@ public struct Voicebox: Synthesizer {
     private struct Profile: Decodable {
         var id: String
         var name: String
+        /// The engine the profile speaks with; absent from voicebox versions without engines.
+        var engine: String?
+
+        enum CodingKeys: String, CodingKey {
+            case id, name
+            case engine = "default_engine"
+        }
     }
 
     private func send(_ request: URLRequest) async throws -> (Data, URLResponse) {
