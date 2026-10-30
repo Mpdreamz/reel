@@ -87,8 +87,11 @@ struct TakeWriterTests {
     }
 
     /// Frames at `fps` that fade from black to white, and the sound as 100 ms chunks of a 440 Hz tone, interleaved
-    /// the way capture delivers them.
-    func writeTake(to url: URL, seconds: Double, audio: Bool, shade fixed: UInt8? = nil) async throws {
+    /// the way capture delivers them. With `noise`, every frame is different noise instead: detail an encoder has to
+    /// spend bits on.
+    func writeTake(
+        to url: URL, seconds: Double, audio: Bool, shade fixed: UInt8? = nil, noise: Bool = false
+    ) async throws {
         let writer = try TakeWriter(
             url: url, width: width, height: height, frameRate: fps, audio: audio, realTime: false
         )
@@ -98,7 +101,9 @@ struct TakeWriterTests {
             var sent = 0
             for i in 0 ..< frames {
                 let time = CMTime(value: CMTimeValue(i), timescale: CMTimeScale(fps))
-                writer.append(video: frame(at: time, shade: fixed ?? UInt8(i * 255 / max(1, frames - 1))))
+                writer.append(video: frame(
+                    at: time, shade: fixed ?? UInt8(i * 255 / max(1, frames - 1)), noise: noise ? UInt64(i + 1) : nil
+                ))
                 // Sound runs 0.2 s ahead of the picture, as capture delivers it: the writer holds the picture back
                 // until the sound has caught up, so sound that lags would leave both waiting.
                 while audio, Double(sent) / 48000 < time.seconds + 0.2, Double(sent) / 48000 < seconds {
@@ -110,7 +115,7 @@ struct TakeWriterTests {
         try await writer.finish(at: CMTime(seconds: seconds, preferredTimescale: 600))
     }
 
-    private func frame(at time: CMTime, shade: UInt8) -> CMSampleBuffer {
+    private func frame(at time: CMTime, shade: UInt8, noise seed: UInt64? = nil) -> CMSampleBuffer {
         var pixels: CVPixelBuffer?
         CVPixelBufferCreate(
             nil, width, height, kCVPixelFormatType_32BGRA,
@@ -119,6 +124,14 @@ struct TakeWriterTests {
         let buffer = pixels!
         CVPixelBufferLockBaseAddress(buffer, [])
         memset(CVPixelBufferGetBaseAddress(buffer), Int32(shade), CVPixelBufferGetDataSize(buffer))
+        if var state = seed {
+            let bytes = CVPixelBufferGetBaseAddress(buffer)!.assumingMemoryBound(to: UInt8.self)
+            for index in 0 ..< CVPixelBufferGetDataSize(buffer) {
+                // A linear congruential generator: the same noise every run.
+                state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+                bytes[index] = UInt8(truncatingIfNeeded: state >> 56)
+            }
+        }
         CVPixelBufferUnlockBaseAddress(buffer, [])
 
         var format: CMVideoFormatDescription?
@@ -175,7 +188,7 @@ struct TakeWriterTests {
     }
 
     /// The root mean square of every sample in the asset's sound; 0 when it has none.
-    private func rms(of asset: AVAsset) async throws -> Double {
+    func rms(of asset: AVAsset) async throws -> Double {
         guard let track = try await asset.loadTracks(withMediaType: .audio).first else { return 0 }
         let reader = try AVAssetReader(asset: asset)
         let output = AVAssetReaderTrackOutput(track: track, outputSettings: [

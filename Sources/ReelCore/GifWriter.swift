@@ -1,4 +1,5 @@
 import AVFoundation
+import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
@@ -13,10 +14,13 @@ public enum GifWriter {
     public struct Result: Equatable, Sendable {
         public var frames: Int
         public var sampled: Int
+        public var bytes: Int
     }
 
     @discardableResult
-    public static func write(from movie: URL, to url: URL, frameRate: Int, width: Int) async throws -> Result {
+    public static func write(
+        from movie: URL, to url: URL, frameRate: Int, width: Int, colors: Int = Tape.defaultGifColors
+    ) async throws -> Result {
         let asset = AVURLAsset(url: movie)
         guard let track = try await asset.loadTracks(withMediaType: .video).first else {
             throw ReelError("\(movie.path) has no picture")
@@ -45,6 +49,12 @@ public enum GifWriter {
             kept = pixels
         }
 
+        // Fewer colours than a GIF holds: one palette for every frame, drawn in before ImageIO sees them.
+        if colors < 256 {
+            let palette = Palette(for: runs.map(\.image), count: colors)
+            runs = runs.map { (palette.apply(to: $0.image) ?? $0.image, $0.start) }
+        }
+
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(), withIntermediateDirectories: true
         )
@@ -70,7 +80,8 @@ public enum GifWriter {
             ] as CFDictionary)
         }
         guard CGImageDestinationFinalize(destination) else { throw ReelError("cannot write \(url.path)") }
-        return Result(frames: runs.count, sampled: count)
+        let bytes = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        return Result(frames: runs.count, sampled: count, bytes: bytes)
     }
 
     static func looksTheSame(_ a: Data, _ b: Data, within tolerance: UInt8 = noise) -> Bool {

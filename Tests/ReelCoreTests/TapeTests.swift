@@ -44,17 +44,25 @@ struct TapeTests {
     }
 
     @Test func gifs() throws {
-        let tape = try parse("Launch x\nOutput a.gif\nSet GifFrameRate 10\nSet GifWidth 640")
+        let tape = try parse("Launch x\nOutput a.gif\nSet GifFrameRate 10\nSet GifWidth 640\nSet GifColors 64")
         #expect(tape.outputs.map(\.format) == [.gif])
         #expect(tape.gifFrameRate == 10)
         #expect(tape.gifWidth == 640)
+        #expect(tape.gifColors == 64)
         #expect(!Output.Format.gif.hasSound)
+    }
+
+    @Test func encoding() throws {
+        let tape = try parse("Launch x\nOutput a.mp4\nSet Quality 40\nSet Codec HEVC\nSet VideoWidth 1920")
+        #expect(tape.encoding == Encoding(quality: 40, codec: .hevc, width: 1920))
     }
 
     @Test func defaults() throws {
         let tape = try parse("Launch com.example.app\nOutput a.mp4")
         #expect(tape.gifFrameRate == 15)
         #expect(tape.gifWidth == 800)
+        #expect(tape.gifColors == 256)
+        #expect(tape.encoding == Encoding(quality: 65, codec: .h264, width: nil))
         #expect(tape.frameRate == 60)
         #expect(tape.audio == true)
         #expect(tape.steps.isEmpty)
@@ -116,6 +124,12 @@ struct TapeTests {
         ("Launch x\nOutput a.webm", 2, "unsupported output type '.webm'; expected .mp4, .mov or .gif"),
         ("Launch x\nSet GifFrameRate 60", 2, "GifFrameRate must be a whole number from 1 to 50, not '60'"),
         ("Launch x\nSet GifWidth 50", 2, "GifWidth must be a whole number of pixels from 100 to 4000, not '50'"),
+        ("Launch x\nSet GifColors 1", 2, "GifColors must be a whole number from 2 to 256, not '1'"),
+        ("Launch x\nSet GifColors 257", 2, "GifColors must be a whole number from 2 to 256, not '257'"),
+        ("Launch x\nSet Quality 0", 2, "Quality must be a whole number from 1 to 100, not '0'"),
+        ("Launch x\nSet Quality 101", 2, "Quality must be a whole number from 1 to 100, not '101'"),
+        ("Launch x\nSet Codec av1", 2, "Codec must be h264 or hevc, not 'av1'"),
+        ("Launch x\nSet VideoWidth 99", 2, "VideoWidth must be a whole number of pixels from 100 to 8000, not '99'"),
         ("Launch x\nOutput a.mp4\nOutput ./a.mp4", 3, "./a.mp4 is already an Output"),
         ("Launch x\nOutput a.mp4 b.mp4", 2, "expected Output <path>"),
         ("Launch", 1, "expected Launch <bundle id or .app path>"),
@@ -125,7 +139,7 @@ struct TapeTests {
         (
             "Launch x\nSet Speed 2",
             2,
-            "unknown setting 'Speed'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, KeyBadges, ClickRipples, GifFrameRate, GifWidth, Voice, VoiceServer, VoiceSeed, VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, IntroBackground, OutroBackground, Browser, Viewport, Background or Padding"
+            "unknown setting 'Speed'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, KeyBadges, ClickRipples, Quality, Codec, VideoWidth, GifFrameRate, GifWidth, GifColors, Voice, VoiceServer, VoiceSeed, VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, IntroBackground, OutroBackground, Browser, Viewport, Background or Padding"
         ),
         ("Launch x\nSet Audio", 2, "expected Set <setting> <value>"),
         (

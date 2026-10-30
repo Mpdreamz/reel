@@ -20,6 +20,10 @@ public struct Tape: Equatable, Sendable {
     public var gifFrameRate: Int
     /// Pixels wide of a `.gif` Output, at most the video's own width.
     public var gifWidth: Int
+    /// Colours in a `.gif` Output's palette, 2–256: fewer make a smaller file.
+    public var gifColors: Int
+    /// How a movie Output is compressed (`Set Quality`, `Set Codec`, `Set VideoWidth`).
+    public var encoding: Encoding
     /// Who speaks `Say` lines and how they mix with the app's sound.
     public var voice: VoiceSettings
     /// How a `Zoom` moves when it gives none of its own (`Zoom@ease-out`).
@@ -42,6 +46,7 @@ public struct Tape: Equatable, Sendable {
     public static let defaultWaitTimeout = Duration.seconds(10)
     public static let defaultGifFrameRate = 15
     public static let defaultGifWidth = 800
+    public static let defaultGifColors = 256
 
     /// What every tape starts with, and the error a tape gets when it does not.
     static let preface = "a tape starts with Launch <app> or Open <url>, which says what it records"
@@ -295,6 +300,8 @@ public extension Tape {
         var clickRipples: Bool?
         var gifFrameRate: Int?
         var gifWidth: Int?
+        var gifColors: Int?
+        var encoding = Encoding.standard
         var voice = VoiceSettings()
         // Each marker with its line, and whether its Say carries on (only those can be waited for).
         var markers: [String: (line: Int, over: Bool)] = [:]
@@ -396,6 +403,26 @@ public extension Tape {
                         throw fail("GifWidth must be a whole number of pixels from 100 to 4000, not '\(value)'")
                     }
                     gifWidth = width
+                case "GifColors":
+                    guard let colors = Int(value), (2 ... 256).contains(colors) else {
+                        throw fail("GifColors must be a whole number from 2 to 256, not '\(value)'")
+                    }
+                    gifColors = colors
+                case "Quality":
+                    guard let quality = Int(value), (1 ... 100).contains(quality) else {
+                        throw fail("Quality must be a whole number from 1 to 100, not '\(value)'")
+                    }
+                    encoding.quality = quality
+                case "Codec":
+                    guard let codec = Encoding.Codec(rawValue: value.lowercased()) else {
+                        throw fail("Codec must be h264 or hevc, not '\(value)'")
+                    }
+                    encoding.codec = codec
+                case "VideoWidth":
+                    guard let width = Int(value), (100 ... 8000).contains(width) else {
+                        throw fail("VideoWidth must be a whole number of pixels from 100 to 8000, not '\(value)'")
+                    }
+                    encoding.width = width
                 case "Browser":
                     try forWeb("Set Browser")
                     switch value {
@@ -473,7 +500,7 @@ public extension Tape {
                 default:
                     throw fail(
                         "unknown setting '\(words[0])'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, "
-                            + "KeyBadges, ClickRipples, GifFrameRate, GifWidth, Voice, VoiceServer, VoiceSeed, "
+                            + "KeyBadges, ClickRipples, Quality, Codec, VideoWidth, GifFrameRate, GifWidth, GifColors, Voice, VoiceServer, VoiceSeed, "
                             + "VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, "
                             + "IntroBackground, OutroBackground, Browser, Viewport, Background or Padding"
                     )
@@ -664,6 +691,8 @@ public extension Tape {
             clickRipples: clickRipples ?? true,
             gifFrameRate: gifFrameRate ?? defaultGifFrameRate,
             gifWidth: gifWidth ?? defaultGifWidth,
+            gifColors: gifColors ?? defaultGifColors,
+            encoding: encoding,
             voice: voice,
             zoomTransition: zoomTransition,
             intro: intro.map { section in
