@@ -1,0 +1,78 @@
+{
+  "name": "reel dark",
+  "type": "dark",
+  "colors": {
+    "editor.background": "#111923",
+    "editor.foreground": "#E7ECF1",
+    "editorCursor.foreground": "#F2B04C",
+    "editor.selectionBackground": "#2a3b4e",
+    "editor.lineHighlightBackground": "#1d2b3a",
+    "editorLineNumber.foreground": "#5d7388",
+    "editorLineNumber.activeForeground": "#9BABBB",
+    "sideBar.background": "#0d141c",
+    "activityBar.background": "#0d141c",
+    "statusBar.background": "#1d2b3a",
+    "tab.activeBorderTop": "#F2B04C"
+  },
+  "tokenColors": [
+    {
+      "scope": [
+        "keyword.command.tape"
+      ],
+      "settings": {
+        "foreground": "#F2B04C",
+        "fontStyle": "bold"
+      }
+    },
+    {
+      "scope": [
+        "keyword.setting.tape"
+      ],
+      "settings": {
+        "foreground": "#B9A6F2"
+      }
+    },
+    {
+      "scope": [
+        "string.quoted.tape"
+      ],
+      "settings": {
+        "foreground": "#7FD1C0"
+      }
+    },
+    {
+      "scope": [
+        "entity.name.target.tape"
+      ],
+      "settings": {
+        "foreground": "#86B6F2"
+      }
+    },
+    {
+      "scope": [
+        "constant.numeric.tape",
+        "constant.other.duration.tape"
+      ],
+      "settings": {
+        "foreground": "#F29E84"
+      }
+    },
+    {
+      "scope": [
+        "variable.other.marker.tape"
+      ],
+      "settings": {
+        "foreground": "#E58FB8"
+      }
+    },
+    {
+      "scope": [
+        "comment.tape"
+      ],
+      "settings": {
+        "foreground": "#8397AB",
+        "fontStyle": "italic"
+      }
+    }
+  ]
+}

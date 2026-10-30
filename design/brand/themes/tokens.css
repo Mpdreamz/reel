@@ -1,0 +1,22 @@
+:root{
+  --reel-ink: #111923;
+  --reel-slate: #1d2b3a;
+  --reel-line: #2a3b4e;
+  --reel-mist: #E7ECF1;
+  --reel-fog: #9BABBB;
+  --reel-gate: #F2B04C;
+  --reel-signal: #5CC8B6;
+  --reel-paper: #F2F4F6;
+  --reel-text: #1d2b3a;
+  --reel-muted: #4F6275;
+  --reel-gate-deep: #8F5200;
+  --reel-signal-deep: #0E7364;
+  --reel-command: #F2B04C;
+  --reel-setting: #B9A6F2;
+  --reel-string: #7FD1C0;
+  --reel-target: #86B6F2;
+  --reel-duration: #F29E84;
+  --reel-marker: #E58FB8;
+  --reel-comment: #8397AB;
+  --reel-text: #E7ECF1;
+}

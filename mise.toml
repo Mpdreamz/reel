@@ -42,3 +42,7 @@ run = "scripts/build-release.sh ${VERSION:-0.0.0}"
 description = "Record reel's own demos (demos/*.reel) into docs/media; plays sound, app tapes take the mouse"
 run = "scripts/demos.sh"
 
+
+[tasks.docs]
+description = "Build the docs as CI does (docs-builder + landing page) and serve them on :4000/reel/ (-- --noserve to only build)"
+run = "scripts/docs.sh"

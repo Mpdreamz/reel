@@ -1,0 +1,48 @@
+project: 'reel'
+max_toc_depth: 2
+dev_docs: true
+
+branding:
+  icon: images/reel-symbol.svg
+  favicon: images/favicon-32.png
+  og-image: images/og-1200x630.png
+  apple-touch-icon: images/apple-touch-icon.png
+
+toc:
+  - file: index.md
+  - folder: getting-started
+    children:
+      - file: index.md
+      - file: installation.md
+      - file: permissions.md
+      - file: first-tape.md
+  - folder: tapes
+    children:
+      - file: index.md
+      - file: elements.md
+      - file: paths.md
+  - folder: demos
+    children:
+      - file: index.md
+      - file: driving-apps.md
+      - file: web-pages.md
+      - file: narration.md
+      - file: overlays.md
+      - file: zoom-speed-and-trim.md
+      - file: intro-and-outro.md
+  - folder: outputs
+    children:
+      - file: index.md
+      - file: quality-and-size.md
+      - file: framing.md
+      - file: gifs.md
+      - file: profiles.md
+      - file: presets.md
+      - file: conditions.md
+  - folder: reference
+    children:
+      - file: index.md
+      - file: commands.md
+      - file: settings.md
+      - file: cli.md
+  - file: troubleshooting.md

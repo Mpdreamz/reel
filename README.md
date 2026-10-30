@@ -1,77 +1,78 @@
-# reel
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="design/social/png/readme-banner-dark-1280x320.png">
+  <img alt="reel: write a tape, get the video" src="design/social/png/readme-banner-light-1280x320.png">
+</picture>
 
-Record demos of macOS apps from a script. Like [VHS](https://github.com/charmbracelet/vhs), but for windows instead
-of terminals, and with the app's sound.
+Demo videos of Mac apps and web pages, from a script. Like [VHS](https://github.com/charmbracelet/vhs), but for
+windows instead of terminals, and with the app's sound.
 
-```
-# demo.reel
-Launch com.example.musicbox
-
-Output demo.mp4
-Output demo.gif
-Set Size 1280x800
-
-Set Voice voicebox:narrator      # or system, macOS's own voice
-Intro@slide-up,ease-out "Musicbox" "A music player for your Mac"
-Outro@fade "Get it" "brew install --cask musicbox"
-Set IntroBackground media/intro.mov   # or #1d2b3a, or an image; a video keeps its sound
-
-Hide
-Wait "Library"
-Show
-Say "This is Musicbox."
-Zoom #library                    # locks on the library, and follows it
-Say@over "Pick a track, [pick] then press [play] space to play it."
-Wait [pick]
-Click "Midnight City"
-Wait [play]
-Key space
-Zoom off
-Sleep 4s
-```
-
-```sh
-reel check demo.reel    # parse it and say what it would do
-reel demo.reel          # record, then render every Output
-reel record demo.reel   # only capture the take (.reel/demo/)
-reel render demo.reel   # only render the outputs from the last take
-reel render demo.reel --profile social   # only that profile's cut (Set Profiles github, social)
-reel profiles           # github, social, feed and the rest, and what each sets
-reel doctor             # Screen Recording, Accessibility, and the browser web tapes use
-```
-
-Status: milestones 1 to 8 of [PLAN.md](PLAN.md): recording a window with its sound, driving the app with clicks,
-typing, keys and scrolling, captions, key badges and click ripples drawn over it, GIFs, and narration voiced by macOS
-or [voicebox](https://github.com/jamiepine/voicebox), with clicks timed to its words and the app's sound ducked
-under it, zoom (onto an element, a point or the cursor), speed-ups and cuts, and an intro and an outro with titles over a
-colour, an image or a video, all changeable without recording again except which element a zoom is on. The tape language
-is in PLAN.md. Captions are drawn at render time, so `reel render` picks up a changed caption without recording again.
-
-While a tape plays it takes the mouse and keyboard; it stops rather than type into another app.
-
-A web page instead of an app (macOS; WebKit by default, or `Set Browser chromium`; your mouse stays yours):
-
-```
-Open https://example.com
-Output signup.mp4
-Set Viewport 1280x800
-
-Click "Sign up"
-Click "Email"
-Type "me@example.com"
-Click css:"form button[type=submit]"
-Wait "Welcome"
-```
-
-## Install
+**[Documentation](https://mpdreamz.github.io/reel/getting-started/)** ·
+[Website](https://mpdreamz.github.io/reel/) ·
+[Releases](https://github.com/Mpdreamz/reel/releases)
 
 ```sh
 brew install --cask mpdreamz/tap/reel
-reel doctor             # what is granted, and which browsers web tapes can use
+reel doctor
 ```
 
-reel runs on macOS 15 or later on Apple silicon. It records with Screen Recording and drives apps with Accessibility,
-both granted to the terminal it runs in; the first recording asks. A web tape needs neither Accessibility nor a
-browser: WebKit is built in.
+macOS 15 or later, Apple silicon.
 
-From source: `mise run install` builds it into `~/.local/bin/reel`.
+## A tape
+
+```
+Import //demos/reel.reelpreset
+Launch ~/Projects/musicbox/build/App/Musicbox.app
+
+Output //docs/media/musicbox.mp4
+Output //docs/media/musicbox.gif
+Set Size 1440x900
+Intro@slide-up,ease-out,700ms "Musicbox" "Chord progressions, sketched and heard"
+
+Say "This is Musicbox, a sketchpad for chord progressions."
+Say@over "Press space, [play] and every lane starts looping."
+Wait [play]
+Key space
+Zoom #timeline.chords 1.8x
+Say "The chords lane drives the others."
+Zoom off
+```
+
+```sh
+reel musicbox.reel    # record, then render every output
+```
+
+reel opens the app, plays the tape with a real cursor and real keys, records the window with the app's own sound,
+and renders movies and GIFs with captions, narration, zooms and title cards. This one is
+[reel's own demo](demos/musicbox.reel): its look and its five cuts, for GitHub, the website, and three social
+shapes, come from [one preset](demos/reel.reelpreset).
+
+Captions, zooms, speed-ups, cuts, title cards and every output setting are applied when rendering, so
+`reel render musicbox.reel` picks up a change without recording again.
+
+## What it does
+
+- **Drives apps and web pages:** clicks, typing, keys, scrolling and waiting, by label or accessibility identifier.
+  Web pages in WebKit, built in, or Chromium.
+- **Narrates:** `Say` lines in a macOS or [voicebox](https://github.com/jamiepine/voicebox) voice, clicks landing on
+  a word, the app's sound ducked underneath, subtitles for muted feeds.
+- **Draws over it:** captions, key badges and click ripples.
+- **Edits it:** zoom onto an element and follow it, speed through a stretch, cut what shouldn't be seen.
+- **Frames it:** title cards, backgrounds, and 16:9, 1:1 and 9:16 canvases.
+- **Fits it:** quality, codec and width; profiles for GitHub, the web and social feeds, each held to its size and
+  length; presets to share it all between tapes; conditions for what differs.
+
+The [documentation](https://mpdreamz.github.io/reel/getting-started/) has the rest: a first tape, every command and
+setting, and troubleshooting.
+
+## From source
+
+```sh
+mise run install   # a release build into ~/.local/bin/reel
+mise run test      # the tests
+mise run docs      # the website and docs, on http://localhost:4000/reel/
+```
+
+[AGENTS.md](AGENTS.md) has the conventions; [PLAN.md](PLAN.md) the design and the tape language in full.
+
+The brand (logo, icons, colours, fonts, themes) is in [design/brand](design/brand); its fonts are under the SIL Open
+Font License.
