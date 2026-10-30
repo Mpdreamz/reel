@@ -164,9 +164,16 @@ public final class Browser: @unchecked Sendable {
             try await browser.send("Browser.setWindowBounds", [
                 "windowId": id, "bounds": ["width": Int(width), "height": Int(height), "windowState": "normal"],
             ])
-            try await Task.sleep(for: .milliseconds(250))
+            // The page takes the new size a moment later, sometimes after 250 ms: wait for it, up to a second.
+            for _ in 0 ..< 20 {
+                try await Task.sleep(for: .milliseconds(50))
+                let now = try await page.evaluate("[window.innerWidth, window.innerHeight]") as? [Double] ?? []
+                if now != inner { break }
+            }
         }
+        // The last resize is checked too, not only those before it.
         let inner = try await page.evaluate("[window.innerWidth, window.innerHeight]") as? [Double] ?? []
+        if inner.count == 2, abs(viewport.width - inner[0]) < 1, abs(viewport.height - inner[1]) < 1 { return }
         throw ReelError(
             "the page is \(inner.map { String(Int($0)) }.joined(separator: "x")), not "
                 + "\(Int(viewport.width))x\(Int(viewport.height)): the screen may be too small, or a window manager "
