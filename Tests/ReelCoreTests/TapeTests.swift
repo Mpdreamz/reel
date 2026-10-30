@@ -128,7 +128,7 @@ struct TapeTests {
         ("Launch x\nSet GifColors 257", 2, "GifColors must be a whole number from 2 to 256, not '257'"),
         ("Launch x\nSet Quality 0", 2, "Quality must be a whole number from 1 to 100, not '0'"),
         ("Launch x\nSet Quality 101", 2, "Quality must be a whole number from 1 to 100, not '101'"),
-        ("Launch x\nSet Codec av1", 2, "Codec must be h264 or hevc, not 'av1'"),
+        ("Launch x\nSet Codec av1", 2, "Codec must be h264, hevc or prores, not 'av1'"),
         ("Launch x\nSet VideoWidth 99", 2, "VideoWidth must be a whole number of pixels from 100 to 8000, not '99'"),
         ("Launch x\nOutput a.mp4\nOutput ./a.mp4", 3, "./a.mp4 is already an Output"),
         ("Launch x\nOutput a.mp4 b.mp4", 2, "expected Output <path>"),
@@ -139,7 +139,7 @@ struct TapeTests {
         (
             "Launch x\nSet Speed 2",
             2,
-            "unknown setting 'Speed'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, KeyBadges, ClickRipples, Quality, Codec, VideoWidth, GifFrameRate, GifWidth, GifColors, Voice, VoiceServer, VoiceSeed, VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, IntroBackground, OutroBackground, Browser, Viewport, Background or Padding"
+            "unknown setting 'Speed'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, KeyBadges, ClickRipples, Quality, Codec, VideoWidth, VideoFrameRate, MaxSize, MaxLength, Shape, Formats, Profiles, GifFrameRate, GifWidth, GifColors, Voice, VoiceServer, VoiceSeed, VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, IntroBackground, OutroBackground, Browser, Viewport, Background or Padding"
         ),
         ("Launch x\nSet Audio", 2, "expected Set <setting> <value>"),
         (

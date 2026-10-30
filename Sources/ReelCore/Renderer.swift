@@ -5,9 +5,24 @@ import QuartzCore
 /// Turns a take into a tape's outputs: the take, cut and sped up as the tape says, zoomed, its narration mixed in, its
 /// overlays drawn over it by Core Animation, exported.
 public enum Renderer {
-    /// Renders every Output of `tape`. A GIF is made from a rendered movie: the first movie Output's, or a temporary
-    /// one when the tape has none.
-    public static func render(tape: Tape, from location: TakeLocation, log: (String) -> Void) async throws {
+    /// Renders every Output of `tape`, once for each of its profiles (`Set Profiles`), or of those `chosen` from
+    /// them (`--profile`), as `name-<profile>.mp4`; once, as named, when there are none.
+    public static func render(
+        tape: Tape, from location: TakeLocation, profiles chosen: [String] = [], log: (String) -> Void
+    ) async throws {
+        for profile in try tape.profilesToRender(chosen: chosen) {
+            let read = profile == nil ? tape : try tape.with(profile: profile)
+            for output in read.skipped {
+                log(
+                    "skipped \(output.url.lastPathComponent): \(profile?.name ?? "the tape") writes no .\(output.format)"
+                )
+            }
+            try await renderOnce(tape: read, from: location, log: log)
+        }
+    }
+
+    /// Every Output of `tape`, as it reads. GIFs and movies of one framing are made from one lossless movie.
+    static func renderOnce(tape: Tape, from location: TakeLocation, log: (String) -> Void) async throws {
         let take = try location.read()
         var overlays = try OverlayPlan.make(tape: tape, take: take)
         // Only what the take was recorded with: voiced again, a line may come out a different length.
@@ -98,28 +113,67 @@ public enum Renderer {
             return url
         }
 
+        /// The lossless movie for `output`, refused when it runs longer than the tape allows.
+        func source(for output: Output) async throws -> URL {
+            let url = try await lossless(for: output)
+            if let most = tape.maxLength {
+                let length = try await AVURLAsset(url: url).load(.duration).seconds
+                if length > most + 0.01 {
+                    throw ReelError(
+                        "\(output.url.lastPathComponent) would run \(clock(length)), longer than MaxLength \(clock(most))"
+                    )
+                }
+            }
+            return url
+        }
+        var encoding = tape.encoding
+        encoding.frameRate = tape.videoFrameRate
         for output in tape.outputs where output.format != .gif {
-            let result = try await Encoder.encode(
-                lossless(for: output), to: output, with: tape.encoding, frameRate: take.frameRate
+            let result = try await Encoder.fit(
+                source(for: output), to: output, with: encoding, frameRate: take.frameRate, under: tape.maxSize
             )
-            log("wrote \(output.url.path) (\(describe(result, tape.encoding)))")
+            log("wrote \(output.url.path) (\(describe(result, frameRate: take.frameRate, under: tape.maxSize)))")
         }
         for gif in tape.outputs where gif.format == .gif {
-            let result = try await GifWriter.write(
-                from: lossless(for: gif), to: gif.url, frameRate: tape.gifFrameRate, width: tape.gifWidth,
-                colors: tape.gifColors
+            let result = try await GifWriter.fit(
+                from: source(for: gif), to: gif.url,
+                look: GifWriter.Look(frameRate: tape.gifFrameRate, width: tape.gifWidth, colors: tape.gifColors),
+                under: tape.maxSize
             )
-            log(
-                "wrote \(gif.url.path) (\(result.frames) frames of \(result.sampled) sampled, \(megabytes(result.bytes)))"
-            )
+            var notes = ["\(result.frames) frames of \(result.sampled) sampled", megabytes(result.bytes)]
+            if result.writes > 1 {
+                notes.append(
+                    "\(result.look.width) wide, \(result.look.frameRate) fps, \(result.look.colors) colours "
+                        + "to fit \(megabytes(tape.maxSize ?? 0)), \(result.writes) writes"
+                )
+            }
+            log("wrote \(gif.url.path) (\(notes.joined(separator: ", ")))")
         }
     }
 
-    /// `4.4 MB, HEVC 1920x1200, quality 65`: what a movie Output came out as.
-    static func describe(_ result: Encoder.Result, _ encoding: Encoding) -> String {
-        let codec = encoding.codec == .hevc ? "HEVC" : "H.264"
-        return "\(megabytes(result.bytes)), \(codec) \(Int(result.size.width))x\(Int(result.size.height)), "
-            + "quality \(encoding.quality)"
+    /// `2:20`
+    static func clock(_ seconds: Double) -> String {
+        let whole = Int(seconds.rounded(.up))
+        return String(format: "%d:%02d", whole / 60, whole % 60)
+    }
+
+    /// `9.4 MB, H.264 1920x1256, 30 fps, 3.1 Mbit/s to fit 10.0 MB, 2 encodes`: what a movie Output came out as.
+    static func describe(_ result: Encoder.Result, frameRate: Int, under maxBytes: Int?) -> String {
+        let encoding = result.encoding
+        let codec = switch encoding.codec {
+        case .h264: "H.264"
+        case .hevc: "HEVC"
+        case .prores: "ProRes 422"
+        }
+        var notes = [megabytes(result.bytes), "\(codec) \(Int(result.size.width))x\(Int(result.size.height))"]
+        if let rate = encoding.frameRate, rate < frameRate { notes.append("\(rate) fps") }
+        if let bitrate = encoding.bitrate {
+            notes.append(String(format: "%.1f Mbit/s to fit %@", Double(bitrate) / 1e6, megabytes(maxBytes ?? 0)))
+            notes.append("\(result.encodes) encodes")
+        } else if encoding.codec != .prores {
+            notes.append("quality \(encoding.quality)")
+        }
+        return notes.joined(separator: ", ")
     }
 
     static func megabytes(_ bytes: Int) -> String {

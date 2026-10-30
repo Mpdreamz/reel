@@ -57,8 +57,14 @@ next, and recording starts at the first command after it. Durations are `500ms`,
 | `Set GifWidth <pixels>` | A GIF's width, 100–4000, default 800, never wider than the video. |
 | `Set GifColors <n>` | Colours in a GIF, 2–256, default 256. Fewer make a smaller file; one palette serves every frame. |
 | `Set Quality <n>` | How a movie is compressed, 1–100, default 65: a fraction of the size of the best, since screen recordings are mostly still. |
-| `Set Codec h264\|hevc` | A movie's codec, default `h264`, which plays everywhere; `hevc` is about half the size and plays on Apple devices and in most current browsers. |
+| `Set Codec h264\|hevc\|prores` | A movie's codec, default `h264`, which plays everywhere; `hevc` is about half the size and plays on Apple devices and in most current browsers; `prores` is lossless for editing, in a `.mov` (an `.mp4` gets H.264 at quality 100). |
 | `Set VideoWidth <pixels>` | Scale movies down to this width, 100–8000, never up; default the full Retina size. |
+| `Set VideoFrameRate <n>` | Frames a second in a movie, at most the recording's; default the recording's. |
+| `Set MaxSize <size>` | The most an Output may be: `10MB`, `500KB`, `1.5GB` (thousands, as sites count). See "Fitting a size". |
+| `Set MaxLength <duration>` | The longest an Output may run; a longer one fails the render. |
+| `Set Shape <shape>` | Frame every Output that names no shape of its own (`Output@…`): `16:9`, `1080x1920`. |
+| `Set Formats <types>` | Write only these types of Output, `mp4, mov`; the others are skipped with a note. |
+| `Set Profiles <names>` | Render every Output once for each profile, as `name-<profile>.mp4`. See "Profiles". |
 | `Say "<text>"`, `Say@over "<text>"` | Narrate; blocks until the line ends, or with `@over` carries on while it plays. |
 | `Wait [marker]` | Until the narration reaches a `[marker]` in the text of an earlier `Say@over`. |
 | `Set Voice <voice>` | `system` (default), `system:Samantha`, or `voicebox:<profile name or id>`. |
@@ -208,6 +214,37 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   100 or more. On the fixture, 57 of 80 sampled frames are kept; a calmer demo merges more.
 - **Timing does not drift.** GIF delays are hundredths of a second; each frame runs from its start, rounded, to the
   next one's, rounded, so 15 frames a second alternate 7 and 6 and add up exactly.
+
+## Profiles
+
+A profile is a named set of render settings for where a video is going. `Set Profiles github, social` renders every
+Output once for each, as `musicbox-github.mp4` and `musicbox-social.mp4`, from the one take; the suffix is there
+whenever a profile is, so a file's name never depends on how many were rendered. A profile's settings apply after
+the tape's own, so a plain `Set` never cancels one. `--profile` on `run`, `render` and `check` renders only some
+(repeated, or `github,social`): from among the tape's when it lists any, from all of them when it does not. An
+unknown name, or one the tape does not list, is refused before anything is recorded. `reel profiles` lists them:
+
+| Profile | For | Sets |
+|---|---|---|
+| `highest` | archiving, editing later | `Codec prores` (a `.mov` is ProRes 422, an `.mp4` H.264 at quality 100), GIFs full width at 30 fps |
+| `github` | READMEs, issues, pull requests | 1920 wide, `MaxSize 10MB` (GitHub's limit for an attached video or GIF), GIFs 800 wide |
+| `web` | landing pages, docs sites | 1920 wide, quality 60, 30 fps |
+| `social` | YouTube Shorts, TikTok, Reels | `1080x1920`, quality 70, 30 fps, `MaxSize 250MB`, `MaxLength 3m`, subtitles on, no GIFs |
+| `feed` | X, Bluesky, Mastodon, LinkedIn | `1920x1080`, 30 fps, `MaxSize 40MB`, `MaxLength 140s`, subtitles on, no GIFs |
+| `square` | Instagram and LinkedIn feeds | `1080x1080`, 30 fps, `MaxSize 40MB`, `MaxLength 140s`, subtitles on, no GIFs |
+
+The social limits are the strictest common ones, from third-party guides where the platform publishes none
+(Mastodon's 40 MB default, X's 2:20 for standard accounts, TikTok's 287 MB on mobile). Subtitles are on because
+feeds play muted. A landscape app framed at 9:16 is mostly background: `Zoom` is what makes a vertical cut work.
+
+### Fitting a size
+
+A movie is encoded at its quality first. Over `MaxSize`, it is encoded again at the bitrate the size leaves for its
+length (less the sound's), and each later try aims through the last two, since a busy picture has a floor its size
+will not go under; one that lands well under is tried once more, richer. When the bitrate would be too lean for the
+picture, it drops to 30 frames a second, then narrows. At most four encodes; then the render fails, naming the size
+it reached and what to lower, and leaves no file. A GIF over its size is drawn again with fewer colours (128, then
+64), then fewer frames (10 a second), then narrower, all at once when it is far over; at most six writes.
 
 ## How a take is captured
 

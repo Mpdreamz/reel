@@ -24,6 +24,27 @@ public struct Tape: Equatable, Sendable {
     public var gifColors: Int
     /// How a movie Output is compressed (`Set Quality`, `Set Codec`, `Set VideoWidth`).
     public var encoding: Encoding
+    /// `Set VideoFrameRate`: frames a second in a movie Output, at most the take's; nil keeps the take's.
+    public var videoFrameRate: Int?
+    /// `Set MaxSize`: the most bytes an Output may be; render fits it under, or fails saying so. nil: no limit.
+    public var maxSize: Int?
+    /// `Set MaxLength`: the longest a movie or GIF may run, in seconds; longer fails the render. nil: no limit.
+    public var maxLength: Double?
+    /// `Set Profiles`: the profiles every Output is rendered for, by name; empty renders each Output once, as named.
+    public var profiles: [String]
+    /// The profile this tape was read for (`with(profile:)`): its settings applied, its Outputs suffixed with its
+    /// name and those of a type it does not write left out (in `skipped`).
+    public var profile: Profile?
+    /// Outputs the profile does not write (`Set Formats`).
+    public var skipped: [Output]
+    /// The text the tape was read from, to read it again for a profile.
+    public var source: Source?
+
+    public struct Source: Equatable, Sendable {
+        public var text: String
+        public var directory: URL
+    }
+
     /// Who speaks `Say` lines and how they mix with the app's sound.
     public var voice: VoiceSettings
     /// How a `Zoom` moves when it gives none of its own (`Zoom@ease-out`).
@@ -295,12 +316,37 @@ public extension Tape {
         }
     }
 
+    /// Settings whose value is a list, which may have spaces in it: `Set Profiles github, social`.
+    static let listSettings: Set<String> = ["Profiles", "Formats"]
+
+    /// The tape read again for `profile`: its settings applied over the tape's, its Outputs named for it.
+    func with(profile: Profile?) throws -> Tape {
+        guard let source else { return self }
+        return try Tape.parse(source.text, relativeTo: source.directory, profile: profile)
+    }
+
+    /// The profiles to render: those `chosen` on the command line, which must be among the tape's own when it names
+    /// any (`Set Profiles`), or else the tape's; nil, once, when there are none, to render each Output as named.
+    func profilesToRender(chosen: [String]) throws -> [Profile?] {
+        for name in chosen where Profile.named(name) == nil {
+            throw TapeError(message: "there is no profile '\(name)'; reel has \(Profile.names)")
+        }
+        if !profiles.isEmpty, let outside = chosen.first(where: { !profiles.contains($0) }) {
+            throw TapeError(
+                message: "the tape renders \(profiles.joined(separator: ", ")); '\(outside)' is not one of them"
+            )
+        }
+        let names = chosen.isEmpty ? profiles : chosen
+        return names.isEmpty ? [nil] : names.map { Profile.named($0) }
+    }
+
     static func load(_ url: URL) throws -> Tape {
         try parse(String(contentsOf: url, encoding: .utf8), relativeTo: url.deletingLastPathComponent())
     }
 
-    /// Parses a tape. Relative paths (`Output`, `Launch` of an `.app`) resolve against `directory`.
-    static func parse(_ text: String, relativeTo directory: URL) throws -> Tape {
+    /// Parses a tape. Relative paths (`Output`, `Launch` of an `.app`) resolve against `directory`. With a profile,
+    /// its settings apply after the tape's own.
+    static func parse(_ text: String, relativeTo directory: URL, profile: Profile? = nil) throws -> Tape {
         var outputs: [Output] = []
         var frameRate: Int?
         var audio: Bool?
@@ -313,6 +359,12 @@ public extension Tape {
         var gifWidth: Int?
         var gifColors: Int?
         var encoding = Encoding.standard
+        var videoFrameRate: Int?
+        var maxSize: Int?
+        var maxLength: Double?
+        var canvas: Output.Shape?
+        var formats: Set<Output.Format>?
+        var profiles: [String] = []
         var voice = VoiceSettings()
         // Each marker with its line, and whether its Say carries on (only those can be waited for).
         var markers: [String: (line: Int, over: Bool)] = [:]
@@ -325,6 +377,172 @@ public extension Tape {
         var introBackground: Background?, outroBackground: Background?
         var launch: (target: LaunchTarget, line: Int)?
         var steps: [Step] = []
+
+        /// One `Set`, from the tape or from its profile.
+        func set(_ setting: String, _ value: String, isWeb: Bool, fail: (String) -> TapeError) throws {
+            func forWeb(_ what: String) throws {
+                if !isWeb { throw fail("\(what) is for web pages (Open); this tape Launches an app") }
+            }
+            switch setting {
+            case "FrameRate":
+                guard let rate = Int(value), (1 ... 120).contains(rate) else {
+                    throw fail("FrameRate must be a whole number from 1 to 120, not '\(value)'")
+                }
+                frameRate = rate
+            case "Audio":
+                audio = try onOff("Audio", value, fail: fail)
+            case "KeyBadges":
+                keyBadges = try onOff("KeyBadges", value, fail: fail)
+            case "ClickRipples":
+                clickRipples = try onOff("ClickRipples", value, fail: fail)
+            case "GifFrameRate":
+                guard let rate = Int(value), (1 ... 50).contains(rate) else {
+                    throw fail("GifFrameRate must be a whole number from 1 to 50, not '\(value)'")
+                }
+                gifFrameRate = rate
+            case "GifWidth":
+                guard let width = Int(value), (100 ... 4000).contains(width) else {
+                    throw fail("GifWidth must be a whole number of pixels from 100 to 4000, not '\(value)'")
+                }
+                gifWidth = width
+            case "GifColors":
+                guard let colors = Int(value), (2 ... 256).contains(colors) else {
+                    throw fail("GifColors must be a whole number from 2 to 256, not '\(value)'")
+                }
+                gifColors = colors
+            case "Quality":
+                guard let quality = Int(value), (1 ... 100).contains(quality) else {
+                    throw fail("Quality must be a whole number from 1 to 100, not '\(value)'")
+                }
+                encoding.quality = quality
+            case "Codec":
+                guard let codec = Encoding.Codec(rawValue: value.lowercased()) else {
+                    throw fail("Codec must be h264, hevc or prores, not '\(value)'")
+                }
+                encoding.codec = codec
+            case "VideoWidth":
+                guard let width = Int(value), (100 ... 8000).contains(width) else {
+                    throw fail("VideoWidth must be a whole number of pixels from 100 to 8000, not '\(value)'")
+                }
+                encoding.width = width
+            case "VideoFrameRate":
+                guard let rate = Int(value), (1 ... 120).contains(rate) else {
+                    throw fail("VideoFrameRate must be a whole number from 1 to 120, not '\(value)'")
+                }
+                videoFrameRate = rate
+            case "MaxSize":
+                guard let bytes = parseBytes(value) else {
+                    throw fail("MaxSize must be a size such as 10MB, 500KB or 1.5GB, not '\(value)'")
+                }
+                maxSize = bytes
+            case "MaxLength":
+                let length = try duration(value, fail: fail)
+                guard length > .zero else { throw fail("MaxLength must be longer than nothing") }
+                maxLength = Double(length.components.seconds) + Double(length.components.attoseconds) / 1e18
+            case "Shape":
+                canvas = try shape(value, fail: fail)
+            case "Formats":
+                let names = value.split(whereSeparator: { $0 == "," || $0 == " " }).map(String.init)
+                var chosen = Set<Output.Format>()
+                for name in names {
+                    guard let format = Output.Format(rawValue: name.lowercased()) else {
+                        throw fail("Formats lists mp4, mov or gif, not '\(name)'")
+                    }
+                    chosen.insert(format)
+                }
+                guard !chosen.isEmpty else { throw fail("Formats lists mp4, mov or gif") }
+                formats = chosen
+            case "Profiles":
+                let names = value.split(whereSeparator: { $0 == "," || $0 == " " }).map(String.init)
+                for name in names where Profile.named(name) == nil {
+                    throw fail("there is no profile '\(name)'; reel has \(Profile.names)")
+                }
+                guard Set(names).count == names.count else { throw fail("Profiles names a profile twice") }
+                profiles = names
+            case "Browser":
+                try forWeb("Set Browser")
+                switch value {
+                case "webkit": web.browser = .webkit
+                case "chromium": web.browser = .chromium
+                default:
+                    let app = resolve(value, against: directory)
+                    guard app.pathExtension == "app" else {
+                        throw fail(
+                            "Browser is webkit, chromium or a Chromium-based .app such as "
+                                + "/Applications/Brave Browser.app, not '\(value)'"
+                        )
+                    }
+                    web.browser = .app(app)
+                }
+            case "Viewport":
+                try forWeb("Set Viewport")
+                guard let parsed = parseSize(value) else {
+                    throw fail("Viewport must be <width>x<height> in points, such as 1280x800, not '\(value)'")
+                }
+                web.viewport = parsed
+            case "Size":
+                if isWeb { throw fail("Set Size is an app's window; a web page's size is Set Viewport") }
+                guard let parsed = parseSize(value) else {
+                    throw fail("Size must be <width>x<height> in points, such as 1280x800, not '\(value)'")
+                }
+                size = parsed
+            case "Voice":
+                voice.source = try VoiceSource(value, fail: fail)
+            case "VoiceServer":
+                guard let url = URL(string: value), ["http", "https"].contains(url.scheme ?? "") else {
+                    throw fail("VoiceServer must be an http URL, such as http://127.0.0.1:17493, not '\(value)'")
+                }
+                voice.server = url
+            case "VoiceSeed":
+                guard let seed = Int(value), seed >= 0 else {
+                    throw fail("VoiceSeed must be a whole number from 0, not '\(value)'")
+                }
+                voice.seed = seed
+            case "VoiceLanguage":
+                guard value.count == 2, value.allSatisfy(\.isLowercase) else {
+                    throw fail("VoiceLanguage must be a two letter code such as en or nl, not '\(value)'")
+                }
+                voice.language = value
+            case "Ducking":
+                voice.ducking = try percent("Ducking", value, fail: fail)
+            case "VoiceVolume":
+                voice.voiceVolume = try percent("VoiceVolume", value, fail: fail)
+            case "AppVolume":
+                voice.appVolume = try percent("AppVolume", value, fail: fail)
+            case "Background":
+                background = try Background(value, relativeTo: directory, fail: fail)
+            case "Padding":
+                guard value.hasSuffix("%"), let number = Double(value.dropLast()),
+                      (0 ... 30).contains(number)
+                else {
+                    throw fail("Padding must be a percentage from 0% to 30%, not '\(value)'")
+                }
+                padding = number / 100
+            case "IntroBackground":
+                introBackground = try Background(value, relativeTo: directory, fail: fail)
+            case "OutroBackground":
+                outroBackground = try Background(value, relativeTo: directory, fail: fail)
+            case "ZoomEasing":
+                guard let easing = Easing(rawValue: value) else { throw fail(Easing.problem(value)) }
+                zoomTransition.easing = easing
+            case "ZoomDuration":
+                zoomTransition.duration = try duration(value, fail: fail)
+            case "Subtitles":
+                voice.subtitles = try onOff("Subtitles", value, fail: fail)
+            case "TypingSpeed":
+                typingSpeed = try duration(value, fail: fail)
+            case "WaitTimeout":
+                waitTimeout = try duration(value, fail: fail)
+            default:
+                throw fail(
+                    "unknown setting '\(setting)'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, "
+                        + "KeyBadges, ClickRipples, Quality, Codec, VideoWidth, VideoFrameRate, MaxSize, MaxLength, Shape, "
+                        + "Formats, Profiles, GifFrameRate, GifWidth, GifColors, Voice, VoiceServer, VoiceSeed, "
+                        + "VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, "
+                        + "IntroBackground, OutroBackground, Browser, Viewport, Background or Padding"
+                )
+            }
+        }
 
         for (index, raw) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
             let line = index + 1
@@ -390,132 +608,10 @@ public extension Tape {
 
             case "Set":
                 try setup(name)
-                guard words.count == 2 else { throw fail("expected Set <setting> <value>") }
-                let value = words[1]
-                switch words[0] {
-                case "FrameRate":
-                    guard let rate = Int(value), (1 ... 120).contains(rate) else {
-                        throw fail("FrameRate must be a whole number from 1 to 120, not '\(value)'")
-                    }
-                    frameRate = rate
-                case "Audio":
-                    audio = try onOff("Audio", value, fail: fail)
-                case "KeyBadges":
-                    keyBadges = try onOff("KeyBadges", value, fail: fail)
-                case "ClickRipples":
-                    clickRipples = try onOff("ClickRipples", value, fail: fail)
-                case "GifFrameRate":
-                    guard let rate = Int(value), (1 ... 50).contains(rate) else {
-                        throw fail("GifFrameRate must be a whole number from 1 to 50, not '\(value)'")
-                    }
-                    gifFrameRate = rate
-                case "GifWidth":
-                    guard let width = Int(value), (100 ... 4000).contains(width) else {
-                        throw fail("GifWidth must be a whole number of pixels from 100 to 4000, not '\(value)'")
-                    }
-                    gifWidth = width
-                case "GifColors":
-                    guard let colors = Int(value), (2 ... 256).contains(colors) else {
-                        throw fail("GifColors must be a whole number from 2 to 256, not '\(value)'")
-                    }
-                    gifColors = colors
-                case "Quality":
-                    guard let quality = Int(value), (1 ... 100).contains(quality) else {
-                        throw fail("Quality must be a whole number from 1 to 100, not '\(value)'")
-                    }
-                    encoding.quality = quality
-                case "Codec":
-                    guard let codec = Encoding.Codec(rawValue: value.lowercased()) else {
-                        throw fail("Codec must be h264 or hevc, not '\(value)'")
-                    }
-                    encoding.codec = codec
-                case "VideoWidth":
-                    guard let width = Int(value), (100 ... 8000).contains(width) else {
-                        throw fail("VideoWidth must be a whole number of pixels from 100 to 8000, not '\(value)'")
-                    }
-                    encoding.width = width
-                case "Browser":
-                    try forWeb("Set Browser")
-                    switch value {
-                    case "webkit": web.browser = .webkit
-                    case "chromium": web.browser = .chromium
-                    default:
-                        let app = resolve(value, against: directory)
-                        guard app.pathExtension == "app" else {
-                            throw fail(
-                                "Browser is webkit, chromium or a Chromium-based .app such as "
-                                    + "/Applications/Brave Browser.app, not '\(value)'"
-                            )
-                        }
-                        web.browser = .app(app)
-                    }
-                case "Viewport":
-                    try forWeb("Set Viewport")
-                    guard let parsed = parseSize(value) else {
-                        throw fail("Viewport must be <width>x<height> in points, such as 1280x800, not '\(value)'")
-                    }
-                    web.viewport = parsed
-                case "Size":
-                    if isWeb { throw fail("Set Size is an app's window; a web page's size is Set Viewport") }
-                    guard let parsed = parseSize(value) else {
-                        throw fail("Size must be <width>x<height> in points, such as 1280x800, not '\(value)'")
-                    }
-                    size = parsed
-                case "Voice":
-                    voice.source = try VoiceSource(value, fail: fail)
-                case "VoiceServer":
-                    guard let url = URL(string: value), ["http", "https"].contains(url.scheme ?? "") else {
-                        throw fail("VoiceServer must be an http URL, such as http://127.0.0.1:17493, not '\(value)'")
-                    }
-                    voice.server = url
-                case "VoiceSeed":
-                    guard let seed = Int(value), seed >= 0 else {
-                        throw fail("VoiceSeed must be a whole number from 0, not '\(value)'")
-                    }
-                    voice.seed = seed
-                case "VoiceLanguage":
-                    guard value.count == 2, value.allSatisfy(\.isLowercase) else {
-                        throw fail("VoiceLanguage must be a two letter code such as en or nl, not '\(value)'")
-                    }
-                    voice.language = value
-                case "Ducking":
-                    voice.ducking = try percent("Ducking", value, fail: fail)
-                case "VoiceVolume":
-                    voice.voiceVolume = try percent("VoiceVolume", value, fail: fail)
-                case "AppVolume":
-                    voice.appVolume = try percent("AppVolume", value, fail: fail)
-                case "Background":
-                    background = try Background(value, relativeTo: directory, fail: fail)
-                case "Padding":
-                    guard value.hasSuffix("%"), let number = Double(value.dropLast()),
-                          (0 ... 30).contains(number)
-                    else {
-                        throw fail("Padding must be a percentage from 0% to 30%, not '\(value)'")
-                    }
-                    padding = number / 100
-                case "IntroBackground":
-                    introBackground = try Background(value, relativeTo: directory, fail: fail)
-                case "OutroBackground":
-                    outroBackground = try Background(value, relativeTo: directory, fail: fail)
-                case "ZoomEasing":
-                    guard let easing = Easing(rawValue: value) else { throw fail(Easing.problem(value)) }
-                    zoomTransition.easing = easing
-                case "ZoomDuration":
-                    zoomTransition.duration = try duration(value, fail: fail)
-                case "Subtitles":
-                    voice.subtitles = try onOff("Subtitles", value, fail: fail)
-                case "TypingSpeed":
-                    typingSpeed = try duration(value, fail: fail)
-                case "WaitTimeout":
-                    waitTimeout = try duration(value, fail: fail)
-                default:
-                    throw fail(
-                        "unknown setting '\(words[0])'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, "
-                            + "KeyBadges, ClickRipples, Quality, Codec, VideoWidth, GifFrameRate, GifWidth, GifColors, Voice, VoiceServer, VoiceSeed, "
-                            + "VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, "
-                            + "IntroBackground, OutroBackground, Browser, Viewport, Background or Padding"
-                    )
+                guard words.count == 2 || (words.count > 2 && Tape.listSettings.contains(words[0])) else {
+                    throw fail("expected Set <setting> <value>")
                 }
+                try set(words[0], words.dropFirst().joined(separator: " "), isWeb: isWeb, fail: fail)
 
             case "Open":
                 let value = try single(words, usage: "Open <url>", fail: fail)
@@ -683,6 +779,26 @@ public extension Tape {
 
         guard let launch else { throw TapeError(message: Tape.preface) }
         guard !outputs.isEmpty else { throw TapeError(message: "the tape has no Output") }
+        if let profile {
+            for setting in profile.settings {
+                try set(setting.name, setting.value, isWeb: launch.target.isWeb) {
+                    TapeError(message: "profile \(profile.name): \($0)")
+                }
+            }
+        }
+        // `Set Shape` frames every Output that names no shape of its own; `Set Formats` leaves out the others; a
+        // profile's Outputs carry its name.
+        var skipped: [Output] = []
+        outputs = outputs.compactMap { output in
+            var output = output
+            if let formats, !formats.contains(output.format) {
+                skipped.append(output)
+                return nil
+            }
+            output.shape = output.shape ?? canvas
+            if let profile { output.url = profile.suffixed(output.url) }
+            return output
+        }
         if !launch.target.isWeb {
             for step in steps
                 where step.command.targets.contains(where: { if case .css = $0 { true } else { false } })
@@ -704,6 +820,13 @@ public extension Tape {
             gifWidth: gifWidth ?? defaultGifWidth,
             gifColors: gifColors ?? defaultGifColors,
             encoding: encoding,
+            videoFrameRate: videoFrameRate,
+            maxSize: maxSize,
+            maxLength: maxLength,
+            profiles: profiles,
+            profile: profile,
+            skipped: skipped,
+            source: Source(text: text, directory: directory),
             voice: voice,
             zoomTransition: zoomTransition,
             intro: intro.map { section in
@@ -821,6 +944,15 @@ private func shape(_ text: String, fail: (String) -> TapeError) throws -> Output
           (64 ... 8192).contains(h)
     else { throw fail(problem) }
     return .size(w, h)
+}
+
+/// `10MB`, `500KB`, `1.5GB`: decimal units, as the sites that set limits count them.
+func parseBytes(_ text: String) -> Int? {
+    let units: [(suffix: String, bytes: Double)] = [("KB", 1e3), ("MB", 1e6), ("GB", 1e9)]
+    guard let unit = units.first(where: { text.uppercased().hasSuffix($0.suffix) }),
+          let number = Double(text.dropLast(2)), number > 0, number.isFinite
+    else { return nil }
+    return Int(number * unit.bytes)
 }
 
 private func parseSize(_ text: String) -> CGSize? {

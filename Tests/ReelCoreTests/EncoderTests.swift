@@ -22,7 +22,7 @@ struct EncoderTests {
         // The tone survives: a 0.5 amplitude sine has an RMS of about 0.35.
         #expect(try await writer.rms(of: AVURLAsset(url: output.url)) > 0.3)
         #expect(result.bytes > 0)
-        #expect(try result.bytes == (output.url.resourceValues(forKeys: [.fileSizeKey]).fileSize))
+        #expect(result.bytes == fileSize(output.url))
     }
 
     @Test func hevcWhenAsked() async throws {

@@ -35,6 +35,8 @@ reel check demo.reel    # parse it and say what it would do
 reel demo.reel          # record, then render every Output
 reel record demo.reel   # only capture the take (.reel/demo/)
 reel render demo.reel   # only render the outputs from the last take
+reel render demo.reel --profile social   # only that profile's cut (Set Profiles github, social)
+reel profiles           # github, social, feed and the rest, and what each sets
 reel doctor             # Screen Recording, Accessibility, and the browser web tapes use
 ```
 
