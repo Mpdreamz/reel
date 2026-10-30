@@ -35,7 +35,8 @@ or both. Read `PLAN.md` first.
   it to GitHub Pages, mpdreamz.github.io/reel, on every push to main. A change to the reel language or the command line
   updates `docs/` in the same pull request, as it does PLAN.md. The landing page's video, `docs/landing/reel-demo.mp4`,
   and `reel-demo.gif` are the Musicbox demo's `web` cut: copy `docs/media/musicbox-web.mp4` and `.gif` over them
-  after `mise run demos`.
+  after `mise run demos`. Its web pages video, `docs/landing/web-demo.mp4`, is the Commons demo's `web` cut
+  (`docs/media/commons-web.mp4`), with `web-poster.jpg` a frame of it.
 - The brand (logo, icons, colours, fonts, editor themes) is in `design/brand`, social images in `design/social`, the
   designed stings in `design/motion`; the demos' backgrounds in `demos/backgrounds`.
 - Branch names: `feature/`, `fix/`, `docs/`, `chore/`, `ci/`. Pull requests are squash-merged.

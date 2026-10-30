@@ -1,0 +1,49 @@
+# reel's web demo: Wikimedia Commons playing Satie's first Gymnopédie (recorded by Musopen, musopen.org: public domain,
+# credit asked), driven in Chromium over DevTools and narrated by the same two voices as the Musicbox demo.
+# `mise run demos commons` records it. A web reel needs no Accessibility and leaves the mouse and keyboard alone.
+# Chromium here (any of Chrome, Brave or Edge); WebKit, the default, paints little while reel, a command line tool,
+# is not the active app.
+Import //demos/reel.reelpreset
+Open https://commons.wikimedia.org/wiki/File:Erik_Satie_-_gymnopedies_-_la_1_ere._lent_et_douloureux.ogg
+
+Output //docs/media/commons.mp4
+Output //docs/media/commons.gif
+Set Browser chromium
+# What fits under a browser's title bar on a 1080 point high screen.
+Set Viewport 1280x720
+Set Voice guest voicebox:Michael
+# A soft piano piece: ducked less than the preset's 30%, so it carries on under the voices.
+Set Ducking 60%
+# reel's own stings open and close it, as they do the Musicbox demo; the square cut gets title cards.
+Intro@crossfade,ease-out,600ms square ? "reel" "Web pages too" : 2s
+Outro@fade,800ms square ? "Recorded with reel" "brew install --cask mpdreamz/tap/reel" : 2s
+
+Wait css:".mw-tmh-play"
+Say "Reel records web pages too, sound and all."
+Zoom cursor 2.2x
+# The first click swaps in the player, built under the cursor before the click ends, which leaves it paused; the
+# second plays it. The piece's first seconds are near silent, so they are cut.
+Click css:".mw-tmh-play-icon"
+Wait css:".vjs-play-control"
+Sleep 800ms
+Click css:".vjs-paused .vjs-play-control"
+Wait css:".vjs-playing"
+Hide
+Sleep 4s
+Show
+Say@guest "This is Wikimedia Commons, and Erik Satie's first Gymnopédie."
+Zoom off
+Sleep 2s
+Say "It drives Chrome, Brave, Edge or Safari's WebKit, needs no Accessibility, and your mouse stays yours."
+Scroll down 4
+Zoom css:"#fileinfotpl_perm" 1.8x
+Say@guest "And it's in the public domain: free for a demo like this one."
+Zoom off
+Sleep 2s
+Say@over "Search for [search] more Satie,"
+Wait [search]
+Click css:"#searchInput"
+Type@70ms "Erik Satie"
+Key return
+Say@guest "and that's a take."
+Sleep 1s
