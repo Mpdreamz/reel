@@ -139,7 +139,8 @@ struct PresetConditionTests {
     @Test func presetAndProfileValuesChooseToo() throws {
         let root = try repo()
         try """
-        Set Quality social ? 70 : 55
+        Set Quality social ? 70
+            : 55
         Set Background "my backdrop.png"
         Profile docs extends web
           Set Background social ? #000000 : "docs backdrop.png"
