@@ -179,6 +179,28 @@ struct AssemblyTests {
         #expect(try await Frame(movie, at: 3.1).colour(10, 190) == "blue")
     }
 
+    @Test func anyLengthOfDemoAssembles() async throws {
+        let dir = try writer.temporaryDirectory()
+        let demo = dir.appending(path: "demo.mov")
+        // A length whose sections' times, each rounded to the tick, add up to a tick more than the whole rounded once:
+        // reel's own hero demo, 26.68 s with the square cut's 3 s title cards, failed so.
+        try await writer.writeTake(to: demo, seconds: 26.7, audio: false, shade: 128)
+        let intro = Section(
+            title: "A", subtitle: nil, duration: nil, background: .color(1, 0, 0),
+            transition: SectionTransition(kind: .crossfade, easing: .easeOut, duration: .milliseconds(600))
+        )
+        let outro = Section(
+            title: "B", subtitle: nil, duration: nil, background: .color(0, 0, 1),
+            transition: SectionTransition(kind: .fade, easing: .easeInOut, duration: .milliseconds(800))
+        )
+        let output = Output(url: dir.appending(path: "out.mov"), format: .mov)
+        try await Assembler.assemble(
+            main: demo, intro: intro, outro: outro, frameRate: 30, in: dir, to: output, lossless: true
+        )
+        // 3 + 26.7 - 0.6 + 3 seconds.
+        #expect(try await abs(AVURLAsset(url: output.url).load(.duration).seconds - 32.1) < 0.06)
+    }
+
     @Test func anOutroWithoutATitleIsItsVideoAlone() async throws {
         let dir = try writer.temporaryDirectory()
         let demo = dir.appending(path: "demo.mov")
