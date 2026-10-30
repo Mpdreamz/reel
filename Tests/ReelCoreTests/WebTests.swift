@@ -4,6 +4,7 @@ import CoreMedia
 import Foundation
 @testable import ReelCore
 import Testing
+import WebKit
 
 private let dir = URL(fileURLWithPath: "/tmp/demos")
 
@@ -242,5 +243,15 @@ struct WindowPlacementTests {
         // A second display to the right: centred on that one.
         let right = CGRect(x: 1920, y: 0, width: 2560, height: 1440)
         #expect(Recorder.centred(CGSize(width: 1440, height: 900), on: right) == CGPoint(x: 2480, y: 270))
+    }
+}
+
+/// WebKit's page as reel sets it up.
+@MainActor
+struct WebKitConfigurationTests {
+    @Test func everyTakeStartsWithNothingKept() {
+        let configuration = WebKitPage.configuration()
+        #expect(!configuration.websiteDataStore.isPersistent)
+        #expect(configuration.mediaTypesRequiringUserActionForPlayback == [])
     }
 }

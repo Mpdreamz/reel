@@ -9,15 +9,23 @@ final class WebKitPage: Page {
     let view: WKWebView
     private var events = 0
 
+    /// The page's setup: sound plays without a click, and nothing is kept between takes (cookies, storage, cache),
+    /// as with Chromium's fresh profile, so a reel records the same way every time: a page that asks for cookie
+    /// consent asks every take.
+    static func configuration() -> WKWebViewConfiguration {
+        let configuration = WKWebViewConfiguration()
+        configuration.mediaTypesRequiringUserActionForPlayback = []
+        configuration.websiteDataStore = .nonPersistent()
+        return configuration
+    }
+
     /// Opens `url` in a new window whose page is `viewport`, and waits for it to load.
     static func open(_ url: URL, viewport: CGSize) async throws -> WebKitPage {
         // reel is a command line tool: it becomes an app (with a Dock icon) for as long as its window is up.
         let app = NSApplication.shared
         app.setActivationPolicy(.regular)
         app.finishLaunching()
-        let configuration = WKWebViewConfiguration()
-        configuration.mediaTypesRequiringUserActionForPlayback = []
-        let view = WKWebView(frame: CGRect(origin: .zero, size: viewport), configuration: configuration)
+        let view = WKWebView(frame: CGRect(origin: .zero, size: viewport), configuration: configuration())
         let window = NSWindow(
             contentRect: CGRect(origin: .zero, size: viewport), styleMask: [.titled], backing: .buffered, defer: false
         )
