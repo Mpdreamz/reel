@@ -33,7 +33,8 @@ jobs:
 
       - name: Test
         timeout-minutes: 10
-        run: mise run test
+        # Not --quiet: every test says when it starts and ends, so one that hangs names itself before the timeout.
+        run: swift test
 
       # The demos cannot be recorded here (no Screen Recording), but every tape must still parse.
       - name: Check the demo tapes
