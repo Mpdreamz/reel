@@ -22,6 +22,9 @@ final class Driver: Driving {
     /// Between a click's press and release, and between keys of a combo.
     static let press: Duration = .milliseconds(60)
     static let poll: Duration = .milliseconds(100)
+    /// Between the cursor arriving and the press, as a hand rests before it clicks. Pressed as the last move lands,
+    /// a SwiftUI button that redraws on hover (Musicbox's lane mute) missed the click.
+    static let settle: Duration = .milliseconds(150)
 
     let app: AXNode
     let window: AXNode
@@ -109,6 +112,7 @@ final class Driver: Driving {
             default: try await element(target).center
             }
             try await glide(to: point)
+            try await Task.sleep(for: Self.settle)
             try await click(at: point)
             return CGRect(x: point.x - frame.minX, y: point.y - frame.minY, width: 0, height: 0)
         case let .type(text, pause):
