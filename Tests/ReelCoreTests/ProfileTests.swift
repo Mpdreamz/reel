@@ -180,18 +180,27 @@ struct FittingTests {
         let dir = try writer.temporaryDirectory()
         let movie = dir.appending(path: "take.mov")
         try await writer.writeTake(to: movie, seconds: 1, audio: false)
-        let output = Output(url: dir.appending(path: "out.mp4"), format: .mp4)
+        // Counted, not assumed: the encoder on CI's virtual machines need not keep every frame a test writes.
+        let source = try await frames(in: AVURLAsset(url: movie))
+        let thinned = Output(url: dir.appending(path: "thinned.mp4"), format: .mp4)
         try await Encoder.encode(
-            movie, to: output, with: Encoding(quality: 65, codec: .h264, width: nil, frameRate: 10), frameRate: 30
+            movie, to: thinned, with: Encoding(quality: 65, codec: .h264, width: nil, frameRate: 10), frameRate: 30
         )
-        let asset = AVURLAsset(url: output.url)
+        let asset = AVURLAsset(url: thinned.url)
         #expect(try await abs(asset.load(.duration).seconds - 1) < 0.05)
-        #expect(try await frames(in: asset) == 10)
-        // Never more than the movie has.
+        let kept = try await frames(in: asset)
+        // A third of the source's, the first of each three: 10 of 30.
+        #expect(kept == (source + 2) / 3, "\(kept) of \(source) frames")
+        // Never more than the movie has: a rate above its own keeps what it has.
+        let all = Output(url: dir.appending(path: "all.mp4"), format: .mp4)
         try await Encoder.encode(
-            movie, to: output, with: Encoding(quality: 65, codec: .h264, width: nil, frameRate: 60), frameRate: 30
+            movie, to: all, with: Encoding(quality: 65, codec: .h264, width: nil, frameRate: 60), frameRate: 30
         )
-        #expect(try await frames(in: AVURLAsset(url: output.url)) == 30)
+        let unthinned = try await frames(in: AVURLAsset(url: all.url))
+        let plain = Output(url: dir.appending(path: "plain.mp4"), format: .mp4)
+        try await Encoder.encode(movie, to: plain, with: .standard, frameRate: 30)
+        #expect(try await unthinned == frames(in: AVURLAsset(url: plain.url)), "\(unthinned) of \(source) frames")
+        #expect(unthinned > kept * 2)
     }
 
     @Test func proResInAMovAndH264AtTheBestInAnMp4() async throws {
