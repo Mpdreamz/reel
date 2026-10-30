@@ -25,6 +25,25 @@ struct EncoderTests {
         #expect(result.bytes == fileSize(output.url))
     }
 
+    @Test func aMoviesTemporaryFileIsNotLeftBehind() async throws {
+        let dir = try writer.temporaryDirectory()
+        let movie = dir.appending(path: "take.mov")
+        try await writer.writeTake(to: movie, seconds: 0.5, audio: false)
+        let output = Output(url: dir.appending(path: "out.mp4"), format: .mp4)
+        try await Encoder.encode(movie, to: output, with: .standard, frameRate: 30)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: dir.path).sorted() == ["out.mp4", "take.mov"])
+    }
+
+    @Test func leftoversAreRemovedAndNothingElseIs() throws {
+        let dir = try writer.temporaryDirectory()
+        for name in ["demo.mp4", "demo.mp4.sb-a7968322-K6sDXw", "demo.mp4.sb-other", "other.mp4.sb-keep", "demo.mov"] {
+            try Data("x".utf8).write(to: dir.appending(path: name))
+        }
+        removeLeftovers(of: dir.appending(path: "demo.mp4"))
+        #expect(try FileManager.default.contentsOfDirectory(atPath: dir.path).sorted()
+            == ["demo.mov", "demo.mp4", "other.mp4.sb-keep"])
+    }
+
     @Test func hevcWhenAsked() async throws {
         let dir = try writer.temporaryDirectory()
         let movie = dir.appending(path: "take.mov")
