@@ -1,4 +1,6 @@
 [tools]
+# The swift.org toolchain CI builds with: Xcode or the Command Line Tools only add the macOS SDK.
+swift = "6.4.1"
 swiftformat = "0.58"
 swiftlint = "0.61"
 
@@ -16,7 +18,11 @@ run = "swiftformat Sources Tests Package.swift"
 
 [tasks.lint]
 description = "Check formatting and lint"
-run = ["swiftformat Sources Tests Package.swift --lint", "swiftlint lint --quiet Sources Tests"]
+# SwiftLint loads SourceKit from the toolchain it is given, not from the Command Line Tools, which it fails to load.
+run = [
+    "swiftformat Sources Tests Package.swift --lint",
+    "TOOLCHAIN_DIR=\"$(mise where swift)\" swiftlint lint --quiet Sources Tests",
+]
 
 [tasks.install]
 description = "Release build, copied to ~/.local/bin/reel"

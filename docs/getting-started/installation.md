@@ -24,7 +24,9 @@ voices. Two things are optional:
 
 ## From source
 
-You need Xcode and [mise](https://mise.jdx.dev).
+You need [mise](https://mise.jdx.dev) and the macOS SDK, from Xcode or the Command Line Tools
+(`xcode-select --install`). mise installs the rest, Swift 6.4.1 from swift.org among it: the Swift in the Command
+Line Tools cannot build the tests.
 
 ```sh
 git clone https://github.com/Mpdreamz/reel.git

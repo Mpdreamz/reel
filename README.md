@@ -69,6 +69,8 @@ setting, and troubleshooting.
 
 ## From source
 
+With [mise](https://mise.jdx.dev) and Xcode or the Command Line Tools (for the macOS SDK; mise brings Swift):
+
 ```sh
 mise run install   # a release build into ~/.local/bin/reel
 mise run test      # the tests

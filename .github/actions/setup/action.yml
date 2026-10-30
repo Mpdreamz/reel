@@ -1,12 +1,9 @@
 name: setup
 description: >-
-  Everything a reel build needs on a hosted macOS runner: the mise tools, Xcode for the SDK, and the Swift toolchain
-  the package asks for (hosted runners lag behind Xcode releases, so it comes from swift.org, and is cached).
+  Everything a reel build needs on a hosted macOS runner: the mise tools, the Swift toolchain among them (mise.toml
+  pins it, from swift.org: hosted runners lag behind Xcode releases), and Xcode for the SDK.
 
 inputs:
-  swift:
-    description: Swift toolchain version from swift.org
-    default: "6.4.1"
   xcode:
     description: Xcode on the runner, for the macOS SDK
     default: "26.6"
@@ -19,29 +16,6 @@ runs:
     - name: Select Xcode ${{ inputs.xcode }}
       shell: bash
       run: sudo xcode-select -s "/Applications/Xcode_${{ inputs.xcode }}.app"
-
-    - name: Restore the Swift ${{ inputs.swift }} toolchain
-      id: swift-cache
-      uses: actions/cache@v4
-      with:
-        path: ~/Library/Developer/Toolchains/swift-${{ inputs.swift }}-RELEASE.xctoolchain
-        key: swift-toolchain-${{ inputs.swift }}
-
-    - name: Install the Swift ${{ inputs.swift }} toolchain
-      if: steps.swift-cache.outputs.cache-hit != 'true'
-      shell: bash
-      run: |
-        version="${{ inputs.swift }}"
-        pkg="$RUNNER_TEMP/swift.pkg"
-        curl -fsSL -o "$pkg" \
-          "https://download.swift.org/swift-$version-release/xcode/swift-$version-RELEASE/swift-$version-RELEASE-osx.pkg"
-        installer -pkg "$pkg" -target CurrentUserHomeDirectory
-
-    - name: Use the Swift ${{ inputs.swift }} toolchain
-      shell: bash
-      run: |
-        toolchain="$HOME/Library/Developer/Toolchains/swift-${{ inputs.swift }}-RELEASE.xctoolchain"
-        echo "TOOLCHAINS=$(plutil -extract CFBundleIdentifier raw "$toolchain/Info.plist")" >>"$GITHUB_ENV"
 
     - name: Show the toolchain
       shell: bash
