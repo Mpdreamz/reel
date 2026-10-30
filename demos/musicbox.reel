@@ -6,10 +6,10 @@ Launch ~/Projects/musicbox/build/App/Musicbox.app
 Output //docs/media/musicbox.mp4
 Output //docs/media/musicbox.gif
 Set Size 1440x900
-Intro@slide-up,ease-out,700ms "Musicbox" "Chord progressions, sketched and heard"
-# Social cuts end on where to find it; everywhere else, on how to install it.
-Outro@fade,800ms social|feed|square ? "Recorded with reel" "github.com/Mpdreamz/reel"
-    : "Recorded with reel" "brew install --cask mpdreamz/tap/reel"
+# reel's own stings open and close it (design/motion, set in the preset): the background alone, 2 s. The square cut
+# has no sting in its shape, so it gets title cards on the designed backgrounds instead.
+Intro@crossfade,ease-out,600ms square ? "reel" "Demo videos from a script" : 2s
+Outro@fade,800ms square ? "Recorded with reel" "brew install --cask mpdreamz/tap/reel" : 2s
 
 Hide
 Wait #lanes

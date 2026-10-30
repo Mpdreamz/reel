@@ -26,7 +26,7 @@ Launch ~/Projects/musicbox/build/App/Musicbox.app
 Output //docs/media/musicbox.mp4
 Output //docs/media/musicbox.gif
 Set Size 1440x900
-Intro@slide-up,ease-out,700ms "Musicbox" "Chord progressions, sketched and heard"
+Intro@crossfade,ease-out,600ms 2s       # reel's sting, from the preset
 
 Say "This is Musicbox, a sketchpad for chord progressions."
 Say@over "Press space, [play] and every lane starts looping."
@@ -43,8 +43,8 @@ reel musicbox.reel    # record, then render every output
 
 reel opens the app, plays the tape with a real cursor and real keys, records the window with the app's own sound,
 and renders movies and GIFs with captions, narration, zooms and title cards. This one is
-[reel's own demo](demos/musicbox.reel): its look and its five cuts, for GitHub, the website, and three social
-shapes, come from [one preset](demos/reel.reelpreset).
+[reel's own demo](demos/musicbox.reel), recorded against Musicbox: its stings, its backgrounds and its five cuts,
+for GitHub, the website, and three social shapes, come from [one preset](demos/reel.reelpreset).
 
 Captions, zooms, speed-ups, cuts, title cards and every output setting are applied when rendering, so
 `reel render musicbox.reel` picks up a change without recording again.

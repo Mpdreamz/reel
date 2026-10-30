@@ -1,19 +1,18 @@
 # What every one of reel's own demos shares: the look, the voice, and where the videos go. Each demo Imports it.
 
-# The designed backgrounds (design/brand), one for each shape a profile frames on: 9:16 for social, 1:1 for square,
-# 16:9 for feed, and the window's own 16:10 for the rest.
+# The designed backdrop (demos/backgrounds), one for each shape a profile frames on: 9:16 for social, 1:1 for square,
+# 16:9 for feed, and the window's own 16:10 for the rest. The intro and outro are reel's stings (design/motion), 9:16
+# or 16:9; square has none, so its title cards go on the designed backgrounds.
 Set Background social ? //demos/backgrounds/backdrop-9x16.jpg
     : square ? //demos/backgrounds/backdrop-1x1.jpg
     : feed ? //demos/backgrounds/backdrop-16x9.jpg
     : //demos/backgrounds/backdrop-16x10.jpg
-Set IntroBackground social ? //demos/backgrounds/intro-9x16.jpg
+Set IntroBackground social ? //design/motion/intro-reel-2s-9x16.mp4
     : square ? //demos/backgrounds/intro-1x1.jpg
-    : feed ? //demos/backgrounds/intro-16x9.jpg
-    : //demos/backgrounds/intro-16x10.jpg
-Set OutroBackground social ? //demos/backgrounds/outro-9x16.jpg
+    : //design/motion/intro-reel-2s-16x9.mp4
+Set OutroBackground social ? //design/motion/outro-reel-2s-9x16.mp4
     : square ? //demos/backgrounds/outro-1x1.jpg
-    : feed ? //demos/backgrounds/outro-16x9.jpg
-    : //demos/backgrounds/outro-16x10.jpg
+    : //design/motion/outro-reel-2s-16x9.mp4
 Set Voice system
 Set Ducking 30%
 Set Subtitles on
