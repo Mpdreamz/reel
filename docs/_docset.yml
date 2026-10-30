@@ -4,6 +4,8 @@ dev_docs: true
 
 branding:
   icon: images/reel-symbol.svg
+  # The brand's ink: the header's title is drawn in white.
+  header-bg: '#111923'
   favicon: images/favicon-32.png
   og-image: images/og-1200x630.png
   apple-touch-icon: images/apple-touch-icon.png
