@@ -28,15 +28,24 @@ struct SectionParsingTests {
         guard case let .color(r, g, b) = outro.background else { Issue.record("expected a colour"); return }
         #expect(abs(r - 29 / 255) < 1e-9 && abs(g - 43 / 255) < 1e-9 && abs(b - 58 / 255) < 1e-9)
         #expect(try tape("Intro \"A\"").intro?.background == .standard)
+        // No title: the background video alone, for a designed sting.
+        let sting = try #require(try tape("Outro@fade 2s\nSet OutroBackground //sting.mov".replacingOccurrences(
+            of: "//", with: "/tmp/"
+        )).outro)
+        #expect(sting.title.isEmpty && sting.subtitle == nil && sting.duration == .seconds(2))
         #expect(try tape("Intro@cut,1s \"A\"").intro?.transition.duration == .zero, "a cut takes no time")
         #expect(try tape("Set IntroBackground a.png\nIntro \"A\"").intro?.background
             == .image(URL(fileURLWithPath: "/tmp/demos/a.png")))
     }
 
     @Test(arguments: [
-        ("Intro", "expected Intro \"<title>\" [\"<subtitle>\"] [duration]"),
-        ("Intro Musicbox", "expected Intro \"<title>\" [\"<subtitle>\"] [duration]"),
-        ("Intro \"A\" 2s \"B\"", "expected Intro \"<title>\" [\"<subtitle>\"] [duration]"),
+        (
+            "Intro",
+            "an Intro without a title shows its background on its own, so that must be a video: Set IntroBackground <video>"
+        ),
+        ("Intro Musicbox", "expected Intro [\"<title>\" [\"<subtitle>\"]] [duration]"),
+        ("Intro 2s 3s", "expected Intro [\"<title>\" [\"<subtitle>\"]] [duration]"),
+        ("Intro \"A\" 2s \"B\"", "expected Intro [\"<title>\" [\"<subtitle>\"]] [duration]"),
         ("Outro \"A\"\nOutro \"B\"", "a tape has one Outro"),
         (
             "Intro@spin \"A\"",
@@ -168,6 +177,23 @@ struct AssemblyTests {
         #expect(sliding.colour(60, 150) == "grey")
         #expect(sliding.colour(260, 150) == "blue")
         #expect(try await Frame(movie, at: 3.1).colour(10, 190) == "blue")
+    }
+
+    @Test func anOutroWithoutATitleIsItsVideoAlone() async throws {
+        let dir = try writer.temporaryDirectory()
+        let demo = dir.appending(path: "demo.mov")
+        try await writer.writeTake(to: demo, seconds: 1, audio: false, shade: 128)
+        let sting = dir.appending(path: "sting.mov")
+        try await writer.writeTake(to: sting, seconds: 1, audio: false, shade: 40)
+        let outro = Section(
+            title: "", subtitle: nil, duration: nil, background: .video(sting),
+            transition: SectionTransition(kind: .cut, easing: .linear, duration: .zero)
+        )
+        let output = Output(url: dir.appending(path: "out.mp4"), format: .mp4)
+        try await Assembler.assemble(main: demo, intro: nil, outro: outro, frameRate: 30, in: dir, to: output)
+        let movie = AVURLAsset(url: output.url)
+        // Nothing white over the sting's dark grey where a title would be.
+        #expect(try await Frame(movie, at: 1.5).brightest(row: 85, from: 100, to: 220) < 80)
     }
 
     @Test func aVideoBackgroundKeepsItsSound() async throws {
