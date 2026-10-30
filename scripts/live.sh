@@ -1,5 +1,5 @@
 #!/bin/bash
-# Records tapes/fixture.tape against the fixture app for real and checks the take: what CI cannot run, since it
+# Records tapes/fixture.reel against the fixture app for real and checks the take: what CI cannot run, since it
 # needs Screen Recording and Accessibility. Plays a quiet tone, and takes the mouse and keyboard for a few seconds.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -13,7 +13,7 @@ fi
 swift build -q
 rm -f build/fixture-events.log
 status=0
-.build/debug/reel tapes/fixture.tape || status=$?
+.build/debug/reel tapes/fixture.reel || status=$?
 pkill -x ReelFixture || true
 [ "$status" -eq 0 ] || exit "$status"
 swift scripts/check-take.swift tapes/.reel/fixture build/fixture-events.log build/fixture.mp4 build/fixture.gif

@@ -95,7 +95,7 @@ struct GifTests {
 
     @Test func aTapeWithOnlyAGifRendersThroughATemporaryMovie() async throws {
         let dir = try writer.temporaryDirectory()
-        let location = TakeLocation(tape: dir.appending(path: "demo.tape"))
+        let location = TakeLocation(tape: dir.appending(path: "demo.reel"))
         try FileManager.default.createDirectory(at: location.directory, withIntermediateDirectories: true)
         try await writer.writeTake(to: location.movie, seconds: 1, audio: false, shade: 90)
         try location.write(Take(
