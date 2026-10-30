@@ -20,8 +20,10 @@ struct RenderTests {
             Overlay(kind: .ripple(CGPoint(x: 50, y: 50)), start: 1.1, end: 1.6),
         ]
         let take = Take(width: 320, height: 200, scale: 2, frameRate: 30, audio: false, durationMs: 2000, events: [])
-        let output = Output(url: dir.appending(path: "out.mp4"), format: .mp4)
-        try await Renderer.render(movie, take: take, overlays: overlays, soundtrack: .none, to: output)
+        // Lossless, as reel renders before encoding: on macOS 27, exporting H.264 or HEVC through Core Animation
+        // turns a picture this small white.
+        let output = Output(url: dir.appending(path: "out.mov"), format: .mov)
+        try await Renderer.render(movie, take: take, overlays: overlays, soundtrack: .none, to: output, lossless: true)
 
         let video = AVURLAsset(url: output.url)
         // Just inside the bottom of each pill (its padding, so the dark background rather than text), and the
