@@ -1,0 +1,26 @@
+# reel's web demo: google.com, driven in Chromium over DevTools. `mise run demos google` records it. (WebKit, the
+# default, draws Google's page blank: it paints little while reel, a command line tool, is not the active app.)
+Import //demos/reel.reelpreset
+Open https://www.google.com
+
+Output //docs/media/google.mp4
+Output //docs/media/google.gif
+Set Browser chromium
+# What fits under a browser's title bar on a 1080 point high screen.
+Set Viewport 1280x720
+# reel's own stings open and close it, as they do the Musicbox demo; the square cut gets title cards.
+Intro@crossfade,ease-out,600ms square ? "reel" "Web pages too" : 2s
+Outro@fade,800ms square ? "Recorded with reel" "brew install --cask mpdreamz/tap/reel" : 2s
+
+# Every take starts in a fresh browser, so Google asks about cookies every time: answered off camera.
+Hide
+Click "Reject all"
+Wait "Search"
+Show
+Caption "Open a page, type, press return"
+Click "Search"
+Type@70ms "demo videos of mac apps"
+Key return
+Sleep 2s
+Caption "Typed and searched: no Accessibility, your mouse stays yours"
+Sleep 3s

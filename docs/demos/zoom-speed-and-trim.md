@@ -49,17 +49,23 @@ Speed off
 The stretch plays faster, above 1× up to 16×. Narration keeps its own pace, and the app's sound is left out of a
 sped-up stretch, where it would only be noise.
 
-## Trim
+## Skip the setup, cut the dull parts
+
+Whatever happens between `Hide` and `Show` is left out of every video: the way to get the app or the page ready
+before the demo starts, such as accepting a cookie banner or opening the right screen.
 
 ```
+Open https://example.com
 Hide
-Wait "Library"
-Sleep 1s
+Click "Reject all"
+Click "Pricing"
+Wait "Plans"
 Show
+Caption "Three plans"
 ```
 
-The stretch is left out of the video. A `Hide` with no `Show` runs to the end. A cut that would split a narrated line
-is refused.
+The recording runs throughout and the cut is made when rendering, so moving a `Show` needs no new recording. A `Hide`
+with no `Show` runs to the end. A cut that would split a narrated line is refused.
 
 Speed and trims take effect at the end of the action before them, like captions, and change with a render. Everything
 timed (captions, narration, ducking, zooms) moves with the cut; `.reel/<reel>/edit.json` says what was kept and how

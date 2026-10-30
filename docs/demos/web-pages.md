@@ -19,6 +19,9 @@ Wait "Welcome"
 `Open` takes `https://…`, `http://…`, `file://…` or a path to an `.html` file. Later in the reel, another `Open`
 goes to another page. `Set Viewport` is the page's size in points (1280x800 unless set).
 
+Every take starts in a fresh browser, with no cookies, storage or saved passwords, so a page records the same way each
+time: a site that asks for cookie consent asks every take. [Skip it](zoom-speed-and-trim.md) with `Hide` … `Show`.
+
 A web reel records the page alone, under the title bar, with the page's sound. It doesn't take your mouse or keyboard
 and needs no Accessibility: reel drives the page itself and draws the cursor into the video afterwards.
 

@@ -10,8 +10,8 @@ Output //docs/media/musicbox.gif
 Set Profiles github, web, social
 ```
 
-A profile is a named set of render settings for where a video is going. `Set Profiles` renders every output once
-for each, from the one recording, with the profile's name in the file name:
+One reel, every outlet. A profile is a named set of render settings for where a video is going. `Set Profiles`
+renders every output once for each, from the one recording, with the profile's name in the file name:
 
 ```
 musicbox-github.mp4    musicbox-github.gif

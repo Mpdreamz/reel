@@ -11,7 +11,7 @@ swift build -q
 # A tiling yabai would resize the windows and defeat Set Size: let the recorded apps float while the reels play. The
 # rule lives only in the running yabai, and goes again on exit.
 if pgrep -xq yabai; then
-    yabai -m rule --add label=reel-demos app='^(Musicbox)$' manage=off
+    yabai -m rule --add label=reel-demos app='^(Musicbox|reel|Google Chrome|Google Chrome for Testing|Chromium)$' manage=off
     trap 'yabai -m rule --remove reel-demos' EXIT
 fi
 reels=("$@")
