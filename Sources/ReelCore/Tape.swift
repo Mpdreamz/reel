@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// A parsed `.tape`: what to launch, how to capture it, what to do once recording, and where the outputs go.
+/// A parsed `.reel`: what to launch, how to capture it, what to do once recording, and where the outputs go.
 public struct Tape: Equatable, Sendable {
     public var outputs: [Output]
     public var frameRate: Int
@@ -284,6 +284,17 @@ public struct TapeError: Error, Equatable, CustomStringConvertible, LocalizedErr
 }
 
 public extension Tape {
+    /// What to say about a script's file name: `.reel` is reel's; `.tape` still plays, but it is VHS's extension,
+    /// and editors and GitHub take such a file for a VHS tape.
+    static func extensionNote(for url: URL) -> String? {
+        switch url.pathExtension {
+        case "reel": nil
+        case "tape": "\(url.lastPathComponent) plays, but .tape is VHS's extension: rename it to "
+            + "\(url.deletingPathExtension().lastPathComponent).reel"
+        default: "\(url.lastPathComponent) plays, but reel scripts are .reel files"
+        }
+    }
+
     static func load(_ url: URL) throws -> Tape {
         try parse(String(contentsOf: url, encoding: .utf8), relativeTo: url.deletingLastPathComponent())
     }

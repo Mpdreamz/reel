@@ -23,15 +23,15 @@ description = "Release build, copied to ~/.local/bin/reel"
 run = ["swift build -c release", "install -m 755 .build/release/reel ~/.local/bin/reel"]
 
 [tasks.fixture]
-description = "Build build/ReelFixture.app, the app tapes/fixture.tape records"
+description = "Build build/ReelFixture.app, the app tapes/fixture.reel records"
 run = "scripts/fixture.sh"
 
 [tasks.live]
-description = "Record tapes/fixture.tape for real and check the take (needs Screen Recording and Accessibility)"
+description = "Record tapes/fixture.reel for real and check the take (needs Screen Recording and Accessibility)"
 run = "scripts/live.sh"
 
 [tasks.live-web]
-description = "Record tapes/web.tape against a local page in a browser and check the take (needs Screen Recording)"
+description = "Record tapes/web.reel against a local page in a browser and check the take (needs Screen Recording)"
 run = "scripts/live-web.sh"
 
 [tasks.release-build]
@@ -39,6 +39,6 @@ description = "Build build/reel as the release does (scripts/build-release.sh), 
 run = "scripts/build-release.sh ${VERSION:-0.0.0}"
 
 [tasks.demos]
-description = "Record reel's own demos (demos/*.tape) into docs/media; plays sound, app tapes take the mouse"
+description = "Record reel's own demos (demos/*.reel) into docs/media; plays sound, app tapes take the mouse"
 run = "scripts/demos.sh"
 

@@ -65,7 +65,7 @@ struct EncoderTests {
 
     @Test func aTapesSettingsReachItsMoviesAndItsGifsShareTheLosslessMovie() async throws {
         let dir = try writer.temporaryDirectory()
-        let location = TakeLocation(tape: dir.appending(path: "demo.tape"))
+        let location = TakeLocation(tape: dir.appending(path: "demo.reel"))
         try FileManager.default.createDirectory(at: location.directory, withIntermediateDirectories: true)
         try await writer.writeTake(to: location.movie, seconds: 1, audio: false)
         try location.write(Take(

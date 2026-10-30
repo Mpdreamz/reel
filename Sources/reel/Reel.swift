@@ -8,7 +8,7 @@ import ReelCore
 struct Reel: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "reel",
-        abstract: "Record demos of macOS apps and web pages from a .tape script: video with sound, GIFs, captions.",
+        abstract: "Record demos of macOS apps and web pages from a .reel script: video with sound, GIFs, captions.",
         version: reelVersion,
         subcommands: [Run.self, Record.self, Render.self, Check.self, Doctor.self],
         defaultSubcommand: Run.self
@@ -16,7 +16,7 @@ struct Reel: AsyncParsableCommand {
 }
 
 struct TapeArgument: ParsableArguments {
-    @Argument(help: "The .tape to play.", completion: .file(extensions: ["tape"]))
+    @Argument(help: "The .reel to play.", completion: .file(extensions: ["reel", "tape"]))
     var tape: String
 
     var url: URL {
@@ -24,7 +24,8 @@ struct TapeArgument: ParsableArguments {
     }
 
     func load() throws -> Tape {
-        try Tape.load(url)
+        if let note = Tape.extensionNote(for: url) { warn(note) }
+        return try Tape.load(url)
     }
 }
 
@@ -126,4 +127,8 @@ private func renderAll(_ tape: Tape, from location: TakeLocation) async throws {
 
 private func say(_ line: String) {
     print(line)
+}
+
+private func warn(_ line: String) {
+    FileHandle.standardError.write(Data("warning: \(line)\n".utf8))
 }

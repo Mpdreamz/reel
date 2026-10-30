@@ -22,7 +22,8 @@
 
 ## The tape
 
-One command per line. `#` starts a comment at the start of a line or followed by a space (`#play` after a command
+A tape is a `.reel` file. A `.tape` file still plays, with a warning to rename it: `.tape` is VHS's extension, and
+editors and GitHub take such a file for a VHS tape. One command per line. `#` starts a comment at the start of a line or followed by a space (`#play` after a command
 is an identifier). A tape starts with `Launch <app>` or `Open <url>`, which says what it records; the rest is read
 knowing it, so a setting for the other kind (`Set Viewport` in an app tape, `Set Size` in a web tape, a `css:`
 target in an app tape) is refused at its line rather than ignored. Setup (`Output`, `Set`, `Intro`, `Outro`) comes
@@ -166,7 +167,7 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 - **Recording.** ScreenCaptureKit, as for an app, cropped to the page under the title bar, the browser's helper
   processes' sound kept. Neither takes the mouse or the keyboard, and neither needs Accessibility. The real cursor
   is hidden; render draws an arrow along the driver's path, through edits and zooms.
-- `mise run live-web` records `tapes/web.tape` against `tapes/web/fixture.html` twice, in WebKit and with `Set
+- `mise run live-web` records `tapes/web.reel` against `tapes/web/fixture.html` twice, in WebKit and with `Set
   Browser chromium`: the page logs what happened and the tape waits for each entry, so a step that did not work stops
   the take.
 

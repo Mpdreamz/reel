@@ -13,7 +13,7 @@ let package = Package(
             dependencies: ["ReelCore", .product(name: "ArgumentParser", package: "swift-argument-parser")]
         ),
         .testTarget(name: "ReelCoreTests", dependencies: ["ReelCore"]),
-        // The app tapes/fixture.tape records (scripts/fixture.sh bundles it): a ticking window and a tone.
+        // The app tapes/fixture.reel records (scripts/fixture.sh bundles it): a ticking window and a tone.
         .executableTarget(name: "ReelFixture"),
     ]
 )

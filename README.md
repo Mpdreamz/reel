@@ -4,7 +4,7 @@ Record demos of macOS apps from a script. Like [VHS](https://github.com/charmbra
 of terminals, and with the app's sound.
 
 ```
-# demo.tape
+# demo.reel
 Launch com.example.musicbox
 
 Output demo.mp4
@@ -31,10 +31,10 @@ Sleep 4s
 ```
 
 ```sh
-reel check demo.tape    # parse it and say what it would do
-reel demo.tape          # record, then render every Output
-reel record demo.tape   # only capture the take (.reel/demo/)
-reel render demo.tape   # only render the outputs from the last take
+reel check demo.reel    # parse it and say what it would do
+reel demo.reel          # record, then render every Output
+reel record demo.reel   # only capture the take (.reel/demo/)
+reel render demo.reel   # only render the outputs from the last take
 reel doctor             # Screen Recording, Accessibility, and the browser web tapes use
 ```
 

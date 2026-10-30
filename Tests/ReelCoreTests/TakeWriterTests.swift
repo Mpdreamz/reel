@@ -61,7 +61,7 @@ struct TakeWriterTests {
     }
 
     @Test func timelineRoundTrips() throws {
-        let location = try TakeLocation(tape: temporaryDirectory().appending(path: "demo.tape"))
+        let location = try TakeLocation(tape: temporaryDirectory().appending(path: "demo.reel"))
         try FileManager.default.createDirectory(at: location.directory, withIntermediateDirectories: true)
         FileManager.default.createFile(atPath: location.movie.path, contents: Data())
         let take = Take(
@@ -73,7 +73,7 @@ struct TakeWriterTests {
     }
 
     @Test func renderWithoutATakeSaysSo() throws {
-        let location = try TakeLocation(tape: temporaryDirectory().appending(path: "demo.tape"))
+        let location = try TakeLocation(tape: temporaryDirectory().appending(path: "demo.reel"))
         #expect(throws: ReelError.self) { try location.read() }
     }
 

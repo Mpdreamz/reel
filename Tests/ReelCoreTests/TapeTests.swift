@@ -330,8 +330,16 @@ struct TapeTests {
         #expect(TapeError(line: 4, message: "boom").description == "line 4: boom")
     }
 
+    @Test func aTapeFileStillPlaysWithANoteToRenameIt() {
+        #expect(Tape.extensionNote(for: URL(fileURLWithPath: "/d/demo.reel")) == nil)
+        #expect(Tape.extensionNote(for: URL(fileURLWithPath: "/d/demo.tape"))
+            == "demo.tape plays, but .tape is VHS's extension: rename it to demo.reel")
+        #expect(Tape.extensionNote(for: URL(fileURLWithPath: "/d/demo.txt"))
+            == "demo.txt plays, but reel scripts are .reel files")
+    }
+
     @Test func takeLivesNextToTheTape() {
-        let location = TakeLocation(tape: URL(fileURLWithPath: "/tmp/demos/intro.tape"))
+        let location = TakeLocation(tape: URL(fileURLWithPath: "/tmp/demos/intro.reel"))
         #expect(location.movie.path == "/tmp/demos/.reel/intro/take.mov")
         #expect(location.timeline.path == "/tmp/demos/.reel/intro/take.json")
     }
