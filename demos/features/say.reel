@@ -1,0 +1,11 @@
+Import //demos/features/features.reelpreset
+Launch ~/Projects/musicbox/build/App/Musicbox.app
+Output //docs/landing/features/say.gif
+Set Size 1440x900
+Hide
+Wait #lanes
+Show
+Say@over "Press space [play] and every lane plays."
+Wait [play]
+Key space
+Sleep 2.5s

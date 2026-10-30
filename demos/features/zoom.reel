@@ -1,0 +1,12 @@
+Import //demos/features/features.reelpreset
+Launch ~/Projects/musicbox/build/App/Musicbox.app
+Output //docs/landing/features/zoom.gif
+Set Size 1440x900
+Hide
+Wait #lanes
+Show
+Sleep 0.5s
+Zoom #timeline.chords 2x
+Sleep 2s
+Zoom off
+Sleep 1s

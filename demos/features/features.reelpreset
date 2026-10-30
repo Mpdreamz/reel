@@ -1,0 +1,10 @@
+# What the landing page's feature previews share: small looping GIFs, one per feature card, on the designed backdrop.
+Set Background //demos/backgrounds/backdrop-16x10.jpg
+Set Padding 4%
+Set GifWidth 560
+Set GifFrameRate 12
+Set GifColors 128
+Set Subtitles on
+Set Voice voicebox:Main
+Set ZoomEasing smooth
+Set ZoomDuration 600ms
