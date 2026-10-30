@@ -39,7 +39,10 @@ struct Preset: Equatable, Sendable {
         }
         let directory = url.deletingLastPathComponent()
         var preset = Preset()
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        // A line starting with : continues the one before, as in a tape.
+        let lines = Condition.joinContinuations(
+            text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        )
         var index = 0
         var settled = false
         while index < lines.count {
