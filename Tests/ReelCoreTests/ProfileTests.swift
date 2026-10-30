@@ -66,15 +66,16 @@ struct ProfileTests {
             "VideoFrameRate must be a whole number from 1 to 120, not '0'"
         ),
         ("Launch x\nOutput a.mp4\nSet Formats mp4, webm", "Formats lists mp4, mov or gif, not 'webm'"),
-        (
-            "Launch x\nOutput a.mp4\nSet Profiles github, tiktok",
-            "there is no profile 'tiktok'; reel has highest, github, web, social, feed or square"
-        ),
         ("Launch x\nOutput a.mp4\nSet Profiles github github", "Profiles names a profile twice"),
         ("Launch x\nOutput a.mp4\nSet Quality 1 2", "expected Set <setting> <value>"),
     ])
     func errors(text: String, message: String) {
         #expect(failure(text) == TapeError(line: 3, message: message))
+    }
+
+    @Test func anUnknownProfileIsRefusedWithWhereItWasNamed() {
+        #expect(failure("Launch x\nOutput a.mp4\nSet Profiles github, tiktok")?.description
+            == "line 3: there is no profile 'tiktok'; there are highest, github, web, social, feed or square")
     }
 
     @Test func aProfileAppliesOverTheTapeAndNamesItsOutputs() throws {
@@ -122,7 +123,7 @@ struct ProfileTests {
         #expect(failure { try listed.profilesToRender(chosen: ["feed"]) }
             == "the tape renders github, social; 'feed' is not one of them")
         #expect(failure { try plain.profilesToRender(chosen: ["tiktok"]) }
-            == "there is no profile 'tiktok'; reel has highest, github, web, social, feed or square")
+            == "there is no profile 'tiktok'; there are highest, github, web, social, feed or square")
     }
 
     @Test func everyBuiltInProfileReadsOnAnAppAndAWebTape() throws {

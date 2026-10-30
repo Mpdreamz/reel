@@ -1,0 +1,13 @@
+# What every one of reel's own demos shares: the look, the voice, and where the videos go. Each demo Imports it.
+
+# Placeholders until the designed backgrounds arrive (design/backgrounds).
+Set Background #1d2b3a
+Set OutroBackground #1d2b3a
+Set Voice system
+Set Ducking 30%
+Set Subtitles on
+Set ZoomEasing smooth
+Set ZoomDuration 700ms
+Set GifWidth 720
+# Each Output once for each: musicbox-github.mp4, musicbox-social.mp4 (9:16, no GIF), and so on. See reel profiles.
+Set Profiles github, web, social, feed, square

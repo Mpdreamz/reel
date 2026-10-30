@@ -25,7 +25,9 @@ struct TapeArgument: ParsableArguments {
 
     func load() throws -> Tape {
         if let note = Tape.extensionNote(for: url) { warn(note) }
-        return try Tape.load(url)
+        let tape = try Tape.load(url)
+        tape.warnings.forEach(warn)
+        return tape
     }
 }
 
@@ -54,8 +56,10 @@ struct Run: AsyncParsableCommand {
 
     func run() async throws {
         let parsed = try tape.load()
-        // Refused before recording, not after.
-        _ = try parsed.profilesToRender(chosen: profiles.chosen)
+        // Refused before recording, not after: every profile is read, its settings checked.
+        for profile in try parsed.profilesToRender(chosen: profiles.chosen) {
+            _ = try parsed.with(profile: profile)
+        }
         let location = TakeLocation(tape: tape.url)
         _ = try await Recorder.record(parsed, into: location, log: say)
         try await Renderer.render(tape: parsed, from: location, profiles: profiles.chosen, log: say)
@@ -133,14 +137,22 @@ struct Profiles: AsyncParsableCommand {
     static let configuration = CommandConfiguration(
         abstract: "List the profiles a tape can render for, and what each sets.",
         discussion: "Set Profiles github, social in a tape renders every Output once for each, as name-github.mp4 "
-            + "and name-social.mp4; --profile on run, render and check picks among them."
+            + "and name-social.mp4; --profile on run, render and check picks among them. Given a tape, the list "
+            + "has what its presets and the tape itself define and amend, with where each setting comes from."
     )
 
+    @Argument(
+        help: "A .reel whose profiles to list; without one, the built-in ones.",
+        completion: .file(extensions: ["reel"])
+    )
+    var tape: String?
+
     func run() async throws {
-        for profile in Profile.builtIn {
+        let known = try tape.map { try TapeArgument.parse([$0]).load().known } ?? Profile.builtIn
+        for profile in known {
             say("\(profile.name): \(profile.purpose)")
             for setting in profile.settings {
-                say("  Set \(setting.name) \(setting.value)")
+                say("  Set \(setting.name) \(setting.value)" + (setting.origin.map { "    # \($0)" } ?? ""))
             }
         }
     }

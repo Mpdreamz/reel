@@ -1,21 +1,11 @@
 # reel's hero demo: Musicbox, a sketchpad for chord progressions, recorded with its own sound and narrated.
 # `mise run demos` records it (Musicbox built in ~/Projects/musicbox: by path, since a bundle id can find another copy). It plays music and takes the mouse and keyboard.
+Import //demos/reel.reelpreset
 Launch ~/Projects/musicbox/build/App/Musicbox.app
 
-Output ../docs/media/musicbox.mp4
-Output ../docs/media/musicbox.gif
-# Each Output once for each: musicbox-github.mp4, musicbox-social.mp4 (9:16, no GIF), and so on. See reel profiles.
-Set Profiles github, web, social, feed, square
+Output //docs/media/musicbox.mp4
+Output //docs/media/musicbox.gif
 Set Size 1440x900
-# Placeholders until the designed backgrounds arrive (design/backgrounds).
-Set Background #1d2b3a
-Set OutroBackground #1d2b3a
-Set Voice system
-Set Ducking 30%
-Set Subtitles on
-Set ZoomEasing smooth
-Set ZoomDuration 700ms
-Set GifWidth 720
 Intro@slide-up,ease-out,700ms "Musicbox" "Chord progressions, sketched and heard"
 Outro@fade,800ms "Recorded with reel" "brew install --cask mpdreamz/tap/reel"
 
