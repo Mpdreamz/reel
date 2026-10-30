@@ -85,6 +85,18 @@ struct NarrationTests {
         #expect(other.lines[3]?.key != one.lines[3]?.key)
     }
 
+    @Test func eachLineIsVoicedByItsOwnVoice() async throws {
+        let dir = try TakeWriterTests().temporaryDirectory()
+        let host = FakeVoice(), guest = FakeVoice(hertz: 300)
+        let narration = try await Narration.prepare(
+            tape("Set Voice guest system\nSay \"Hello there\"\nSay@guest \"Hi\"\nSay \"Bye\""), into: dir,
+            voices: { $0 == "guest" ? guest : host }, log: { _ in }
+        )
+        #expect(host.spoken == ["Hello there", "Bye"])
+        #expect(guest.spoken == ["Hi"])
+        #expect(narration.lines.count == 3)
+    }
+
     @Test func renderNeverVoicesALine() async throws {
         let dir = try TakeWriterTests().temporaryDirectory()
         await #expect(throws: ReelError.self) {

@@ -71,8 +71,10 @@ sits next to the same things.
 | `Set Formats <types>` | Write only these types of Output, `mp4, mov`; the others are skipped with a note. |
 | `Set Profiles <names>` | Render every Output once for each profile, as `name-<profile>.mp4`. See "Profiles". |
 | `Say "<text>"`, `Say@over "<text>"` | Narrate; blocks until the line ends, or with `@over` carries on while it plays. |
+| `Say@<voice> "<text>"`, `Say@<voice>,over "<text>"` | Narrate in a voice named with `Set Voice <name> <voice>`. |
 | `Wait [marker]` | Until the narration reaches a `[marker]` in the text of an earlier `Say@over`. |
 | `Set Voice <voice>` | `system` (default), `system:Samantha`, or `voicebox:<profile name or id>`. |
+| `Set Voice <name> <voice>` | Another voice, for `Say@<name>` lines: a second speaker. Letters, digits, `-` and `_`, not `over`. |
 | `Set VoiceServer <url>` | voicebox's address, default `http://127.0.0.1:17493`. |
 | `Set VoiceSeed <n>`, `Set VoiceLanguage <xx>` | voicebox's seed (default 1) and language (default `en`). |
 | `Set Ducking <n%>` | The app's sound under narration, default 25%. |
@@ -132,7 +134,8 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   different length, and the take was timed to the first; a line whose text, voice or seed changed needs a new take.
 - **Voices.** macOS's own synthesizer needs nothing and works offline; voicebox
   (https://github.com/jamiepine/voicebox, MIT) runs locally: reel looks the profile up by name or id
-  (`GET /profiles`) and voices with `POST /generate/stream`, which answers WAV.
+  (`GET /profiles`) and voices with `POST /generate/stream`, which answers WAV. A reel can have more than one:
+  `Set Voice guest voicebox:Bella` names one, and `Say@guest` speaks in it; the seed, language and server are shared.
 - **Subtitles** take the caption's place: a `Caption` showing during a line is cut around it. A GIF has no sound,
   so subtitles are how narration reaches one.
 

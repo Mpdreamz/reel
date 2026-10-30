@@ -19,7 +19,7 @@ with `reel render`, and profiles and [conditions](../outputs/conditions.md) can 
 | `Browser` | `webkit`, `chromium` or an `.app` path | webkit |
 | `TypingSpeed` | Pause after each typed character | 50ms |
 | `WaitTimeout` | How long `Wait` and `Click` look for an element | 10s |
-| `Voice` | `system`, `system:<voice>`, `voicebox:<profile>` | system |
+| `Voice` | `system`, `system:<voice>`, `voicebox:<profile>`; or `<name> <voice>`, a voice for `Say@<name>` | system |
 | `VoiceServer` | voicebox's address | http://127.0.0.1:17493 |
 | `VoiceSeed` | voicebox's seed, 0 and up | 1 |
 | `VoiceLanguage` | voicebox's language, two letters | en |

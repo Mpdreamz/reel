@@ -293,6 +293,29 @@ struct TapeTests {
         #expect(tape.actions.count == 6)
     }
 
+    @Test func namedVoices() throws {
+        let tape = try parse("""
+        Launch x
+        Output a.mp4
+        Set Voice voicebox:Main
+        Set Voice guest system:Samantha
+        Say "Hello."
+        Say@guest "Hi."
+        Say@guest,over "And [now] this."
+        Say@over,guest "Or this."
+        """)
+        #expect(tape.voice.source == .voicebox("Main"))
+        #expect(tape.voice.named == ["guest": .system("Samantha")])
+        let says = tape.steps.compactMap { step -> (String?, Bool)? in
+            guard case let .say(speech, over) = step.command else { return nil }
+            return (speech.voice, over)
+        }
+        #expect(says.map(\.0) == [nil, "guest", "guest", "guest"])
+        #expect(says.map(\.1) == [false, false, true, true])
+        // Each name its own synthesizer; no name, the reel's own voice.
+        #expect(tape.voice.synthesizer(for: "guest").fingerprint != tape.voice.synthesizer().fingerprint)
+    }
+
     @Test func voiceDefaults() throws {
         let voice = try parse("Launch x\nOutput a.mp4").voice
         #expect(voice == VoiceSettings())
@@ -305,7 +328,22 @@ struct TapeTests {
         ("Say", "expected Say \"<text>\""),
         ("Say \"\"", "Say needs words to speak"),
         ("Say \"[a]\"", "Say needs words to speak"),
-        ("Say@under \"Hi\"", "Say takes @over or nothing, not @under"),
+        ("Say@under \"Hi\"", "no voice is named under; name one first with Set Voice under <voice>"),
+        ("Say@over,over \"Hi\"", "Say takes @over, a voice's name, or both (Say@guest,over), not @over,over"),
+        ("Say@a,b \"Hi\"", "Say takes @over, a voice's name, or both (Say@guest,over), not @a,b"),
+        ("Say@over, \"Hi\"", "Say takes @over, a voice's name, or both (Say@guest,over), not @over,"),
+        (
+            "Set Voice over system",
+            "'over' cannot name a voice; name it with letters, digits, - and _ (not over), such as Set Voice guest "
+                + "voicebox:Bella"
+        ),
+        (
+            "Set Voice g:x system",
+            "'g:x' cannot name a voice; name it with letters, digits, - and _ (not over), such as Set Voice guest "
+                + "voicebox:Bella"
+        ),
+        ("Set Voice guest robot", "Voice must be system, system:<voice name> or voicebox:<profile>, not 'robot'"),
+        ("Set Voice a b c", "expected Set <setting> <value>"),
         ("Say \"Press [play now\"", "a [ in the text has no ]"),
         (
             "Say \"Press [play now]\"",

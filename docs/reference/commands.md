@@ -40,6 +40,7 @@ Before the first step.
 | `Scroll <up\|down\|left\|right> [lines] [element or @x,y]` | Scrolls, over the element when one is named. |
 | `Say "<text>"` | Narrates the line and waits for it to end. |
 | `Say@over "<text>"` | Narrates and carries on. |
+| `Say@<voice> "<text>"`, `Say@<voice>,over "<text>"` | Narrates in a voice named with `Set Voice <name> <voice>`. |
 | `Caption "<text>" [duration]` | A caption from here until the next one, or for `duration`. |
 | `Caption off` | Ends the caption showing. |
 | `Zoom <element> [scale]` | Onto the element, locked and following it. Fitted, at most 4×, without a scale. |
