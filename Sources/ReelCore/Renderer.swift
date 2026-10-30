@@ -17,7 +17,14 @@ public enum Renderer {
                     "skipped \(output.url.lastPathComponent): \(profile?.name ?? "the tape") writes no .\(output.format)"
                 )
             }
-            try await renderOnce(tape: read, from: location, log: log)
+            // A tape whose values differ by Output type is read once for each type it writes.
+            if read.conditionsOnFormat {
+                for format in Output.Format.allCases where read.outputs.contains(where: { $0.format == format }) {
+                    try await renderOnce(tape: tape.with(profile: profile, format: format), from: location, log: log)
+                }
+            } else {
+                try await renderOnce(tape: read, from: location, log: log)
+            }
         }
     }
 

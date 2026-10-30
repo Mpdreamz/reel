@@ -13,6 +13,13 @@ struct Preset: Equatable, Sendable {
 
     static let fileExtension = "reelpreset"
 
+    /// A `Set` line's value as it is kept until applied: its words, or, holding a condition, as written, quotes and
+    /// all, so it reads the same when it is chosen from.
+    static func value(of tokens: ArraySlice<Token>) -> String {
+        let conditional = tokens.contains { !$0.quoted && $0.text == "?" }
+        return tokens.map { conditional ? $0.source : $0.text }.joined(separator: " ")
+    }
+
     /// Reads the preset at `url` and, first, everything it imports. `chain` is the imports that led here: one that
     /// comes back round is an error rather than a loop.
     static func load(_ url: URL, paths: Paths, chain: [URL]) throws -> Preset {
@@ -57,7 +64,7 @@ struct Preset: Equatable, Sendable {
                 settled = true
                 guard words.count >= 2 else { throw fail("expected Set <setting> <value>") }
                 preset.settings.append(Profile.Setting(
-                    words[0], words.dropFirst().joined(separator: " "), directory: directory, origin: origin
+                    words[0], Self.value(of: tokens.dropFirst(2)), directory: directory, origin: origin
                 ))
             case "Profile":
                 settled = true
@@ -135,7 +142,7 @@ extension Profile.Definition {
                 throw TapeError(message: "\(where_): a profile cannot choose profiles; Set Profiles outside it")
             }
             settings.append(Profile.Setting(
-                words[0], words.dropFirst().joined(separator: " "), directory: directory, origin: where_
+                words[0], Preset.value(of: tokens.dropFirst(2)), directory: directory, origin: where_
             ))
         }
         // Blank lines after the last setting belong to what follows.

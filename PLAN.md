@@ -278,6 +278,27 @@ Output's type (`mp4`, `mov`, `gif`). A profile cannot set what is fixed when rec
 choose profiles. `reel profiles demo.reel` lists what a tape can render for, with where each setting comes from;
 `reel run` reads every profile it will render before recording, so a bad value is refused first.
 
+### Conditions
+
+A value may differ by profile: `Set Quality social|feed ? 70 : github ? 50 : 65`. Conditions are read left to
+right; the first that holds chooses its value, and the last value is for when none does, or no profile renders. A
+condition is a profile's name, or names joined by `|`; it may also be an Output's type, `mp4`, `mov` or `gif`, and
+then each type is rendered from its own reading (`Caption gif ? "Short" : "The long version"`). One profile renders
+at a time, so a condition inside a chosen value could never matter: it is refused, and a chain is all there is. A
+line that starts with `:` continues the one before it, so a long chain lines up:
+
+```
+Caption github ? "brew install --cask mpdreamz/tap/reel"
+        : social|feed ? "Follow for more"
+        : "Recorded with reel"
+```
+
+Conditions work where render decides: `Set` (but not the settings fixed when recording, nor `Profiles`), `Caption`,
+`Intro` and `Outro`, in a tape, a preset or a profile. A condition covers all of a command's values (`Outro social ?
+"Title" "Subtitle" : "Title" "Other subtitle"`). Anything that happens while recording (`Say`, `Type`, `Click` and
+the rest) is the same for every profile, since one take serves them all; a condition there is refused. A name a
+condition tests must be a known profile or a type.
+
 ### Fitting a size
 
 A movie is encoded at its quality first. Over `MaxSize`, it is encoded again at the bitrate the size leaves for its

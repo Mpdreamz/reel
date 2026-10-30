@@ -7,7 +7,9 @@ Output //docs/media/musicbox.mp4
 Output //docs/media/musicbox.gif
 Set Size 1440x900
 Intro@slide-up,ease-out,700ms "Musicbox" "Chord progressions, sketched and heard"
-Outro@fade,800ms "Recorded with reel" "brew install --cask mpdreamz/tap/reel"
+# Social cuts end on where to find it; everywhere else, on how to install it.
+Outro@fade,800ms social|feed|square ? "Recorded with reel" "github.com/Mpdreamz/reel"
+    : "Recorded with reel" "brew install --cask mpdreamz/tap/reel"
 
 Hide
 Wait #lanes

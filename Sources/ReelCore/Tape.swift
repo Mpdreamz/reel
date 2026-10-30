@@ -43,6 +43,8 @@ public struct Tape: Equatable, Sendable {
     public var known: [Profile]
     /// What reading it found worth saying but not refusing: relative paths that lead out of the git root.
     public var warnings: [String]
+    /// Whether a condition tests an Output's type (`gif ? … : …`): then each type is rendered from its own reading.
+    public var conditionsOnFormat: Bool
 
     public struct Source: Equatable, Sendable {
         public var text: String
@@ -324,9 +326,9 @@ public extension Tape {
     static let listSettings: Set<String> = ["Profiles", "Formats"]
 
     /// The tape read again for `profile`: its settings applied over the tape's, its Outputs named for it.
-    func with(profile: Profile?) throws -> Tape {
+    func with(profile: Profile?, format: Output.Format? = nil) throws -> Tape {
         guard let source else { return self }
-        return try Tape.parse(source.text, relativeTo: source.directory, profile: profile)
+        return try Tape.parse(source.text, relativeTo: source.directory, profile: profile, format: format)
     }
 
     /// The profiles to render: those `chosen` on the command line, which must be among the tape's own when it names
@@ -354,7 +356,11 @@ public extension Tape {
 
     /// Parses a tape. Relative paths (`Output`, `Launch` of an `.app`) resolve against `directory`. With a profile,
     /// its settings apply after the tape's own.
-    static func parse(_ text: String, relativeTo directory: URL, profile: Profile? = nil) throws -> Tape {
+    static func parse(
+        _ text: String, relativeTo directory: URL, profile: Profile? = nil, format: Output.Format? = nil
+    ) throws -> Tape {
+        // Every name a condition tests, with its line, checked once every profile is known.
+        var tested: [(name: String, origin: String)] = []
         let paths = Paths(root: Paths.gitRoot(from: directory))
         var warnings: [String] = []
         // What the tape imports: applied as it Launches or Opens, when the settings can be read knowing which.
@@ -405,6 +411,22 @@ public extension Tape {
         ) throws {
             func find(_ text: String) throws -> URL {
                 try locate(text, from: dir, at: origin, fail: fail)
+            }
+            // A preset's or a profile's value may hold a condition too; the tape's own are chosen as it is read.
+            var value = value
+            let tokens = value.contains("?") ? try tokenize(value, line: 0) : []
+            if tokens.contains(where: { !$0.quoted && $0.text == "?" }) {
+                if Profile.recordingSettings.contains(setting) || setting == "Profiles" {
+                    throw fail(
+                        "\(setting) cannot differ by profile: "
+                            + (setting == "Profiles" ? "it chooses them" : "it is fixed when recording")
+                    )
+                }
+                var names: [String] = []
+                value = try Condition.choose(
+                    tokens, profile: profile?.name, format: format, names: &names, fail: fail
+                ).map(\.text).joined(separator: " ")
+                tested += names.map { ($0, origin) }
             }
             func forWeb(_ what: String) throws {
                 if !isWeb { throw fail("\(what) is for web pages (Open); this tape Launches an app") }
@@ -579,7 +601,9 @@ public extension Tape {
             }
         }
 
-        let lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        let lines = Condition.joinContinuations(
+            text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        )
         // Lines a Profile block took, still to skip.
         var consumed = 0
         var profilesOrigin = ""
@@ -591,9 +615,35 @@ public extension Tape {
             let line = index + 1
             let tokens = try tokenize(raw, line: line)
             guard let first = tokens.first else { continue }
-            let args = Array(tokens.dropFirst())
-            let words = args.map(\.text)
             let fail = { (message: String) in TapeError(line: line, message: message) }
+            var args = Array(tokens.dropFirst())
+            // A value that differs by profile: only what render decides may; what recording does is the same for all.
+            if args.contains(where: { !$0.quoted && $0.text == "?" }) {
+                let command = first.quoted ? first.text : split(first.text).0
+                var names: [String] = []
+                switch command {
+                case "Set":
+                    guard let setting = args.first else { throw fail("expected Set <setting> <value>") }
+                    if Profile.recordingSettings.contains(setting.text) || setting.text == "Profiles" {
+                        throw fail(
+                            "\(setting.text) cannot differ by profile: "
+                                + (setting.text == "Profiles" ? "it chooses them" : "it is fixed when recording")
+                        )
+                    }
+                    args = try [setting] + Condition.choose(
+                        Array(args.dropFirst()), profile: profile?.name, format: format, names: &names, fail: fail
+                    )
+                case "Caption", "Intro", "Outro":
+                    args = try Condition.choose(args, profile: profile?.name, format: format, names: &names, fail: fail)
+                default:
+                    throw fail(
+                        "a condition (?) works in Set, Caption, Intro and Outro, which render decides; \(command) "
+                            + "happens when recording, the same for every profile"
+                    )
+                }
+                tested += names.map { ($0, "line \(line)") }
+            }
+            let words = args.map(\.text)
             let setup = { (command: String) throws in
                 if !steps.isEmpty {
                     throw fail("\(command) is setup and must come before the first step (line \(steps[0].line))")
@@ -854,6 +904,14 @@ public extension Tape {
         guard let launch else { throw TapeError(message: Tape.preface) }
         guard !outputs.isEmpty else { throw TapeError(message: "the tape has no Output") }
         let knownProfiles = try Profile.resolve(imported.definitions + definitions)
+        for (name, origin) in tested
+            where !Condition.formats.contains(name) && !knownProfiles.contains(where: { $0.name == name })
+        {
+            throw TapeError(
+                message: "\(origin): there is no profile '\(name)' to test; there are "
+                    + "\(Profile.names(knownProfiles)), and an Output's type: mp4, mov or gif"
+            )
+        }
         for name in profiles where !knownProfiles.contains(where: { $0.name == name }) {
             throw TapeError(
                 message: "\(profilesOrigin): there is no profile '\(name)'; there are \(Profile.names(knownProfiles))"
@@ -877,6 +935,8 @@ public extension Tape {
                 skipped.append(output)
                 return nil
             }
+            // Read for one type, the tape writes only Outputs of it.
+            if let format, output.format != format { return nil }
             output.shape = output.shape ?? canvas
             if let profile { output.url = profile.suffixed(output.url) }
             return output
@@ -911,6 +971,7 @@ public extension Tape {
             source: Source(text: text, directory: directory),
             known: knownProfiles,
             warnings: warnings,
+            conditionsOnFormat: tested.contains { Condition.formats.contains($0.name) },
             voice: voice,
             zoomTransition: zoomTransition,
             intro: intro.map { section in
