@@ -230,7 +230,9 @@ public enum Assembler {
         video.renderSize = size
         video.frameDuration = CMTime(value: 1, timescale: CMTimeScale(frameRate))
         let instruction = AVMutableVideoCompositionInstruction()
-        instruction.timeRange = CMTimeRange(start: .zero, duration: time(arrangement.duration))
+        // As long as the tracks, to the tick: the arrangement's length rounds on its own, and an instruction that ends
+        // a tick before the last track leaves a frame nothing composes, which the export refuses ("Operation Stopped").
+        instruction.timeRange = CMTimeRange(start: .zero, duration: composition.duration)
         instruction.backgroundColor = CGColor(gray: 0, alpha: 1)
         instruction.layerInstructions = layers
         video.instructions = [instruction]
