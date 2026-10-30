@@ -1,5 +1,5 @@
 ---
-description: "Install reel, grant Screen Recording and Accessibility, and record a first tape."
+description: "Install reel, grant Screen Recording and Accessibility, and record a first reel."
 ---
 
 # Getting started
@@ -8,4 +8,4 @@ description: "Install reel, grant Screen Recording and Accessibility, and record
 |---|---|
 | [Installation](installation.md) | Homebrew, or build it from source. |
 | [Permissions](permissions.md) | Screen Recording and Accessibility, and what `reel doctor` reports. |
-| [Your first tape](first-tape.md) | Record a window, then add a click, a caption and a voice. |
+| [Your first reel](first-reel.md) | Record a window, then add a click, a caption and a voice. |

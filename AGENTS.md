@@ -6,33 +6,33 @@ or both. Read `PLAN.md` first.
 
 ## Principles
 
-- **The tape is the source of truth.** A demo is reproducible: change the app, run the tape again. Nothing about a
+- **The reel is the source of truth.** A demo is reproducible: change the app, run the reel again. Nothing about a
   take is decided interactively.
 - **Record raw, render after.** `reel record` captures a take (the app's window and its audio, untouched, plus a
-  timeline of what the tape did and when). `reel render` turns a take into the outputs. Overlays (captions, key
+  timeline of what the reel did and when). `reel render` turns a take into the outputs. Overlays (captions, key
   badges, click ripples, zoom) are drawn at render time and anchored to timeline events, never to seconds, so a
   caption changes without recording again.
 - **Apple frameworks only.** ScreenCaptureKit to capture, AVFoundation to write and export, Core Animation to draw,
   ImageIO for GIFs. No ffmpeg, no Node, no runtime dependencies to install next to the binary.
-- **Domain in `ReelCore`, side effects at the edges.** The tape parser, the take format and the writer are in the
+- **Domain in `ReelCore`, side effects at the edges.** The reel parser, the take format and the writer are in the
   core and tested without the screen; capture and app control need permissions CI does not have, so they stay thin.
-- **Every error names its line.** A tape that does not parse says which line and why; nothing fails silently.
+- **Every error names its line.** A reel that does not parse says which line and why; nothing fails silently.
 
 ## Working
 
 - `mise run test` and `mise run lint` before committing; `mise run fmt` fixes formatting.
 - Capturing needs Screen Recording for the terminal reel runs in, and driving an app needs Accessibility. `reel doctor` reports both without asking for them.
-- `mise run live` records `tapes/fixture.reel` against the fixture app for real and checks the take
+- `mise run live` records `reels/fixture.reel` against the fixture app for real and checks the take
   (`scripts/check-take.swift`): the window's size, silence before `Click "Play"` and 440 Hz after, and what the
   fixture logged. CI cannot run it. It plays a quiet tone and takes the mouse and keyboard for a few seconds.
-- `mise run live-web` records `tapes/web.reel` against a local page twice, in WebKit and in a Chromium-based browser
+- `mise run live-web` records `reels/web.reel` against a local page twice, in WebKit and in a Chromium-based browser
   (Chrome, Chromium, Brave, Edge or Playwright's download), and checks both takes. It plays a quiet tone; the mouse
   stays yours.
 - `mise run demos` records reel's own demos (`demos/*.reel`, the Musicbox hero first) into `docs/media/`, which git
-  ignores until the videos have a home. It plays music and takes the mouse and keyboard; CI only checks the tapes parse.
+  ignores until the videos have a home. It plays music and takes the mouse and keyboard; CI only checks the reels parse.
 - `mise run docs` builds the website as CI does (docs-builder over `docs/`, then `docs/reel-landing.html` over its
   home page, by `scripts/docs-landing.sh`) and serves it on http://localhost:4000/reel/. The `docs` workflow publishes
-  it to GitHub Pages, mpdreamz.github.io/reel, on every push to main. A change to the tape language or the command line
+  it to GitHub Pages, mpdreamz.github.io/reel, on every push to main. A change to the reel language or the command line
   updates `docs/` in the same pull request, as it does PLAN.md. The landing page's video, `docs/landing/reel-demo.mp4`,
   and `reel-demo.gif` are the Musicbox demo's `web` cut: copy `docs/media/musicbox-web.mp4` and `.gif` over them
   after `mise run demos`.

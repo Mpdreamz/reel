@@ -25,7 +25,7 @@ Zoom off
 Scales run from 1× to 8×. The zoomed region keeps the window's shape and stays inside it. reel says so when an
 element nearly fills the window, so fitting it hardly zooms.
 
-Moves take `ZoomDuration` (400 ms) with `ZoomEasing` (`ease-in-out`) unless the tape or the zoom says otherwise:
+Moves take `ZoomDuration` (400 ms) with `ZoomEasing` (`ease-in-out`) unless the reel or the zoom says otherwise:
 
 | Easing | Moves |
 |---|---|
@@ -62,5 +62,5 @@ The stretch is left out of the video. A `Hide` with no `Show` runs to the end. A
 is refused.
 
 Speed and trims take effect at the end of the action before them, like captions, and change with a render. Everything
-timed (captions, narration, ducking, zooms) moves with the cut; `.reel/<tape>/edit.json` says what was kept and how
+timed (captions, narration, ducking, zooms) moves with the cut; `.reel/<reel>/edit.json` says what was kept and how
 fast.

@@ -41,11 +41,11 @@ struct WebParsingTests {
             1,
             "'example.com' is not a web address; write https://…, http://…, file://… or a path to an .html file"
         ),
-        ("Launch x\nOpen https://a.dev\nOutput a.mp4", 2, "Open goes to a web page; this tape Launches an app"),
+        ("Launch x\nOpen https://a.dev\nOutput a.mp4", 2, "Open goes to a web page; this reel Launches an app"),
         (
             "Open https://a.dev\nOutput a.mp4\nLaunch x",
             3,
-            "a web tape Opens pages; line 1 already does, so there is no app to Launch"
+            "a web reel Opens pages; line 1 already does, so there is no app to Launch"
         ),
         ("Launch x\nOutput a.mp4\nClick css:.buy", 3, "css: targets are for web pages; Open one instead of Launch"),
         (
@@ -60,8 +60,8 @@ struct WebParsingTests {
         ),
         ("Open https://a.dev\nOutput a.mp4\nClick css:", 3, "css: needs a selector after it, such as css:.pricing"),
         // A setting that does not fit what the tape records is refused, not ignored.
-        ("Launch x\nSet Viewport 800x600", 2, "Set Viewport is for web pages (Open); this tape Launches an app"),
-        ("Launch x\nSet Browser chromium", 2, "Set Browser is for web pages (Open); this tape Launches an app"),
+        ("Launch x\nSet Viewport 800x600", 2, "Set Viewport is for web pages (Open); this reel Launches an app"),
+        ("Launch x\nSet Browser chromium", 2, "Set Browser is for web pages (Open); this reel Launches an app"),
         ("Open https://a.dev\nSet Size 800x600", 2, "Set Size is an app's window; a web page's size is Set Viewport"),
     ])
     func errors(text: String, line: Int, message: String) {

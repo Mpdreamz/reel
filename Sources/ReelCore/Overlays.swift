@@ -28,7 +28,7 @@ public enum OverlayPlan {
         let actions = tape.actions
         guard actions.count == take.events.count else {
             throw ReelError(
-                "the tape has \(actions.count) actions but the take recorded \(take.events.count); record it again"
+                "the reel has \(actions.count) actions but the take recorded \(take.events.count); record it again"
             )
         }
         for (step, event) in zip(actions, take.events) where step.source != event.command {

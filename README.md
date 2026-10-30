@@ -1,6 +1,6 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="design/social/png/readme-banner-dark-1280x320.png">
-  <img alt="reel: write a tape, get the video" src="design/social/png/readme-banner-light-1280x320.png">
+  <img alt="reel: write a reel, get the video" src="design/social/png/readme-banner-light-1280x320.png">
 </picture>
 
 Demo videos of Mac apps and web pages, from a script. Like [VHS](https://github.com/charmbracelet/vhs), but for
@@ -17,7 +17,7 @@ reel doctor
 
 macOS 15 or later, Apple silicon.
 
-## A tape
+## A reel
 
 ```
 Import //demos/reel.reelpreset
@@ -41,7 +41,7 @@ Zoom off
 reel musicbox.reel    # record, then render every output
 ```
 
-reel opens the app, plays the tape with a real cursor and real keys, records the window with the app's own sound,
+reel opens the app, plays the reel with a real cursor and real keys, records the window with the app's own sound,
 and renders movies and GIFs with captions, narration, zooms and title cards. This one is
 [reel's own demo](demos/musicbox.reel), recorded against Musicbox: its stings, its backgrounds and its five cuts,
 for GitHub, the website, and three social shapes, come from [one preset](demos/reel.reelpreset).
@@ -59,9 +59,9 @@ Captions, zooms, speed-ups, cuts, title cards and every output setting are appli
 - **Edits it:** zoom onto an element and follow it, speed through a stretch, cut what shouldn't be seen.
 - **Frames it:** title cards, backgrounds, and 16:9, 1:1 and 9:16 canvases.
 - **Fits it:** quality, codec and width; profiles for GitHub, the web and social feeds, each held to its size and
-  length; presets to share it all between tapes; conditions for what differs.
+  length; presets to share it all between reels; conditions for what differs.
 
-The [documentation](https://mpdreamz.github.io/reel/getting-started/) has the rest: a first tape, every command and
+The [documentation](https://mpdreamz.github.io/reel/getting-started/) has the rest: a first reel, every command and
 setting, and troubleshooting.
 
 ## From source
@@ -72,7 +72,7 @@ mise run test      # the tests
 mise run docs      # the website and docs, on http://localhost:4000/reel/
 ```
 
-[AGENTS.md](AGENTS.md) has the conventions; [PLAN.md](PLAN.md) the design and the tape language in full.
+[AGENTS.md](AGENTS.md) has the conventions; [PLAN.md](PLAN.md) the design and the reel language in full.
 
 The brand (logo, icons, colours, fonts, themes) is in [design/brand](design/brand); its fonts are under the SIL Open
 Font License.

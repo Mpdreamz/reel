@@ -1,10 +1,10 @@
 ---
-description: "Share settings and profiles between tapes with an imported .reelpreset, and define profiles of your own."
+description: "Share settings and profiles between reels with an imported .reelpreset, and define profiles of your own."
 ---
 
 # Presets
 
-Settings and profiles a team shares live in a `.reelpreset` file, which tapes import on their first lines:
+Settings and profiles a team shares live in a `.reelpreset` file, which reels import on their first lines:
 
 ```
 Import //demos/house.reelpreset
@@ -26,11 +26,11 @@ Profile docs extends web "Our docs site"
   Set MaxSize 8MB
 ```
 
-- **`Import`** lines come first, before `Launch` or `Open`; comments may come before them. A tape may import
+- **`Import`** lines come first, before `Launch` or `Open`; comments may come before them. A reel may import
   several, and a preset may import presets, in order. One that comes back round is an error.
-- **`Set` lines** in a preset are defaults. They apply as the tape says what it records, before the tape's own
+- **`Set` lines** in a preset are defaults. They apply as the reel says what it records, before the reel's own
   settings, which override them. A [profile](profiles.md) overrides both.
-- **Paths** in a preset are relative to the preset. `//` starts at the git root; see [Paths](../tapes/paths.md).
+- **Paths** in a preset are relative to the preset. `//` starts at the git root; see [Paths](../reels/paths.md).
 - A preset holds `Import`, `Set` and `Profile` lines, and nothing that records. An error in one names the file and
   line.
 
@@ -42,7 +42,7 @@ Profile <name> [extends <profile>] ["what it is for"]
   Set <setting> <value>
 ```
 
-A profile is its line and the indented `Set` lines under it, in a preset or in a tape; it ends at the first line
+A profile is its line and the indented `Set` lines under it, in a preset or in a reel; it ends at the first line
 that isn't indented.
 
 - **A built-in name** amends that profile: `Profile github` and its settings add to github's own.

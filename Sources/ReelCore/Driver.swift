@@ -53,7 +53,7 @@ final class Driver: Driving {
         activate()
         try await Task.sleep(for: .milliseconds(300))
         if !frontmost {
-            throw ReelError("the app is not in front, so the tape stopped rather than send input to another app")
+            throw ReelError("the app is not in front, so the reel stopped rather than send input to another app")
         }
     }
 
@@ -97,7 +97,7 @@ final class Driver: Driving {
             // Narration runs on the recorder's speech clock; the rest is render's.
             break
         case .open:
-            throw ReelError("Open goes to a web page; this tape launched an app")
+            throw ReelError("Open goes to a web page; this reel launched an app")
         case let .zoom(target, _, _):
             if case let .element(element) = target { return try await frame(of: element) }
         case let .wait(target):

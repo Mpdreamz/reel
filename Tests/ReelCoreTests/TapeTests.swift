@@ -117,14 +117,14 @@ struct TapeTests {
         (
             "Output a.mp4\nLaunch x",
             1,
-            "a tape starts with Launch <app> or Open <url> (after any Import lines), which says what it records"
+            "a reel starts with Launch <app> or Open <url> (after any Import lines), which says what it records"
         ),
         (
             "# a demo\nSleep 1s\nLaunch x",
             2,
-            "a tape starts with Launch <app> or Open <url> (after any Import lines), which says what it records"
+            "a reel starts with Launch <app> or Open <url> (after any Import lines), which says what it records"
         ),
-        ("Launch x\nOutput a.mp4\nLaunch y", 3, "a tape launches one app; line 1 already does"),
+        ("Launch x\nOutput a.mp4\nLaunch y", 3, "a reel launches one app; line 1 already does"),
         ("Launch x\nOutput a.webm", 2, "unsupported output type '.webm'; expected .mp4, .mov or .gif"),
         ("Launch x\nSet GifFrameRate 60", 2, "GifFrameRate must be a whole number from 1 to 50, not '60'"),
         ("Launch x\nSet GifWidth 50", 2, "GifWidth must be a whole number of pixels from 100 to 4000, not '50'"),
@@ -335,7 +335,7 @@ struct TapeTests {
     }
 
     @Test func wholeTapeErrors() {
-        #expect(failure("Launch x") == TapeError(message: "the tape has no Output"))
+        #expect(failure("Launch x") == TapeError(message: "the reel has no Output"))
         #expect(failure("# nothing but a comment") == TapeError(message: Tape.preface))
         #expect(failure("") == TapeError(message: Tape.preface))
         #expect(TapeError(line: 4, message: "boom").description == "line 4: boom")

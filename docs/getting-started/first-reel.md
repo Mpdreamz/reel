@@ -1,10 +1,10 @@
 ---
-description: "Record a first tape: a window, then a click, a caption, a voice and a GIF."
+description: "Record a first reel: a window, then a click, a caption, a voice and a GIF."
 ---
 
-# Your first tape
+# Your first reel
 
-A tape is a text file ending in `.reel`. The smallest one records an app's window for a few seconds:
+A reel is a text file ending in `.reel`. The smallest one records an app's window for a few seconds:
 
 ```
 # hello.reel
@@ -17,7 +17,7 @@ Sleep 3s
 reel hello.reel
 ```
 
-reel opens TextEdit, waits for its window, records it for three seconds and writes `hello.mp4` next to the tape. The
+reel opens TextEdit, waits for its window, records it for three seconds and writes `hello.mp4` next to the reel. The
 recording itself, the take, is kept in `.reel/hello/`, so changing what is drawn over it doesn't need a new recording.
 
 ## Make it do something
@@ -30,7 +30,7 @@ Set Size 1200x800
 
 Key cmd+n
 Caption "A new document"
-Type "Written by a tape.\n"
+Type "Written by a reel.\n"
 Key cmd+a
 Sleep 1s
 ```
@@ -41,7 +41,7 @@ Sleep 1s
 - `Type` types a character at a time; `\n` is return.
 - `Output hello.gif` writes a GIF as well, from the same recording.
 
-`reel check hello.reel` reads the tape and says what it would do, without recording anything.
+`reel check hello.reel` reads the reel and says what it would do, without recording anything.
 
 ## Narrate it
 
@@ -51,7 +51,7 @@ Say "TextEdit opens a new document."
 Key cmd+n
 Say@over "Then we type [type] a line."
 Wait [type]
-Type "Written by a tape.\n"
+Type "Written by a reel.\n"
 ```
 
 `Say` speaks a line in macOS's voice and waits for it to finish. `Say@over` speaks and carries on, and

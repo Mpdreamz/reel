@@ -35,12 +35,12 @@ The name is there whenever a profile is, so a file's name doesn't depend on how 
 The social limits are the strictest common ones, from third-party guides where a platform publishes none: Mastodon's
 40 MB default, X's 2:20 for standard accounts, TikTok's 287 MB on mobile. Subtitles are on because feeds play muted.
 
-`reel profiles` lists them with every setting; `reel profiles demo.reel` lists what a tape can render for, its
+`reel profiles` lists them with every setting; `reel profiles demo.reel` lists what a reel can render for, its
 [presets'](presets.md) profiles included, with where each setting comes from.
 
 ## How a profile applies
 
-A profile is `Set` lines, applied after the tape's own: a plain `Set` in the tape never cancels a profile. To give a
+A profile is `Set` lines, applied after the reel's own: a plain `Set` in the reel never cancels a profile. To give a
 profile a different value, name it in a [condition](conditions.md):
 
 ```
@@ -57,7 +57,7 @@ reel render demo.reel --profile social
 reel render demo.reel --profile github,web
 ```
 
-`--profile` on `run`, `render` and `check` picks among the tape's profiles, or among all of them when the tape lists
-none. A name the tape doesn't list, or no profile has, is refused before anything is recorded.
+`--profile` on `run`, `render` and `check` picks among the reel's profiles, or among all of them when the reel lists
+none. A name the reel doesn't list, or no profile has, is refused before anything is recorded.
 
 To make your own, or change a built-in one, see [Presets](presets.md).

@@ -5,7 +5,7 @@ description: "Quality, codec, width and frame rate, and fitting a movie or GIF u
 # Quality and size
 
 A screen recording is mostly still, so it compresses well. reel encodes every movie once, from a lossless render, as
-the tape says:
+the reel says:
 
 | Setting | Default | |
 |---|---|---|

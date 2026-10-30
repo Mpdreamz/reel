@@ -16,10 +16,10 @@ Click css:"form button[type=submit]"
 Wait "Welcome"
 ```
 
-`Open` takes `https://…`, `http://…`, `file://…` or a path to an `.html` file. Later in the tape, another `Open`
+`Open` takes `https://…`, `http://…`, `file://…` or a path to an `.html` file. Later in the reel, another `Open`
 goes to another page. `Set Viewport` is the page's size in points (1280x800 unless set).
 
-A web tape records the page alone, under the title bar, with the page's sound. It doesn't take your mouse or keyboard
+A web reel records the page alone, under the title bar, with the page's sound. It doesn't take your mouse or keyboard
 and needs no Accessibility: reel drives the page itself and draws the cursor into the video afterwards.
 
 ## Which browser
@@ -30,7 +30,7 @@ and needs no Accessibility: reel drives the page itself and draws the cursor int
 | `Set Browser chromium` | The first of Chrome, Chromium, Brave and Edge that is installed, else the newest Chromium Playwright downloaded. Started on a fresh profile, without tabs or an address bar, and removed afterwards. |
 | `Set Browser /Applications/Brave Browser.app` | That browser. |
 
-A browser the tape asks for that isn't there refuses the take rather than fall back to another. `reel doctor` says
+A browser the reel asks for that isn't there refuses the take rather than fall back to another. `reel doctor` says
 what `chromium` would be.
 
 WebKit can't be hovered and scrolls by script: macOS only sends mouse moves and wheel events to the active app,
@@ -38,4 +38,4 @@ and a tool started from a terminal can't make itself active. If a demo needs hov
 Chromium, which takes both over DevTools. WebKit's sound plays in helper processes it shares with Safari, so sound
 Safari plays during a take is recorded too.
 
-See [Elements](../tapes/elements.md) for how a page's elements are named.
+See [Elements](../reels/elements.md) for how a page's elements are named.

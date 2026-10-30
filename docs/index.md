@@ -5,9 +5,9 @@ description: "reel records demo videos of Mac apps and web pages from a script, 
 
 # reel
 
-Write a tape. Get the video.
+Write a reel. Get the video.
 
-reel records demos of Mac apps and web pages from a script. A tape is a short `.reel` file: what to open, what to
+reel records demos of Mac apps and web pages from a script. A reel is a short `.reel` file: what to open, what to
 click and type, what to say. reel plays it against the real app, records the window with the app's own sound, and
 renders a finished movie or GIF with captions, narration, zooms and title cards. Run it again when the app changes
 and the demo is up to date.
@@ -29,9 +29,9 @@ It is to Mac apps what [VHS](https://github.com/charmbracelet/vhs) is to termina
 
 | | |
 |---|---|
-| [Getting started](getting-started/index.md) | Install reel, grant its two permissions, and record a first tape. |
-| [Writing tapes](tapes/index.md) | How a tape is laid out, how it names what to click, and where its paths lead. |
+| [Getting started](getting-started/index.md) | Install reel, grant its two permissions, and record a first reel. |
+| [Writing reels](reels/index.md) | How a reel is laid out, how it names what to click, and where its paths lead. |
 | [Making a demo](demos/index.md) | Driving apps and web pages, narration, captions, zoom, speed-ups, cuts, and title cards. |
 | [Outputs](outputs/index.md) | Quality and file size, framing for social, GIFs, profiles, presets and conditions. |
 | [Reference](reference/index.md) | Every command, every setting, and the command line. |
-| [Troubleshooting](troubleshooting.md) | When a tape stops, a window is the wrong size, or a file is too big. |
+| [Troubleshooting](troubleshooting.md) | When a reel stops, a window is the wrong size, or a file is too big. |

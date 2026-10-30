@@ -4,7 +4,7 @@ description: "Every Set, its values and default, and whether it is fixed when re
 
 # Settings
 
-`Set <setting> <value>`, in the tape's setup or a [preset](../outputs/presets.md). **Recording** settings are fixed
+`Set <setting> <value>`, in the reel's setup or a [preset](../outputs/presets.md). **Recording** settings are fixed
 when the take is made and can't differ by profile; changing one needs a new recording. **Render** settings change
 with `reel render`, and profiles and [conditions](../outputs/conditions.md) can set them.
 

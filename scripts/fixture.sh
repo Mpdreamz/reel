@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds build/ReelFixture.app: the fixture app tapes/fixture.reel records.
+# Builds build/ReelFixture.app: the fixture app reels/fixture.reel records.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 swift build --product ReelFixture

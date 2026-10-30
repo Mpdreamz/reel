@@ -12,7 +12,7 @@ Output@1080x1920 vertical.mp4
 ```
 
 Framed, the recording sits centred on a canvas with padding around it, rounded corners and a soft shadow, over a
-background. An output is framed when it has a shape, or every output once the tape sets a background.
+background. An output is framed when it has a shape, or every output once the reel sets a background.
 
 | | |
 |---|---|
