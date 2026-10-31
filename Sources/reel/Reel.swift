@@ -104,8 +104,17 @@ struct Check: AsyncParsableCommand {
         case let .app(url): say("launch \(url.path)")
         case let .web(url):
             say("open \(url.absoluteString) at \(Int(parsed.web.viewport.width))x\(Int(parsed.web.viewport.height))")
+        case let .screen(layout):
+            say(
+                "draw a \(layout.rawValue) screen at \(Int(parsed.web.viewport.width))x\(Int(parsed.web.viewport.height)), "
+                    + "text at \(parsed.fontSize) points"
+            )
         }
-        say("capture at \(parsed.frameRate) fps, audio \(parsed.audio ? "on" : "off")")
+        if parsed.launch.isScreen {
+            say("draw at \(parsed.frameRate) fps")
+        } else {
+            say("capture at \(parsed.frameRate) fps, audio \(parsed.audio ? "on" : "off")")
+        }
         let lines = parsed.steps.count(where: { if case .say = $0.command { true } else { false } })
         if lines > 0 {
             say(

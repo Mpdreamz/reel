@@ -60,6 +60,8 @@ public struct Tape: Equatable, Sendable {
     public var outro: Section?
     /// For a tape that `Open`s a web page.
     public var web: WebSettings
+    /// `Set FontSize`: a code screen's text, in points.
+    public var fontSize: Int
     /// `Set Background`: the recording is framed on it in every output; nil frames only outputs with a shape.
     public var background: Background?
     /// Room around a framed recording, as a share of the canvas's shorter side.
@@ -74,15 +76,17 @@ public struct Tape: Equatable, Sendable {
     public static let defaultGifFrameRate = 15
     public static let defaultGifWidth = 800
     public static let defaultGifColors = 256
+    public static let defaultFontSize = 18
 
     /// What every tape starts with, and the error a tape gets when it does not.
-    static let preface = "a reel starts with Launch <app> or Open <url> (after any Import lines), which says what it records"
+    static let preface = "a reel starts with Launch <app>, Open <url> or Screen code (after any Import lines), which says what it records"
 
     /// Whether playing the tape needs Accessibility: anything that finds, moves or types into the app.
     public var drivesTheApp: Bool {
-        size != nil || steps.contains {
+        guard !launch.isScreen else { return false }
+        return size != nil || steps.contains {
             switch $0.command {
-            case .sleep, .caption, .say, .reach, .speed, .hide: false
+            case .sleep, .caption, .say, .reach, .speed, .hide, .focus, .mark, .callout: false
             case let .zoom(target, _, _): target.isElement
             default: true
             }
@@ -136,10 +140,36 @@ public enum LaunchTarget: Equatable, Sendable {
     case app(URL)
     /// `Open <url>`: a web page, in a browser reel drives over the DevTools protocol.
     case web(URL)
+    /// `Screen code`: no app and no page, a screen reel draws itself (see `ScreenMovie`).
+    case screen(ScreenLayout)
 
     public var isWeb: Bool {
         if case .web = self { true } else { false }
     }
+
+    public var isScreen: Bool {
+        if case .screen = self { true } else { false }
+    }
+}
+
+/// What a screen reel shows. One editor for now.
+public enum ScreenLayout: String, Equatable, Sendable, CaseIterable {
+    case code
+}
+
+/// `Code <file> [lines a-b] [at …]`: a file opened in a code screen's editor.
+public struct CodeFile: Equatable, Sendable {
+    public var url: URL
+    /// The lines shown, scrolled to and named in the header; nil for the whole file.
+    public var lines: ClosedRange<Int>?
+    /// Where the cursor goes; nil for the start of `lines` (or of the file).
+    public var at: CodeAnchor?
+}
+
+/// A place in the open file: a line, or the first match of some text (the cursor goes to its start).
+public enum CodeAnchor: Equatable, Sendable {
+    case line(Int)
+    case text(String)
 }
 
 /// Which browser shows a web page. Anything but WebKit is a promise the tape makes: when it cannot be kept, recording
@@ -226,6 +256,17 @@ public enum Command: Equatable, Sendable {
     case hide(Bool)
     /// `Open <url>` after the tape has started: goes to another page.
     case open(URL)
+    /// `Code <file>`: opens a file in a code screen's editor.
+    case code(CodeFile)
+    /// `Go line 40`, `Go "func play"`: the cursor moves there, the editor scrolling to show it.
+    case go(CodeAnchor)
+    /// `Focus lines 20-24`: those lines bright and the rest dimmed, until `Focus off` (nil).
+    case focus(ClosedRange<Int>?)
+    /// `Mark "text" [n]`: a box behind the first match of the text, numbered when `n` is given; `Mark off` (nil)
+    /// clears them all.
+    case mark(String?, number: Int?)
+    /// `Callout "text" "label"`: a bubble with the label at the first match of the text, until `Callout off` (nil).
+    case callout(String?, label: String?)
 
     /// Drawn or edited at render time only: recording skips it, so it can change without a new take.
     public var isRenderOnly: Bool {
@@ -395,6 +436,7 @@ public extension Tape {
         var introLine = 0, outroLine = 0
         var introBackground: Background?, outroBackground: Background?
         var launch: (target: LaunchTarget, line: Int)?
+        var fontSize: Int?
         var steps: [Step] = []
 
         /// One `Set`, from the tape or from its profile.
@@ -421,8 +463,12 @@ public extension Tape {
                 ).map(\.text).joined(separator: " ")
                 tested += names.map { ($0, origin) }
             }
+            let isScreen = launch?.target.isScreen == true
             func forWeb(_ what: String) throws {
-                if !isWeb { throw fail("\(what) is for web pages (Open); this reel Launches an app") }
+                if !isWeb {
+                    throw fail("\(what) is for web pages (Open); this reel " +
+                        (isScreen ? "is a code screen" : "Launches an app"))
+                }
             }
             switch setting {
             case "FrameRate":
@@ -466,6 +512,12 @@ public extension Tape {
                     throw fail("VideoWidth must be a whole number of pixels from 100 to 8000, not '\(value)'")
                 }
                 encoding.width = width
+            case "FontSize":
+                guard isScreen else { throw fail("Set FontSize is for a code screen (Screen code)") }
+                guard let size = Int(value), (8 ... 72).contains(size) else {
+                    throw fail("FontSize must be a whole number of points from 8 to 72, not '\(value)'")
+                }
+                fontSize = size
             case "VideoFrameRate":
                 guard let rate = Int(value), (1 ... 120).contains(rate) else {
                     throw fail("VideoFrameRate must be a whole number from 1 to 120, not '\(value)'")
@@ -514,13 +566,15 @@ public extension Tape {
                     web.browser = .app(app)
                 }
             case "Viewport":
-                try forWeb("Set Viewport")
+                // A code screen is a page too: its size in points.
+                if !isScreen { try forWeb("Set Viewport") }
                 guard let parsed = parseSize(value) else {
                     throw fail("Viewport must be <width>x<height> in points, such as 1280x800, not '\(value)'")
                 }
                 web.viewport = parsed
             case "Size":
                 if isWeb { throw fail("Set Size is an app's window; a web page's size is Set Viewport") }
+                if isScreen { throw fail("Set Size is an app's window; a code screen's size is Set Viewport") }
                 guard let parsed = parseSize(value) else {
                     throw fail("Size must be <width>x<height> in points, such as 1280x800, not '\(value)'")
                 }
@@ -593,7 +647,7 @@ public extension Tape {
                         + "KeyBadges, ClickRipples, Quality, Codec, VideoWidth, VideoFrameRate, MaxSize, MaxLength, Shape, "
                         + "Formats, Profiles, GifFrameRate, GifWidth, GifColors, Voice, VoiceServer, VoiceSeed, "
                         + "VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, "
-                        + "IntroBackground, OutroBackground, Browser, Viewport, Background or Padding"
+                        + "IntroBackground, OutroBackground, Browser, Viewport, FontSize, Background or Padding"
                 )
             }
         }
@@ -666,8 +720,14 @@ public extension Tape {
                 throw fail("\(name) takes no @option")
             }
             // The first line says what the tape records; everything after is read knowing it.
-            if launch == nil, !["Launch", "Open", "Import"].contains(name) { throw fail(Tape.preface) }
+            if launch == nil, !["Launch", "Open", "Import", "Screen"].contains(name) { throw fail(Tape.preface) }
             let isWeb = launch?.target.isWeb == true
+            let isScreen = launch?.target.isScreen == true
+            /// What this reel is, for errors.
+            let kind = isScreen ? "is a code screen" : isWeb ? "Opens web pages" : "Launches an app"
+            let forScreen = { (what: String) throws in
+                if !isScreen { throw fail("\(what) is for a code screen: start the reel with Screen code") }
+            }
 
             switch name {
             case "Import":
@@ -756,7 +816,7 @@ public extension Tape {
                     try applyImports(isWeb: true)
                 } else {
                     // Any later Open goes to another page, as a step.
-                    guard isWeb else { throw fail("Open goes to a web page; this reel Launches an app") }
+                    guard isWeb else { throw fail("Open goes to a web page; this reel \(kind)") }
                     step(.open(url))
                 }
 
@@ -766,6 +826,7 @@ public extension Tape {
                 if let earlier = launch {
                     throw fail(
                         isWeb ? "a web reel Opens pages; line \(earlier.line) already does, so there is no app to Launch"
+                            : isScreen ? "this reel is a code screen (line \(earlier.line)), so there is no app to Launch"
                             : "a reel launches one app; line \(earlier.line) already does"
                     )
                 }
@@ -777,6 +838,87 @@ public extension Tape {
                     line
                 )
                 try applyImports(isWeb: false)
+
+            case "Screen":
+                try setup(name)
+                if let earlier = launch {
+                    throw fail("line \(earlier.line) already says what this reel records; a reel records one thing")
+                }
+                let usage = "expected Screen code"
+                guard let layout = try ScreenLayout(rawValue: single(words, usage: usage, fail: fail)) else {
+                    throw fail(usage)
+                }
+                launch = (.screen(layout), line)
+                try applyImports(isWeb: false)
+
+            case "Code":
+                try forScreen("Code")
+                let usage = "expected Code <file> [lines <a>-<b>] [at line <n> | at \"<text>\"]"
+                guard let path = args.first, !path.quoted else { throw fail(usage) }
+                var rest = args.dropFirst()
+                var range: ClosedRange<Int>?
+                var at: CodeAnchor?
+                while let word = rest.popFirst() {
+                    switch (word.quoted, word.text) {
+                    case (false, "lines"):
+                        guard let r = rest.popFirst().flatMap({ lineRange($0.text) }) else { throw fail(usage) }
+                        range = r
+                    case (false, "at"):
+                        guard let next = rest.popFirst() else { throw fail(usage) }
+                        at = try codeAnchor(next, rest: &rest, fail: fail)
+                    default: throw fail(usage)
+                    }
+                }
+                let url = try locate(path.text, from: directory, at: "line \(line)", fail: fail)
+                step(.code(CodeFile(url: url, lines: range, at: at)))
+
+            case "Go":
+                try forScreen("Go")
+                let usage = "expected Go line <n> or Go \"<text>\""
+                guard let first = args.first else { throw fail(usage) }
+                var rest = args.dropFirst()
+                let anchor = try codeAnchor(first, rest: &rest, fail: fail)
+                guard rest.isEmpty else { throw fail(usage) }
+                step(.go(anchor))
+
+            case "Focus":
+                try forScreen("Focus")
+                if words == ["off"] {
+                    step(.focus(nil))
+                } else {
+                    guard words.count == 2, words[0] == "lines", let range = lineRange(words[1]) else {
+                        throw fail("expected Focus lines <a>-<b> or Focus off")
+                    }
+                    step(.focus(range))
+                }
+
+            case "Mark":
+                try forScreen("Mark")
+                if args.count == 1, !args[0].quoted, args[0].text == "off" {
+                    step(.mark(nil, number: nil))
+                } else {
+                    let usage = "expected Mark \"<text>\" [number] or Mark off"
+                    guard (1 ... 2).contains(args.count), args[0].quoted,
+                          !args[0].text.isEmpty else { throw fail(usage) }
+                    let number = try args.dropFirst().first.map { word -> Int in
+                        guard !word.quoted, let n = Int(word.text), (1 ... 99).contains(n) else {
+                            throw fail("a mark's number is 1 to 99, not '\(word.text)'")
+                        }
+                        return n
+                    }
+                    step(.mark(args[0].text, number: number))
+                }
+
+            case "Callout":
+                try forScreen("Callout")
+                if args.count == 1, !args[0].quoted, args[0].text == "off" {
+                    step(.callout(nil, label: nil))
+                } else {
+                    guard args.count == 2, args[0].quoted, args[1].quoted, !args[0].text.isEmpty else {
+                        throw fail("expected Callout \"<text>\" \"<label>\" or Callout off")
+                    }
+                    step(.callout(args[0].text, label: args[1].text))
+                }
 
             case "Sleep":
                 let value = try single(words, usage: "Sleep <duration>", fail: fail)
@@ -919,7 +1061,8 @@ public extension Tape {
             default:
                 let known = [
                     "Output", "Set", "Launch", "Sleep", "Click", "Wait", "Type", "Key", "Scroll", "Caption", "Say",
-                    "Zoom", "Speed", "Hide", "Show", "Intro", "Outro", "Open",
+                    "Zoom", "Speed", "Hide", "Show", "Intro", "Outro", "Open", "Screen", "Code", "Go", "Focus", "Mark",
+                    "Callout",
                 ]
                 let hint = known.first { $0.lowercased() == name.lowercased() }.map { "; did you mean \($0)?" }
                 throw fail("unknown command '\(name)'" + (hint ?? "; expected one of \(known.joined(separator: ", "))"))
@@ -978,6 +1121,11 @@ public extension Tape {
             if let profile { output.url = profile.suffixed(output.url) }
             return output
         }
+        if launch.target.isScreen {
+            for step in steps {
+                if let problem = screenProblem(step.command) { throw TapeError(line: step.line, message: problem) }
+            }
+        }
         if !launch.target.isWeb {
             for step in steps
                 where step.command.targets.contains(where: { if case .css = $0 { true } else { false } })
@@ -1022,6 +1170,7 @@ public extension Tape {
                 return section
             },
             web: web,
+            fontSize: fontSize ?? defaultFontSize,
             background: background,
             padding: padding,
             launch: launch.target,
@@ -1218,4 +1367,53 @@ func tokenize(_ line: String, line number: Int) throws -> [Token] {
     if quoted { throw TapeError(line: number, message: "unterminated quote") }
     flush()
     return tokens
+}
+
+/// `12-40`, or a single line `12`.
+private func lineRange(_ text: String) -> ClosedRange<Int>? {
+    let parts = text.split(separator: "-", omittingEmptySubsequences: false)
+    guard (1 ... 2).contains(parts.count), let a = Int(parts[0]), let b = Int(parts[parts.count - 1]), a >= 1, b >= a
+    else { return nil }
+    return a ... b
+}
+
+/// `line 40` (the number taken from `rest`), or `"text"`.
+private func codeAnchor(
+    _ word: Token, rest: inout ArraySlice<Token>, fail: (String) -> TapeError
+) throws -> CodeAnchor {
+    if word.quoted {
+        guard !word.text.isEmpty else { throw fail("a place in the code is line <n> or some text to find, in quotes") }
+        return .text(word.text)
+    }
+    guard word.text == "line", let n = rest.popFirst().flatMap({ Int($0.text) }), n >= 1 else {
+        throw fail("a place in the code is line <n> or some text to find, in quotes")
+    }
+    return .line(n)
+}
+
+/// Why a step cannot be in a code screen, nil when it can. The editor is reel's own: there is nothing to click, scroll
+/// or wait for, and it takes only an editor's keys.
+private func screenProblem(_ command: Command) -> String? {
+    switch command {
+    case .click, .scroll, .open:
+        "a code screen has no app or page to drive; it takes Code, Go, Type, Key and the rest"
+    case .wait:
+        "a code screen has nothing to wait for; Wait [marker] waits for narration"
+    case let .zoom(target, _, _) where target.isElement:
+        "a code screen zooms on a point (Zoom @x,y) or the cursor, not an element"
+    case let .key(combo, _)
+        where !combo.modifiers.subtracting(.shift).isEmpty || !ScreenKeys.supported.contains(combo.key):
+        "a code screen's editor takes the keys \(ScreenKeys.supported.sorted().joined(separator: ", ")), "
+            + "with shift to select, not \(combo.description)"
+    default:
+        nil
+    }
+}
+
+/// The keys a code screen's editor takes.
+enum ScreenKeys {
+    static let supported: Set<String> = [
+        "return", "enter", "tab", "space", "backspace", "delete", "forwarddelete", "escape", "esc",
+        "up", "down", "left", "right", "home", "end", "pageup", "pagedown",
+    ]
 }

@@ -1,0 +1,38 @@
+# reel's code demo: reel walks through a little of its own source, in Swift and then in Java, narrated by the same
+# voice as its other demos. `mise run demos code` records it. A code screen is reel's own editor, drawn a frame at a
+# time: nothing to install, no window, no permissions. The files are copies in demos/code, so the lines stay put.
+Import //demos/reel.reelpreset
+Screen code
+
+Output //docs/media/code.mp4
+Output //docs/media/code.gif
+Set Viewport 1100x620
+Set FontSize 20
+# reel's own stings open and close it, as they do the other demos; the square cut gets title cards.
+Intro@crossfade,ease-out,600ms square ? "reel" "Code too" : 2s
+Outro@fade,800ms square ? "Recorded with reel" "brew install --cask mpdreamz/tap/reel" : 2s
+
+Code code/SpeechClock.swift
+Say "Reel walks through code too, in an editor of its own. Nothing to install, and no permissions."
+Go "public mutating func say"
+Focus lines 9-20
+Say "This is how reel keeps one narrated line from talking over the next."
+Mark "max(now, speechEnd)" 1
+Callout "max(now, speechEnd)" "when it's reached, or after the line before"
+Say "A line starts when the reel reaches it, or when the one before it ends."
+Callout off
+Mark "speechEnd = start + line.duration" 2
+Say "And it ends a line's length later."
+Mark off
+Focus off
+Code code/SpeechClock.java at "public double[] say"
+Say "The same in Java. Dozens of languages, coloured as your editor colours them."
+Go "return new double[]"
+Key end
+Key return
+Zoom cursor 1.5x
+Type@60ms "// typed at your pace, as you would"
+Sleep 600ms
+Zoom off
+Say "And that's a take."
+Sleep 1s

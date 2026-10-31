@@ -21,6 +21,9 @@ public enum Recorder {
         let narration = try await Narration.prepare(
             tape, into: location.directory, voices: tape.voice.synthesizer(for:), log: log
         )
+        if tape.launch.isScreen {
+            return try await recordScreen(tape, narration: narration, into: location, log: log)
+        }
         let stage = if case let .web(url) = tape.launch {
             try await webStage(tape, opening: url, log: log)
         } else {
@@ -297,6 +300,8 @@ public enum Recorder {
             url = path
         case .web:
             preconditionFailure("a web page is opened by its stage")
+        case .screen:
+            preconditionFailure("a code screen is drawn, not launched")
         }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
@@ -369,7 +374,7 @@ public enum Recorder {
         Int(((now() - start).seconds * 1000).rounded())
     }
 
-    private static func even(_ pixels: CGFloat) -> Int {
+    static func even(_ pixels: CGFloat) -> Int {
         Int(pixels) & ~1
     }
 }

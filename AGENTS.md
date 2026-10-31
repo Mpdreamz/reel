@@ -36,7 +36,13 @@ or both. Read `PLAN.md` first.
   updates `docs/` in the same pull request, as it does PLAN.md. The landing page's video, `docs/landing/reel-demo.mp4`,
   and `reel-demo.gif` are the Musicbox demo's `web` cut: copy `docs/media/musicbox-web.mp4` and `.gif` over them
   after `mise run demos`. Its web pages video, `docs/landing/web-demo.mp4`, is the Commons demo's `web` cut
-  (`docs/media/commons-web.mp4`), with `web-poster.jpg` a frame of it.
+  (`docs/media/commons-web.mp4`), with `web-poster.jpg` a frame of it; its code video, `docs/landing/code-demo.mp4`,
+  is the code demo's (`docs/media/code-web.mp4`), with `code-poster.jpg`.
+- The code screen (`Screen code`) is a page in `Sources/ReelCore/Resources/Screen`: `screen.html` and `screen.js`,
+  the fonts, and Monaco, which `scripts/vendor-monaco.sh` downloads at a pinned version and checksum (bump both there
+  and run it again; never edit `monaco/` by hand). Nothing in the page may read the wall clock: animations are tweens
+  on `screen.now`, which `pump` moves, or the same reel would draw different takes (`ScreenRecordingTests` catches
+  it). SwiftPM builds the page into `Reel_ReelCore.bundle`, which every way of installing reel puts beside the binary.
 - The brand (logo, icons, colours, fonts, editor themes) is in `design/brand`, social images in `design/social`, the
   designed stings in `design/motion`; the demos' backgrounds in `demos/backgrounds`.
 - Branch names: `feature/`, `fix/`, `docs/`, `chore/`, `ci/`. Pull requests are squash-merged.
@@ -45,9 +51,9 @@ or both. Read `PLAN.md` first.
 
 Merges to main keep a draft release up to date (release-drafter; branch names set the label). `gh workflow run
 release -f version=0.1.0` (or empty for the draft's version) builds main (`scripts/build-release.sh`, the version
-written in and checked by `reel --version`), signs it with the Developer ID and notarizes it, attaches `reel-arm64.zip`
-and its checksum to the draft, publishes it, and writes `packaging/homebrew/reel.rb` to `mpdreamz/homebrew-tap`. A
-`dry_run` does everything but release, and keeps the zip on the run. The secrets are stored with
-`scripts/release-secrets.sh` (run by the owner, never by an agent); without them a release is ad-hoc signed and not
-sent to Homebrew. The `notary` workflow asks Apple about a slow or rejected submission; `tap` redoes the tap.
+written in and checked by `reel --version`, `Reel_ReelCore.bundle` beside it), signs it with the Developer ID and
+notarizes it, attaches `reel-arm64.zip` (both, at its top) and its checksum to the draft, publishes it, and writes
+`packaging/homebrew/reel.rb` to `mpdreamz/homebrew-tap`. A `dry_run` does everything but release, and keeps the zip
+on the run. The secrets are stored with `scripts/release-secrets.sh` (run by the owner, never by an agent); without
+them a release is ad-hoc signed and not sent to Homebrew. The `notary` workflow asks Apple about a slow or rejected submission; `tap` redoes the tap.
 
