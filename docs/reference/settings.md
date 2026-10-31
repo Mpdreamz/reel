@@ -15,7 +15,8 @@ with `reel render`, and profiles and [conditions](../outputs/conditions.md) can 
 | `FrameRate` | Frames a second captured, 1 to 120 | 60 |
 | `Audio` | `on`, `off`: record the app's sound | on |
 | `Size` | `<width>x<height>` in points: the app window's size | as it opens |
-| `Viewport` | `<width>x<height>` in points: a web page's size | 1280x800 |
+| `Viewport` | `<width>x<height>` in points: a web page's or a code screen's size | 1280x800 |
+| `FontSize` | A code screen's text, 8 to 72 points | 18 |
 | `Browser` | `webkit`, `chromium` or an `.app` path | webkit |
 | `TypingSpeed` | Pause after each typed character | 50ms |
 | `WaitTimeout` | How long `Wait` and `Click` look for an element | 10s |

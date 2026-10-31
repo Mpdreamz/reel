@@ -19,14 +19,18 @@
 8. **Web pages.** `Open <url>` instead of `Launch`: in WebKit by default, or a Chromium-based browser over DevTools,
    only the page recorded, with a drawn cursor (see "Web pages"). macOS only, reels only; Playwright journeys and other
    platforms are still to be discussed.
+9. **Code screens.** `Screen code` instead of `Launch` or `Open`: reel's own editor (Monaco, shipped with reel) in a
+   page nobody sees, drawn a frame at a time, with `Code`, `Go`, `Focus`, `Mark` and `Callout` (see "Code screens").
+   Next: a terminal screen, scenes that join kinds in one video, moving between files (`Peek`, `Split`, `Link`),
+   diffs, then morphing one snippet into the next.
 
 ## The reel
 
 A reel is a `.reel` file (not `.tape`, which is VHS's, and which editors and GitHub would take for a VHS tape); any
 other file is refused. One command per line. `#` starts a comment at the start of a line or followed by a space (`#play` after a command
-is an identifier). A reel starts with `Launch <app>` or `Open <url>` (after any `Import` lines, see "Presets"), which says what it records; the rest is read
-knowing it, so a setting for the other kind (`Set Viewport` in an app reel, `Set Size` in a web reel, a `css:`
-target in an app reel) is refused at its line rather than ignored. Setup (`Output`, `Set`, `Intro`, `Outro`) comes
+is an identifier). A reel starts with `Launch <app>`, `Open <url>` or `Screen code` (after any `Import` lines, see "Presets"), which says what it records; the rest is read
+knowing it, so a setting for another kind (`Set Viewport` in an app reel, `Set Size` in a web reel, a `css:`
+target in an app reel, `Click` on a code screen) is refused at its line rather than ignored. Setup (`Output`, `Set`, `Intro`, `Outro`) comes
 next, and recording starts at the first command after it. Durations are `500ms`, `2s`, `1.5s`, `1m` or a bare number of seconds.
 
 A path is relative to the file it is written in, from home with `~`, absolute with `/`, or from the git root with
@@ -48,7 +52,14 @@ sits next to the same things.
 | `Launch <bundle id or .app path>` | The app to record: a bundle id, or a path with a slash (`./Name.app` beside the reel). Reel waits for its first window. |
 | `Open <url>` | A web page to record instead of an app: `https://…`, `file://…` or an `.html` path. Later in the reel, goes to another page. |
 | `Set Browser webkit\|chromium\|<app>` | WebKit, built in, is the default. `chromium` is any Chromium-based browser reel finds; an `.app` is that one. A chosen browser that cannot be had refuses the take; it never falls back. |
-| `Set Viewport <w>x<h>` | The page's size in points, default 1280x800. |
+| `Set Viewport <w>x<h>` | The page's size in points, default 1280x800; a code screen's size too. |
+| `Screen code` | A code screen to record instead of an app or a page: reel's own editor. See "Code screens". |
+| `Set FontSize <points>` | A code screen's text, 8–72, default 18. |
+| `Code <file> [lines <a>-<b>] [at line <n> \| at "<text>"]` | Show a file (only lines `a`–`b`, numbered as in the file), the cursor at a line or the first text. |
+| `Go line <n>`, `Go "<text>"` | Move the cursor there, the view easing to it when it is out of sight. |
+| `Focus lines <a>-<b>`, `Focus off` | Dim every other line until `Focus off`. |
+| `Mark "<text>" [n]`, `Mark off` | A box around the first text, numbered `n`; boxes add up until `Mark off`. |
+| `Callout "<text>" "<label>"`, `Callout off` | A bubble saying the label beside the text's line, until the next callout or `Callout off`. |
 | `Sleep <duration>` | Wait. |
 | `Wait <element>` | Wait until the element shows. |
 | `Click <element or @x,y>` | Glide the cursor there and click. |
@@ -185,6 +196,27 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 - `mise run live-web` records `reels/web.reel` against `reels/web/fixture.html` twice, in WebKit and with `Set
   Browser chromium`: the page logs what happened and the reel waits for each entry, so a step that did not work stops
   the take.
+
+## Code screens
+
+- **No app.** `Screen code` records reel's own editor: Monaco (`scripts/vendor-monaco.sh` pins it, 7.8 MB without
+  its language services, which only an editing session needs) in a `WKWebView` that is never on screen. It needs no
+  permission, no window, and nothing installed: the page, Monaco and the fonts ship beside reel in
+  `Reel_ReelCore.bundle`, which reel finds next to its binary through Homebrew's symlink.
+- **A clock of its own.** A code screen has nothing to capture in real time, so a take is drawn: the steps play on
+  the take's own clock, and each frame is a snapshot of the page when its time comes. Nothing in the page reads the
+  wall clock; `requestAnimationFrame` and every fade and scroll run when reel pumps the page, so the same reel draws
+  the same take, and drawing it takes as long as it takes (about 12 ms a frame at 1280x720 points). A still screen
+  writes no frames, as a capture of a still window sends none.
+- **What it draws.** A header with the file's name, its folder from the git root, and its language (from Monaco's
+  own list of extensions: Swift, TypeScript, JavaScript, JSON, YAML, Markdown, shell, Python, Rust, Go, C#, HTML, CSS,
+  Java and more). The caret, marks and callouts are reel's own overlay, placed from Monaco's layout: Monaco draws its
+  cursor only while focused, which a page nobody sees never is. A callout sits past the end of its line where it fits,
+  so it covers no code. `Focus`, `Mark` and `Callout` are recorded with the take (a code screen's take is cheap to
+  draw again), and the caret's path is the take's cursor, so `Zoom cursor` follows the typing.
+- **Keys.** `Type` and the keys an editor takes: return (keeping the line's indent), tab, space, backspace,
+  forwarddelete, escape, the arrows, home, end, page up and down, with shift to select. Anything else is refused at
+  its line.
 
 ## Framing
 

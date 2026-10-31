@@ -25,8 +25,13 @@ run = [
 ]
 
 [tasks.install]
-description = "Release build, copied to ~/.local/bin/reel"
-run = ["swift build -c release", "install -m 755 .build/release/reel ~/.local/bin/reel"]
+description = "Release build, copied to ~/.local/bin/reel with the code screen's bundle beside it"
+run = [
+    "swift build -c release",
+    "install -m 755 \"$(swift build -c release --show-bin-path)/reel\" ~/.local/bin/reel",
+    "rm -rf ~/.local/bin/Reel_ReelCore.bundle",
+    "cp -R \"$(swift build -c release --show-bin-path)/Reel_ReelCore.bundle\" ~/.local/bin/",
+]
 
 [tasks.fixture]
 description = "Build build/ReelFixture.app, the app reels/fixture.reel records"

@@ -51,6 +51,8 @@ final class WebDriver: Driving {
             try await Task.sleep(for: duration)
         case .caption, .say, .reach, .speed, .hide:
             break
+        case .code, .go, .focus, .mark, .callout:
+            throw ReelError("a code screen's steps are not for a web page")
         case let .wait(target):
             _ = try await element(target, scroll: false)
         case let .click(target):

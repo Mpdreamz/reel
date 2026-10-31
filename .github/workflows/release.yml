@@ -105,8 +105,12 @@ jobs:
       - name: Package the zip
         run: |
           mkdir -p dist
-          # The binary at the zip's top, as the cask's `binary "reel"` expects it.
-          ditto -c -k build/reel dist/reel-arm64.zip
+          # The binary at the zip's top, as the cask's `binary "reel"` expects it, and the code screen's bundle beside
+          # it: Homebrew links only the binary, and reel looks for the bundle next to where the link leads.
+          mkdir -p build/package
+          cp build/reel build/package/
+          cp -R build/Reel_ReelCore.bundle build/package/
+          ditto -c -k build/package dist/reel-arm64.zip
           unzip -l dist/reel-arm64.zip
 
       - name: Notarize

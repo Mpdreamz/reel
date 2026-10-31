@@ -111,18 +111,18 @@ struct TapeTests {
         (
             "Launch x\nOutput a.mp4\nTypo",
             3,
-            "unknown command 'Typo'; expected one of Output, Set, Launch, Sleep, Click, Wait, Type, Key, Scroll, Caption, Say, Zoom, Speed, Hide, Show, Intro, Outro, Open"
+            "unknown command 'Typo'; expected one of Output, Set, Launch, Sleep, Click, Wait, Type, Key, Scroll, Caption, Say, Zoom, Speed, Hide, Show, Intro, Outro, Open, Screen, Code, Go, Focus, Mark, Callout"
         ),
         ("Launch x\nSleep 1s\nOutput a.mp4", 3, "Output is setup and must come before the first step (line 2)"),
         (
             "Output a.mp4\nLaunch x",
             1,
-            "a reel starts with Launch <app> or Open <url> (after any Import lines), which says what it records"
+            "a reel starts with Launch <app>, Open <url> or Screen code (after any Import lines), which says what it records"
         ),
         (
             "# a demo\nSleep 1s\nLaunch x",
             2,
-            "a reel starts with Launch <app> or Open <url> (after any Import lines), which says what it records"
+            "a reel starts with Launch <app>, Open <url> or Screen code (after any Import lines), which says what it records"
         ),
         ("Launch x\nOutput a.mp4\nLaunch y", 3, "a reel launches one app; line 1 already does"),
         ("Launch x\nOutput a.webm", 2, "unsupported output type '.webm'; expected .mp4, .mov or .gif"),
@@ -143,7 +143,7 @@ struct TapeTests {
         (
             "Launch x\nSet Speed 2",
             2,
-            "unknown setting 'Speed'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, KeyBadges, ClickRipples, Quality, Codec, VideoWidth, VideoFrameRate, MaxSize, MaxLength, Shape, Formats, Profiles, GifFrameRate, GifWidth, GifColors, Voice, VoiceServer, VoiceSeed, VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, IntroBackground, OutroBackground, Browser, Viewport, Background or Padding"
+            "unknown setting 'Speed'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, KeyBadges, ClickRipples, Quality, Codec, VideoWidth, VideoFrameRate, MaxSize, MaxLength, Shape, Formats, Profiles, GifFrameRate, GifWidth, GifColors, Voice, VoiceServer, VoiceSeed, VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, IntroBackground, OutroBackground, Browser, Viewport, FontSize, Background or Padding"
         ),
         ("Launch x\nSet Audio", 2, "expected Set <setting> <value>"),
         (

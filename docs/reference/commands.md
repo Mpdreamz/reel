@@ -8,9 +8,10 @@ description: "Every command a reel can hold."
 
 | Command | |
 |---|---|
-| `Import <path>` | A [preset](../outputs/presets.md) to read first. Only on the first lines, before `Launch` or `Open`. |
+| `Import <path>` | A [preset](../outputs/presets.md) to read first. Only on the first lines, before `Launch`, `Open` or `Screen`. |
 | `Launch <bundle id or .app path>` | The app to record: a bundle id, or a path with a slash (`./Name.app`). reel waits for its first window. |
 | `Open <url>` | A web page to record instead: `https://…`, `http://…`, `file://…` or an `.html` path. Later in the reel, goes to another page. |
+| `Screen code` | A [code screen](../demos/code.md) to record instead: an editor of reel's own. |
 
 ## Setup
 
@@ -49,6 +50,18 @@ Before the first step.
 | `Zoom@<easing>,<duration> …` | A zoom with its own move. |
 | `Speed <rate>x` … `Speed off` | Plays the stretch faster, above 1× up to 16×. |
 | `Hide` … `Show` | Leaves the stretch out. A `Hide` with no `Show` runs to the end. |
+
+## Code screens
+
+After `Screen code`. See [Code](../demos/code.md).
+
+| Command | |
+|---|---|
+| `Code <file> [lines <a>-<b>] [at line <n> \| at "<text>"]` | Shows a file, or lines of it numbered as in the file, the cursor at a line or the first match of the text. |
+| `Go line <n>`, `Go "<text>"` | Moves the cursor there, easing the view to it. |
+| `Focus lines <a>-<b>`, `Focus off` | Dims every other line. |
+| `Mark "<text>" [n]`, `Mark off` | A box around the text, numbered `n`; boxes add up until `Mark off`. |
+| `Callout "<text>" "<label>"`, `Callout off` | A bubble saying the label beside the text's line. |
 
 Elements are `"Label"`, `#identifier`, `@x,y` points, or on a web page `css:<selector>`: see
 [Elements](../reels/elements.md).
