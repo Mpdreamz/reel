@@ -60,7 +60,11 @@ struct Run: AsyncParsableCommand {
             _ = try parsed.with(profile: profile)
         }
         let location = TakeLocation(tape: tape.url)
-        _ = try await Recorder.record(parsed, into: location, log: say)
+        if parsed.launch.isSequence {
+            try await Scenes.record(parsed, log: say)
+        } else {
+            _ = try await Recorder.record(parsed, into: location, log: say)
+        }
         try await Renderer.render(tape: parsed, from: location, profiles: profiles.chosen, log: say)
     }
 }
@@ -72,7 +76,12 @@ struct Record: AsyncParsableCommand {
 
     func run() async throws {
         let location = TakeLocation(tape: tape.url)
-        let take = try await Recorder.record(tape.load(), into: location, log: say)
+        let parsed = try tape.load()
+        if parsed.launch.isSequence {
+            try await Scenes.record(parsed, log: say)
+            return
+        }
+        let take = try await Recorder.record(parsed, into: location, log: say)
         say("take: \(location.directory.path) (\(take.width)×\(take.height), \(take.durationMs) ms)")
     }
 }
@@ -109,6 +118,13 @@ struct Check: AsyncParsableCommand {
                 "run zsh in \(parsed.terminal.workingDirectory?.path ?? ".") at \(parsed.terminal.columns)x\(parsed.terminal.rows), "
                     + "text at \(parsed.fontSize) points"
             )
+        case .sequence:
+            let scenes = try Scenes.load(parsed)
+            say("join \(scenes.count) scene\(scenes.count == 1 ? "" : "s"):")
+            for (index, (scene, read)) in scenes.enumerated() {
+                let into = scene.transition.map { ", in by \($0.kind.rawValue)" } ?? ""
+                say("  \(index + 1). \(scene.url.lastPathComponent): \(read.launch.summary)\(into)")
+            }
         case let .screen(layout):
             say(
                 "draw a \(layout.rawValue) screen at \(Int(parsed.web.viewport.width))x\(Int(parsed.web.viewport.height)), "
@@ -117,22 +133,13 @@ struct Check: AsyncParsableCommand {
         }
         if parsed.launch.isScreen {
             say("draw at \(parsed.frameRate) fps")
-        } else {
+        } else if !parsed.launch.isSequence {
             say("capture at \(parsed.frameRate) fps, audio \(parsed.audio ? "on" : "off")")
         }
-        let lines = parsed.steps.count(where: { if case .say = $0.command { true } else { false } })
-        if lines > 0 {
-            say(
-                "narration: \(lines) line\(lines == 1 ? "" : "s") in \(parsed.voice.source)\(parsed.voice.subtitles ? ", subtitled" : "")"
-            )
+        // A sequence's scenes record at their own rates, with their own sound and narration.
+        if !parsed.launch.isSequence {
+            describeSteps(of: parsed)
         }
-        if parsed.audio, !parsed.outputs.contains(where: \.format.hasSound) {
-            say("note: audio is on but every Output is a GIF, which has no sound")
-        }
-        let captions = parsed.steps.filter(\.command.isCaption).count
-        say(
-            "\(parsed.actions.count) action\(parsed.actions.count == 1 ? "" : "s"), \(captions) caption\(captions == 1 ? "" : "s")"
-        )
         for profile in rendered {
             let read = profile == nil ? parsed : try parsed.with(profile: profile)
             if let profile { say("profile \(profile.name): \(profile.purpose)") }
@@ -193,6 +200,23 @@ struct Doctor: AsyncParsableCommand {
             throw ExitCode(1)
         }
     }
+}
+
+/// What a reel's steps add up to: its narration and how many actions and captions it has.
+private func describeSteps(of parsed: Tape) {
+    let lines = parsed.steps.count(where: { if case .say = $0.command { true } else { false } })
+    if lines > 0 {
+        say(
+            "narration: \(lines) line\(lines == 1 ? "" : "s") in \(parsed.voice.source)\(parsed.voice.subtitles ? ", subtitled" : "")"
+        )
+    }
+    if parsed.audio, !parsed.outputs.contains(where: \.format.hasSound) {
+        say("note: audio is on but every Output is a GIF, which has no sound")
+    }
+    let captions = parsed.steps.filter(\.command.isCaption).count
+    say(
+        "\(parsed.actions.count) action\(parsed.actions.count == 1 ? "" : "s"), \(captions) caption\(captions == 1 ? "" : "s")"
+    )
 }
 
 private func say(_ line: String) {

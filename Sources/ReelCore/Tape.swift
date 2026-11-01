@@ -62,6 +62,8 @@ public struct Tape: Equatable, Sendable {
     public var web: WebSettings
     /// For a terminal screen.
     public var terminal: TerminalSettings
+    /// For a sequence: the reels it joins, in order.
+    public var scenes: [Scene]
     /// `Set FontSize`: a code screen's text, in points.
     public var fontSize: Int
     /// `Set Background`: the recording is framed on it in every output; nil frames only outputs with a shape.
@@ -83,7 +85,7 @@ public struct Tape: Equatable, Sendable {
 
     /// What every tape starts with, and the error a tape gets when it does not.
     static let preface =
-        "a reel starts with Launch <app>, Open <url>, Screen code or Screen terminal (after any Import lines), which says what it records"
+        "a reel starts with Launch <app>, Open <url>, Screen code, Screen terminal or Include <scene.reel> (after any Import lines), which says what it records"
 
     /// Whether playing the tape needs Accessibility: anything that finds, moves or types into the app.
     public var drivesTheApp: Bool {
@@ -146,6 +148,23 @@ public enum LaunchTarget: Equatable, Sendable {
     case web(URL)
     /// `Screen code`, `Screen terminal`: no app and no page, a screen reel draws itself (see `ScreenPage`).
     case screen(ScreenLayout)
+    /// `Include <scene.reel>`: other reels, recorded each on its own and joined (see `Scenes`).
+    case sequence
+
+    public var isSequence: Bool {
+        self == .sequence
+    }
+
+    /// What it records, in a few words: `Musicbox.app`, `a web page`, `a terminal screen`.
+    public var summary: String {
+        switch self {
+        case let .bundleID(id): id
+        case let .app(url): url.lastPathComponent
+        case let .web(url): url.host() ?? url.lastPathComponent
+        case let .screen(layout): layout.name
+        case .sequence: "scenes"
+        }
+    }
 
     public var isWeb: Bool {
         if case .web = self { true } else { false }
@@ -170,6 +189,13 @@ public enum ScreenLayout: String, Equatable, Sendable, CaseIterable {
     var name: String {
         "a \(rawValue) screen"
     }
+}
+
+/// `Include[@<transition>] <scene.reel>`: one reel of a sequence, and how the scene before it moves into it (nil for
+/// the first, which has nothing before it).
+public struct Scene: Equatable, Sendable {
+    public var url: URL
+    public var transition: SectionTransition?
 }
 
 /// A terminal screen's shell and how it is drawn.
@@ -482,6 +508,7 @@ public extension Tape {
         var launch: (target: LaunchTarget, line: Int)?
         var fontSize: Int?
         var terminal = TerminalSettings()
+        var scenes: [Scene] = []
         var steps: [Step] = []
 
         /// One `Set`, from the tape or from its profile.
@@ -795,16 +822,19 @@ public extension Tape {
             }
             // `Type@20ms`: a command may carry an option after `@`; only Type takes one.
             let (name, option) = first.quoted ? (first.text, nil) : split(first.text)
-            if option != nil, !["Type", "Say", "Zoom", "Intro", "Outro", "Output"].contains(name) {
+            if option != nil, !["Type", "Say", "Zoom", "Intro", "Outro", "Output", "Include"].contains(name) {
                 throw fail("\(name) takes no @option")
             }
             // The first line says what the tape records; everything after is read knowing it.
-            if launch == nil, !["Launch", "Open", "Import", "Screen"].contains(name) { throw fail(Tape.preface) }
+            if launch == nil,
+               !["Launch", "Open", "Import", "Screen", "Include"].contains(name) { throw fail(Tape.preface) }
             let isWeb = launch?.target.isWeb == true
             let isScreen = launch?.target.isScreen == true
             let screen = launch?.target.screen
             /// What this reel is, for errors.
-            let kind = screen.map { "is \($0.name)" } ?? (isWeb ? "Opens web pages" : "Launches an app")
+            let isSequence = launch?.target.isSequence == true
+            let kind = screen.map { "is \($0.name)" }
+                ?? (isWeb ? "Opens web pages" : isSequence ? "joins other reels" : "Launches an app")
             /// A command only some screens take.
             let forScreen = { (what: String, layouts: [ScreenLayout]) throws in
                 guard let screen, layouts.contains(screen) else {
@@ -884,6 +914,9 @@ public extension Tape {
 
             case "Set":
                 try setup(name)
+                if isSequence, let setting = words.first, Profile.recordingSettings.contains(setting) {
+                    throw fail("Set \(setting) is fixed when a scene is recorded: set it in the scene's reel")
+                }
                 guard words.count == 2 || (words.count > 2 && Tape.listSettings.contains(words[0]))
                     || (words.count == 3 && words[0] == "Voice")
                 else {
@@ -916,7 +949,10 @@ public extension Tape {
                         isWeb ? "a web reel Opens pages; line \(earlier.line) already does, so there is no app to Launch"
                             : screen
                             .map { "this reel is \($0.name) (line \(earlier.line)), so there is no app to Launch" }
-                            ?? "a reel launches one app; line \(earlier.line) already does"
+                            ?? (
+                                isSequence ? "this reel joins other reels (line \(earlier.line)); Launch the app in one of them"
+                                    : "a reel launches one app; line \(earlier.line) already does"
+                            )
                     )
                 }
                 // A path has a slash (`./Name.app` beside the tape); anything else is a bundle id, which may itself end
@@ -927,6 +963,28 @@ public extension Tape {
                     line
                 )
                 try applyImports(isWeb: false)
+
+            case "Include":
+                try setup(name)
+                if let earlier = launch, !isSequence {
+                    throw fail("Include joins other reels; this reel \(kind) (line \(earlier.line))")
+                }
+                let path = try single(words, usage: "Include[@<transition>] <scene.reel>", fail: fail)
+                let url = try locate(path, from: directory, at: "line \(line)", fail: fail)
+                guard url.pathExtension == "reel"
+                else { throw fail("Include takes a .reel, not \(url.lastPathComponent)") }
+                guard FileManager.default.fileExists(atPath: url.path) else { throw fail("no reel at \(url.path)") }
+                if scenes.isEmpty, option != nil {
+                    throw fail(
+                        "the first scene has nothing before it to move from; give the transition on the next Include"
+                    )
+                }
+                let transition = try option.map { try SectionTransition($0, fail: fail) }
+                scenes.append(Scene(url: url, transition: scenes.isEmpty ? nil : transition ?? .standard))
+                if launch == nil {
+                    launch = (.sequence, line)
+                    try applyImports(isWeb: false)
+                }
 
             case "Screen":
                 try setup(name)
@@ -1167,7 +1225,7 @@ public extension Tape {
                 let known = [
                     "Output", "Set", "Launch", "Sleep", "Click", "Wait", "Type", "Key", "Scroll", "Caption", "Say",
                     "Zoom", "Speed", "Hide", "Show", "Intro", "Outro", "Open", "Screen", "Code", "Go", "Focus", "Mark",
-                    "Callout",
+                    "Callout", "Include",
                 ]
                 let hint = known.first { $0.lowercased() == name.lowercased() }.map { "; did you mean \($0)?" }
                 throw fail("unknown command '\(name)'" + (hint ?? "; expected one of \(known.joined(separator: ", "))"))
@@ -1226,6 +1284,11 @@ public extension Tape {
             if let profile { output.url = profile.suffixed(output.url) }
             return output
         }
+        if launch.target.isSequence, let first = steps.first {
+            throw TapeError(
+                line: first.line, message: "a reel of scenes has no steps of its own: they belong in its scenes' reels"
+            )
+        }
         if launch.target.isScreen {
             for step in steps {
                 if let problem = screenProblem(step.command, on: launch.target.screen ?? .code) {
@@ -1283,6 +1346,7 @@ public extension Tape {
                 terminal.workingDirectory = terminal.workingDirectory ?? directory
                 return terminal
             }(),
+            scenes: scenes,
             fontSize: fontSize ?? defaultFontSize,
             background: background,
             padding: padding,

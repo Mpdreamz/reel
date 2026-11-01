@@ -28,8 +28,16 @@ public enum Renderer {
         }
     }
 
-    /// Every Output of `tape`, as it reads. GIFs and movies of one framing are made from one lossless movie.
-    static func renderOnce(tape: Tape, from location: TakeLocation, log: (String) -> Void) async throws {
+    /// What render draws from a take: its overlays, its sound (narration mixed in), and how it is cut and zoomed.
+    struct Prepared {
+        var take: Take
+        var overlays: [Overlay]
+        var soundtrack: Soundtrack
+        var cut: Cut
+    }
+
+    /// The take in `location`, read for `tape`: what rendering it needs.
+    static func prepare(tape: Tape, from location: TakeLocation, log: (String) -> Void) async throws -> Prepared {
         let take = try location.read()
         var overlays = try OverlayPlan.make(tape: tape, take: take)
         // Only what the take was recorded with: voiced again, a line may come out a different length.
@@ -48,6 +56,17 @@ public enum Renderer {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(edit).write(to: location.directory.appending(path: "edit.json"))
+        return Prepared(take: take, overlays: overlays, soundtrack: soundtrack, cut: cut)
+    }
+
+    /// Every Output of `tape`, as it reads. GIFs and movies of one framing are made from one lossless movie.
+    static func renderOnce(tape: Tape, from location: TakeLocation, log: (String) -> Void) async throws {
+        if tape.launch.isSequence {
+            try await renderScenes(tape: tape, from: location, log: log)
+            return
+        }
+        let prepared = try await prepare(tape: tape, from: location, log: log)
+        let (take, overlays, soundtrack, cut) = (prepared.take, prepared.overlays, prepared.soundtrack, prepared.cut)
         // Each output's framing: none (the bare recording), or the recording on a canvas (Set Background, Output@…).
         let recording = CGSize(width: take.width, height: take.height)
         func framing(_ output: Output) -> Framing? {
@@ -73,7 +92,7 @@ public enum Renderer {
 
         /// The finished movie, lossless (ProRes and PCM), framed as `output` asks, with the intro and outro around
         /// it: what each movie Output is compressed from, and each GIF drawn from.
-        func finish(_ output: Output, losslessAt url: URL) async throws {
+        func finish(_ output: Output, _ url: URL) async throws {
             let lossless = Output(url: url, format: .mov, shape: output.shape)
             let framed = framing(output)
             guard staged, framed != nil || sectioned else {
@@ -107,15 +126,26 @@ public enum Renderer {
             ).write(to: location.directory.appending(path: "sections.json"))
         }
 
+        try await writeOutputs(
+            of: tape, frameRate: take.frameRate, in: location.directory, key: key, finish: finish, log: log
+        )
+    }
+
+    /// Writes every Output of `tape`: each movie compressed, and each GIF drawn, from the lossless movie `finish`
+    /// makes for its framing (`key`), made once for all of that framing and removed once they are written.
+    static func writeOutputs(
+        of tape: Tape, frameRate: Int, in directory: URL, key: (Output) -> String,
+        finish: (Output, URL) async throws -> Void, log: (String) -> Void
+    ) async throws {
         // One lossless movie for each framing, shared by the movies and GIFs of that framing, and removed once they
         // are written: lossless is large.
         var made: [String: URL] = [:]
         defer { made.values.forEach { try? FileManager.default.removeItem(at: $0) } }
         func lossless(for output: Output) async throws -> URL {
             if let url = made[key(output)] { return url }
-            let url = location.directory
+            let url = directory
                 .appending(path: "lossless-\(key(output).replacingOccurrences(of: ":", with: "x")).mov")
-            try await finish(output, losslessAt: url)
+            try await finish(output, url)
             made[key(output)] = url
             return url
         }
@@ -137,9 +167,9 @@ public enum Renderer {
         encoding.frameRate = tape.videoFrameRate
         for output in tape.outputs where output.format != .gif {
             let result = try await Encoder.fit(
-                source(for: output), to: output, with: encoding, frameRate: take.frameRate, under: tape.maxSize
+                source(for: output), to: output, with: encoding, frameRate: frameRate, under: tape.maxSize
             )
-            log("wrote \(output.url.path) (\(describe(result, frameRate: take.frameRate, under: tape.maxSize)))")
+            log("wrote \(output.url.path) (\(describe(result, frameRate: frameRate, under: tape.maxSize)))")
         }
         for gif in tape.outputs where gif.format == .gif {
             let result = try await GifWriter.fit(
