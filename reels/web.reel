@@ -1,6 +1,6 @@
 # Drives reels/web/fixture.html in a browser reel starts (mise run live-web records it and checks the take): a Play
-# button that starts a quiet 440 Hz tone, a text field, a list and a link. The page writes what happened to its log,
-# and the reel waits for each entry, so a step that did not work stops the take.
+# button that starts a quiet 440 Hz tone, a text field, a list, a link and room to scroll to #end. The page writes
+# what happened to its log, and the reel waits for each entry, so a step that did not work stops the take.
 Open web/fixture.html
 
 Output ../build/web.mp4
@@ -26,6 +26,14 @@ Scroll down 8 #list
 Wait "scrolled"
 Sleep 500ms
 Zoom off
+Caption "The same page, at another fragment, then again"
+Open web/fixture.html#end
+Wait "at end"
+Open web/fixture.html#end
+Wait "reloaded"
+Open web/fixture.html#top
+Wait "at top"
+Caption off
 Click "Next page"
 Wait "Second page"
 Sleep 1s

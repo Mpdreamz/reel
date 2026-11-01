@@ -16,8 +16,16 @@ Click css:"form button[type=submit]"
 Wait "Welcome"
 ```
 
-`Open` takes `https://…`, `http://…`, `file://…` or a path to an `.html` file. Later in the reel, another `Open`
-goes to another page. `Set Viewport` is the page's size in points (1280x800 unless set).
+`Open` takes `https://…`, `http://…`, `file://…` or a path to an `.html` file, with a `#fragment` if you like
+(`site/index.html#pricing`). Later in the reel, another `Open` goes to another page. `Set Viewport` is the page's size
+in points (1280x800 unless set).
+
+An `Open` of the page already showing does one of two things:
+
+| | |
+|---|---|
+| Only the `#fragment` differs: `Open https://example.com/#pricing` after `Open https://example.com/` | Stays on the page and goes to the fragment, as a link to it would. Nothing loads; the step ends when the scroll settles. |
+| The same address: `Open https://example.com/#pricing` again | Loads the page again, so it starts over: its animations play again and what was typed is gone. |
 
 Every take starts in a fresh browser, with no cookies, storage or saved passwords, so a page records the same way each
 time: a site that asks for cookie consent asks every take. [Skip it](zoom-speed-and-trim.md) with `Hide` … `Show`.

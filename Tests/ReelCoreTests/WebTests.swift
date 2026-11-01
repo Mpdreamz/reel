@@ -34,6 +34,10 @@ struct WebParsingTests {
         // A web tape needs no Accessibility: input goes to the page.
         #expect(parsed.launch.isWeb)
         #expect(try tape("Open file:///tmp/a.html\nOutput a.mp4").web == WebSettings())
+        // A page beside the reel, at a fragment.
+        #expect(try tape("Open site/a.html#end\nOutput a.mp4\nOpen site/a.html#top").steps.map(\.command) == [
+            .open(URL(string: "file:///tmp/demos/site/a.html#top")!),
+        ])
     }
 
     @Test(arguments: [
@@ -71,6 +75,29 @@ struct WebParsingTests {
 }
 
 struct WebDriverTests {
+    @Test(arguments: [
+        ("https://example.com/#morph", "https://example.com/#questions", Navigation.fragment),
+        ("https://example.com/", "https://example.com/#questions", .fragment),
+        ("https://example.com/", "https://Example.com#questions", .fragment),
+        ("file:///tmp/a.html", "file:///tmp/a.html#end", .fragment),
+        ("https://example.com/#morph", "https://example.com/#morph", .reload),
+        ("https://example.com/", "https://example.com", .reload),
+        ("https://example.com/a?x=1", "https://example.com/a?x=1", .reload),
+        ("https://example.com/#morph", "https://example.com/", .load),
+        ("https://example.com/a", "https://example.com/b#x", .load),
+        ("https://example.com/a?x=1", "https://example.com/a?x=2#x", .load),
+        ("https://example.com/a", "https://example.com/a?#x", .load),
+        ("http://example.com/", "https://example.com/#x", .load),
+        ("https://example.com:8443/", "https://example.com/#x", .load),
+    ])
+    func whatAnOpenDoes(from current: String, to target: String, expected: Navigation) {
+        #expect(Navigation(from: URL(string: current), to: URL(string: target)!) == expected)
+    }
+
+    @Test func anOpenOfAPageNotYetShownLoads() {
+        #expect(Navigation(from: nil, to: URL(string: "https://example.com/#a")!) == .load)
+    }
+
     @Test func textBecomesASafeJavaScriptString() {
         #expect(WebDriver.literal("Sign in") == #""Sign in""#)
         #expect(WebDriver.literal(#"say "hi"\ </script>"#) == #""say \"hi\"\\ <\/script>""#)

@@ -1842,7 +1842,17 @@ private func webAddress(
     if let url = URL(string: value), let scheme = url.scheme, ["http", "https", "file"].contains(scheme) {
         return url
     }
-    if value.hasSuffix(".html") || value.hasSuffix(".htm") { return try resolve(value) }
+    // A page beside the reel, at a fragment when one follows: `site/index.html#pricing`.
+    let parts = value.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)
+    let path = String(parts[0])
+    if path.hasSuffix(".html") || path.hasSuffix(".htm") {
+        let url = try resolve(path)
+        guard parts.count == 2, var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url
+        }
+        components.fragment = String(parts[1])
+        return components.url ?? url
+    }
     throw fail("'\(value)' is not a web address; write https://…, http://…, file://… or a path to an .html file")
 }
 

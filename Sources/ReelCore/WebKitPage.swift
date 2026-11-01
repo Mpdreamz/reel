@@ -135,6 +135,16 @@ final class WebKitPage: Page {
         try await load(url)
     }
 
+    func reload() async throws {
+        _ = try? await evaluate("window.__reelLeaving = true")
+        view.reload()
+        try await waitForLoad()
+    }
+
+    func location() async throws -> URL? {
+        try await (evaluate("location.href") as? String).flatMap(URL.init(string:))
+    }
+
     func close() {
         view.stopLoading()
         window.close()
@@ -152,6 +162,11 @@ final class WebKitPage: Page {
         } else {
             view.load(URLRequest(url: url))
         }
+        try await waitForLoad()
+    }
+
+    /// Until a new document, one that has not been told it is leaving, is complete.
+    private func waitForLoad() async throws {
         let deadline = Date().addingTimeInterval(15)
         while Date() < deadline {
             let ready = try? await evaluate("!window.__reelLeaving && document.readyState === 'complete'")
