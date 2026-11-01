@@ -69,10 +69,11 @@ struct FollowTests {
         let at = { (line: Int) in
             try #require(channel.events.first { $0.reel == "demo.reel" && $0.line == line }).at - started
         }
+        let (line2, line3, line4) = try (at(2), at(3), at(4))
         #expect(follows[0].ms >= 300, "\(follows[0].ms)")
-        #expect(follows[0].ms > (try at(2)))
-        #expect(follows[1].ms == max(follows[0].ms, try at(3)))
-        #expect(follows[2].ms == max(follows[0].ms, try at(4)))
+        #expect(follows[0].ms > line2)
+        #expect(follows[1].ms == max(follows[0].ms, line3))
+        #expect(follows[2].ms == max(follows[0].ms, line4))
         #expect(follows[2].ms > follows[1].ms + 200)
         #expect(follows.allSatisfy { $0.arguments["p"] as? Int == 0 })
     }
