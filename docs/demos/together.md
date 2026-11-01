@@ -63,11 +63,18 @@ Wait for done
 
 A reel can record several subjects at once. Each is a track: its line says what it records and ends with `as <name>`,
 and its steps are indented under it. A track can also be a file of its own, `With term.reel as term`, which is any
-reel (its Outputs, intro and outro left out). Every track is read top to bottom, as its own reel would be, and they
-all play at the same time; they meet only through named steps, with `Wait for`.
+reel without `Speed` or `Hide` (its Outputs, intro and outro left out). Every track is read top to bottom, as its own
+reel would be, and they all play at the same time; they meet only through named steps, with `Wait for`.
 
 The unindented steps are the director's: `Say`, `Caption`, `Sleep`, `Wait for`, `Wait [marker]`, `Speed` and
 `Hide` … `Show`, over every track. A step that acts on a subject belongs indented under its track.
+
+`Speed` and `Hide` … `Show` are the director's only. In a track they would speed up or cut that track alone, and it
+would drift out of step with the others. A track that has them, indented or in its file, is refused at the line:
+
+```
+line 9: Speed in a track plays it out of step with the other tracks: put it on the director, unindented in the reel of tracks, to speed them all up
+```
 
 - **Real input takes turns.** Two app tracks clicking at the same moment would share one mouse, so their steps take
   turns. Typing into a terminal or a code screen uses no real input and doesn't wait.
@@ -77,7 +84,7 @@ The unindented steps are the director's: `Say`, `Caption`, `Sleep`, `Wait for`, 
 - **Each track records into a take of its own**, under `.reel/<reel>/tracks/<name>/`, with the moment it started, so
   render lines them up.
 
-In render, each track is rendered as its own reel would be (its overlays, cuts and zooms), then all of them are drawn
+In render, each track is rendered as its own reel would be (its overlays and zooms), then all of them are drawn
 together for each shape the Outputs take: side by side in a wide cut, stacked in a tall one, each as a window on the
 backdrop. The director's narration and captions go over the whole, then the intro and outro.
 

@@ -70,3 +70,6 @@ with no `Show` runs to the end. A cut that would split a narrated line is refuse
 Speed and trims take effect at the end of the action before them, like captions, and change with a render. Everything
 timed (captions, narration, ducking, zooms) moves with the cut; `.reel/<reel>/edit.json` says what was kept and how
 fast.
+
+In a reel of tracks, `Speed` and `Hide` … `Show` are the director's, over every track; a track can't have its own.
+See [Reels together](together.md#tracks-several-subjects-in-one-reel).

@@ -1550,6 +1550,12 @@ public extension Tape {
                 }
 
             case "Speed":
+                // A track is rendered as its own reel, then lined up by when it started: a stretch sped up in one
+                // track alone would put it out of step with the rest.
+                if asTrack {
+                    throw fail("Speed in a track plays it out of step with the other tracks: put it on the director, "
+                        + "unindented in the reel of tracks, to speed them all up")
+                }
                 guard args.count == 1 else { throw fail("expected Speed <rate>x or Speed off") }
                 if words[0] == "off" {
                     step(.speed(nil))
@@ -1561,6 +1567,11 @@ public extension Tape {
                 }
 
             case "Hide", "Show":
+                // As Speed: a cut in one track alone would put it out of step with the rest.
+                if asTrack {
+                    throw fail("\(name) in a track cuts it out of step with the other tracks: put Hide … Show on the "
+                        + "director, unindented in the reel of tracks, to cut them all")
+                }
                 guard args.isEmpty else { throw fail("\(name) takes nothing") }
                 if (name == "Hide") == hidden {
                     throw fail(name == "Hide" ? "already hidden; Show comes first" : "nothing is hidden to Show")

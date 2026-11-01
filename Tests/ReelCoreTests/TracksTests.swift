@@ -103,6 +103,51 @@ struct TrackParsingTests {
             #expect(folder.failure(text) == TapeError(line: line, message: message), "\(text)")
         }
     }
+
+    @Test func onlyTheDirectorSpeedsUpOrCuts() throws {
+        let folder = try Folder()
+        let speed = "Speed in a track plays it out of step with the other tracks: put it on the director, "
+            + "unindented in the reel of tracks, to speed them all up"
+        func cut(_ name: String) -> String {
+            "\(name) in a track cuts it out of step with the other tracks: put Hide … Show on the director, "
+                + "unindented in the reel of tracks, to cut them all"
+        }
+        let cases: [(String, Int?, String)] = [
+            ("Screen code as a\n  Code A.swift\n  Speed 6x\n  Sleep 1s\n  Speed off\nOutput a.mp4", 3, speed),
+            ("Screen code as a\n  Code A.swift\n  Hide\n  Sleep 1s\n  Show\nOutput a.mp4", 3, cut("Hide")),
+            ("Screen code as a\n  Code A.swift\n  Show\nOutput a.mp4", 3, cut("Show")),
+        ]
+        for (text, line, message) in cases {
+            #expect(folder.failure(text) == TapeError(line: line, message: message), "\(text)")
+        }
+
+        // A track in a file of its own is refused the same way, at the With line, naming its own.
+        try "Screen code\nOutput fast.mp4\nCode A.swift\nSpeed 4x\nSleep 1s\nSpeed off\n"
+            .write(to: folder.url.appending(path: "fast.reel"), atomically: true, encoding: .utf8)
+        #expect(
+            folder.failure("With fast.reel as fast\nOutput a.mp4")
+                == TapeError(line: 1, message: "fast.reel line 4: \(speed)")
+        )
+        // On its own that reel speeds up as it always did.
+        let alone: [Command] = try Tape.load(folder.url.appending(path: "fast.reel")).steps.map(\.command)
+        #expect(alone.contains(.speed(4)))
+
+        // The director's speed-ups and cuts are over every track.
+        let tape = try folder.parse("""
+        Screen code as a
+          Code A.swift
+        Output a.mp4
+        Speed 4x
+        Sleep 1s
+        Speed off
+        Hide
+        Sleep 1s
+        Show
+        """)
+        let commands: [Command] = tape.steps.map(\.command)
+        #expect(commands.contains(.speed(4)))
+        #expect(commands.contains(.hide(true)))
+    }
 }
 
 struct TrackLayoutTests {

@@ -322,12 +322,16 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   parsed as a reel of its own from the same text with every other line blank (its imports kept), so its errors name
   the file's lines. `With x.reel as name` reads one from a file. The unindented steps are the director's; a step that
   acts on a subject there is refused with where it belongs. Names are unique across the tracks and the director.
+  `Speed` and `Hide`/`Show` are the director's only: a track is rendered alone and then lined up by its start, so a
+  cut or speed-up in one track would put it out of step with the rest. In a track, indented or in a `With` file, they
+  are refused at their line.
 - **Recording tracks** (`Tracks.record`): every track and the director in one task group on one channel, the first
   to fail cancelling the rest. Each track records as its own reel does, into `.reel/<reel>/tracks/<name>/`, with
   `Take.startedAt`, the wall clock at its first frame. The channel knows which names the reel's own tracks take and
   who is waiting for what, so a deadlock among them stops at once; a wait for a name no track has may be answered from
   outside and waits its timeout. App steps take turns with the real mouse and keyboard (`InputTurns`).
-- **Rendering tracks:** each track's demo is rendered as its reel would render it, then a compositor
+- **Rendering tracks:** each track's demo is rendered as its reel would render it (overlays and zooms; it has no
+  cuts), then a compositor
   (`TracksCompositor`) draws them all on one canvas per Output shape, each from its offset (`startedAt` against the
   director's), as windows on the backdrop, a track that has ended holding its last frame, the movie running as long
   as the director does. Where each is comes from `Direction`: a list of shots, each easing every track's placement
