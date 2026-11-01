@@ -254,6 +254,7 @@ struct TrackRecordingTests {
           Mark "let x" 1 as marked
         Output wide.mp4
         Output@9:16 tall.mp4
+        Set VideoWidth 640
         Wait for marked
         """
         let url = folder.url.appending(path: "together.reel")
@@ -279,6 +280,12 @@ struct TrackRecordingTests {
                 .loadTracks(withMediaType: .video).first)
             let size = try await track.load(.naturalSize)
             #expect(abs(size.width / size.height - aspect) < 0.02, "\(name) is \(size)")
+            #expect(size.width == 640, "\(name) is \(size)")
+        }
+        // Drawn together no wider than the Outputs keep, not at the tracks' full size, then encoded at that size.
+        for shape in ["16x9", "9x16"] {
+            let cut = try TakeLocation(directory: location.directory.appending(path: "cuts/\(shape)")).read()
+            #expect(cut.width == 640, "the \(shape) cut is \(cut.width)x\(cut.height)")
         }
     }
 }
