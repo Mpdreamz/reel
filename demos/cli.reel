@@ -1,0 +1,44 @@
+# reel's command line demo: a terminal screen in which reel checks and records a small code reel (demos/cli/hello.reel)
+# of its own. `mise run demos cli` records it. The shell is real: the commands run, in a folder of their own, and the
+# setup that gets there is cut with Hide … Show.
+Import //demos/reel.reelpreset
+Screen terminal
+
+Output //docs/media/cli.mp4
+Output //docs/media/cli.gif
+Set WorkingDirectory //
+Set Columns 84
+Set Rows 20
+Set FontSize 18
+Set Title "hello — zsh"
+Intro@crossfade,ease-out,600ms square ? "reel" "The command line too" : 2s
+Outro@fade,800ms square ? "Recorded with reel" "brew install --cask mpdreamz/tap/reel" : 2s
+
+Hide
+Type@0ms "export PATH=$PWD/.build/debug:$PATH; rm -rf /tmp/hello; mkdir /tmp/hello; cp demos/cli/hello.reel demos/code/SpeechClock.swift /tmp/hello; cd /tmp/hello; clear"
+Key return
+Wait exit
+Show
+Say "Reel records the command line too: a real shell, in a terminal of its own."
+Type "cat hello.reel"
+Key return
+Wait exit
+Mark "Screen code" 1
+Callout "Screen code" "a reel of a code screen"
+Say "Here's a small reel. Check it before recording it,"
+Callout off
+Mark off
+Type "reel check hello.reel"
+Key return
+Wait exit
+Say "then record it."
+Type "reel hello.reel"
+Key return
+Speed 4x
+Wait /wrote .*hello.gif/
+Wait exit
+Speed off
+Mark "hello.mp4" 2
+Mark "hello.gif"
+Say "Reel recording reel. And that's a take."
+Sleep 1s

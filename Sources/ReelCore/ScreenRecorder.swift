@@ -2,8 +2,6 @@ import CoreMedia
 import Foundation
 
 extension Recorder {
-    /// The pixels a point of a code screen: what a Retina display records.
-    static let screenScale = 2.0
     /// How long the code screen's own moves take, in its clock: a file coming up, the view scrolling to a place, a
     /// focus dimming the rest, a mark or callout appearing. The take waits for each, as it would watch an app's.
     static let screenTimings: (open: Int, go: Int, focus: Int, mark: Int, key: Int) = (300, 400, 350, 180, 120)
@@ -14,42 +12,14 @@ extension Recorder {
         _ tape: Tape, narration: Narration, into location: TakeLocation, log: (String) -> Void
     ) async throws -> Take {
         let viewport = tape.web.viewport
-        let screen = try await CodeScreen(size: viewport, fontSize: tape.fontSize)
-        let width = even(viewport.width * screenScale), height = even(viewport.height * screenScale)
-        try FileManager.default.createDirectory(at: location.directory, withIntermediateDirectories: true)
-        let writer = try TakeWriter(
-            url: location.movie, width: width, height: height, frameRate: tape.frameRate, audio: false,
-            realTime: false
-        )
-        let frames = try FrameMaker(width: width, height: height)
-        log("drawing the code screen, \(width)×\(height)")
-
-        /// The take's clock, in milliseconds, and the next frame due on it.
-        var now = 0
-        var shown = 0
-        var frameCount = 0
-        var caretTrack: [Take.Sample] = []
-        let interval = 1000.0 / Double(tape.frameRate)
-        func frameTime(_ n: Int) -> Int { Int((Double(n) * interval).rounded()) }
-
-        /// Draws every frame due up to `time`: a frame is only written when the page changed, and a still screen holds
-        /// the one before, as a capture of a still window does.
+        let screen = try await ScreenPage("screen.html", size: viewport, options: ["fontSize": tape.fontSize])
+        let film = try ScreenFilm(page: screen, size: viewport, into: location, frameRate: tape.frameRate)
+        log("drawing the code screen, \(film.width)×\(film.height)")
+        var now: Int {
+            film.now
+        }
         func advance(to time: Int) async throws {
-            now = max(now, time)
-            while frameTime(frameCount) <= now {
-                let at = frameTime(frameCount)
-                let (changed, caret) = try await screen.pump(at - shown)
-                shown = at
-                if changed || frameCount == 0 {
-                    let image = try await screen.snapshot(scale: screenScale)
-                    nonisolated(unsafe) let sample = try frames.frame(image, at: at, frameRate: tape.frameRate)
-                    await writer.perform { writer.append(video: sample) }
-                }
-                if let caret, caretTrack.last.map({ $0.x != caret.x || $0.y != caret.y }) ?? true {
-                    caretTrack.append(Take.Sample(ms: at, frame: CGRect(origin: caret, size: .zero)))
-                }
-                frameCount += 1
-            }
+            try await film.advance(to: time)
         }
 
         var events: [Take.Event] = []
@@ -116,15 +86,7 @@ extension Recorder {
         }
         // The take runs until the last line has been said.
         try await advance(to: Int((clock.speechEnd * 1000).rounded()))
-        try await writer.finish(at: CMTime(value: CMTimeValue(now), timescale: 1000))
-        if writer.droppedFrames > 0 { log("dropped \(writer.droppedFrames) frames the encoder was not ready for") }
-
-        var take = Take(
-            width: width, height: height, scale: screenScale, frameRate: tape.frameRate, audio: false,
-            durationMs: now, events: events
-        )
-        // The caret is what `Zoom cursor` follows; nothing draws a pointer over it.
-        take.cursor = caretTrack
+        let take = try await film.finish(events: events, log: log)
         try location.write(take)
         return take
     }
@@ -177,5 +139,74 @@ extension CodeAnchor {
         case let .line(n): ["line": n]
         case let .text(text): ["text": text]
         }
+    }
+}
+
+/// A screen's take as it is drawn: each frame due as the take's clock moves on, snapshotted and written to the take's
+/// movie. A frame is only written when the page changed; a still screen holds the one before, as a capture of a still
+/// window does.
+final class ScreenFilm {
+    /// The pixels a point of a screen: what a Retina display records.
+    static let scale = 2.0
+
+    let page: ScreenPage
+    let width: Int
+    let height: Int
+    let frameRate: Int
+    /// The take's clock, in milliseconds.
+    private(set) var now = 0
+    private var shown = 0
+    private var frameCount = 0
+    /// Where the caret was: what `Zoom cursor` follows.
+    private var caretTrack: [Take.Sample] = []
+    private let writer: TakeWriter
+    private let frames: FrameMaker
+
+    init(page: ScreenPage, size: CGSize, into location: TakeLocation, frameRate: Int) throws {
+        self.page = page
+        self.frameRate = frameRate
+        width = Recorder.even(size.width * Self.scale)
+        height = Recorder.even(size.height * Self.scale)
+        try FileManager.default.createDirectory(at: location.directory, withIntermediateDirectories: true)
+        writer = try TakeWriter(
+            url: location.movie, width: width, height: height, frameRate: frameRate, audio: false, realTime: false
+        )
+        frames = try FrameMaker(width: width, height: height)
+    }
+
+    private func frameTime(_ n: Int) -> Int {
+        Int((Double(n) * 1000 / Double(frameRate)).rounded())
+    }
+
+    /// Draws every frame due up to `time`.
+    func advance(to time: Int) async throws {
+        now = max(now, time)
+        while frameTime(frameCount) <= now {
+            let at = frameTime(frameCount)
+            let (changed, caret) = try await page.pump(at - shown)
+            shown = at
+            if changed || frameCount == 0 {
+                let image = try await page.snapshot(scale: Self.scale)
+                nonisolated(unsafe) let sample = try frames.frame(image, at: at, frameRate: frameRate)
+                await writer.perform { [writer] in writer.append(video: sample) }
+            }
+            if let caret, caretTrack.last.map({ $0.x != caret.x || $0.y != caret.y }) ?? true {
+                caretTrack.append(Take.Sample(ms: at, frame: CGRect(origin: caret, size: .zero)))
+            }
+            frameCount += 1
+        }
+    }
+
+    /// Ends the movie at the clock's time, and the take that goes with it.
+    func finish(events: [Take.Event], log: (String) -> Void) async throws -> Take {
+        try await writer.finish(at: CMTime(value: CMTimeValue(now), timescale: 1000))
+        if writer.droppedFrames > 0 { log("dropped \(writer.droppedFrames) frames the encoder was not ready for") }
+        var take = Take(
+            width: width, height: height, scale: Self.scale, frameRate: frameRate, audio: false, durationMs: now,
+            events: events
+        )
+        // The caret is what `Zoom cursor` follows; nothing draws a pointer over it.
+        take.cursor = caretTrack
+        return take
     }
 }

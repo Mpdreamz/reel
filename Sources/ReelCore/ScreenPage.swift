@@ -2,62 +2,64 @@ import AppKit
 import CoreMedia
 import WebKit
 
-/// reel's own editor: Monaco in a page that is never on screen, so a code screen needs no app, no window and no
-/// permission. Nothing in the page keeps its own time: `pump` moves its clock on between frames, which is why the same
+/// A screen reel draws: a page of reel's own that is never on screen, so it needs no app, no window and no permission.
+/// `screen.html` is the code screen's editor (Monaco), `terminal.html` the terminal's (xterm.js). Each page answers to
+/// `reelScreen`, and nothing in it keeps its own time: `pump` moves its clock on between frames, which is why the same
 /// reel draws the same frames.
 @MainActor
-final class CodeScreen: NSObject, WKNavigationDelegate {
+final class ScreenPage: NSObject, WKNavigationDelegate {
     /// The page, in points.
-    let size: CGSize
+    private(set) var size: CGSize
     private let view: WKWebView
     private var loaded = false
     private var failed: String?
 
     static let loadTimeout: Duration = .seconds(20)
 
-    /// The page and what it loads: `screen.html`, Monaco and the fonts, in the resource bundle SwiftPM builds beside
-    /// reel. Found by hand rather than with `Bundle.module`, which stops the process when the bundle is missing.
-    static func page() throws -> URL {
+    /// A page and what it loads (Monaco, xterm.js, the fonts), in the resource bundle SwiftPM builds beside reel.
+    /// Found by hand rather than with `Bundle.module`, which stops the process when the bundle is missing.
+    static func page(_ file: String) throws -> URL {
         let name = "Reel_ReelCore.bundle"
         let folders = [
             // Beside the binary, reached through the symlink Homebrew puts on the PATH.
             Bundle.main.executableURL?.resolvingSymlinksInPath().deletingLastPathComponent(),
             // Beside whatever holds this code: the test bundle, when testing.
-            Bundle(for: CodeScreen.self).bundleURL.deletingLastPathComponent(),
+            Bundle(for: ScreenPage.self).bundleURL.deletingLastPathComponent(),
             Bundle.main.bundleURL,
         ]
         for folder in folders.compactMap(\.self) {
-            for inside in ["Contents/Resources/Screen/screen.html", "Screen/screen.html"] {
+            for inside in ["Contents/Resources/Screen/\(file)", "Screen/\(file)"] {
                 let page = folder.appending(path: name).appending(path: inside)
                 if FileManager.default.fileExists(atPath: page.path) { return page }
             }
         }
-        throw ReelError("reel's code screen is missing: no \(name) beside reel; reinstall reel")
+        throw ReelError("reel's screens are missing: no \(name) beside reel; reinstall reel")
     }
 
-    init(size: CGSize, fontSize: Int) async throws {
+    /// Loads `file` at `size` and starts it with `options`, which its `reelScreen.init` reads.
+    init(_ file: String, size: CGSize, options: [String: any Sendable]) async throws {
         self.size = size
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = .nonPersistent()
         view = WKWebView(frame: CGRect(origin: .zero, size: size), configuration: configuration)
         super.init()
         view.navigationDelegate = self
-        let page = try Self.page()
+        let page = try Self.page(file)
         view.loadFileURL(page, allowingReadAccessTo: page.deletingLastPathComponent())
         let deadline = ContinuousClock.now + Self.loadTimeout
         while !loaded {
-            if let failed { throw ReelError("the code screen did not load: \(failed)") }
-            if ContinuousClock.now > deadline { throw ReelError("the code screen did not load in \(Self.loadTimeout)") }
+            if let failed { throw ReelError("the screen did not load: \(failed)") }
+            if ContinuousClock.now > deadline { throw ReelError("the screen did not load in \(Self.loadTimeout)") }
             try await Task.sleep(for: .milliseconds(20))
         }
-        _ = try await call("return reelScreen.init({fontSize: f})", ["f": fontSize])
+        _ = try await call("return reelScreen.init(o)", ["o": options as [String: Any]])
         while true {
             if let error = try await call("return reelScreen.error") as? String {
-                throw ReelError("the code screen did not start: \(error)")
+                throw ReelError("the screen did not start: \(error)")
             }
             if try await call("return reelScreen.ready") as? Bool == true { break }
             if ContinuousClock
-                .now > deadline { throw ReelError("the code screen did not start in \(Self.loadTimeout)") }
+                .now > deadline { throw ReelError("the screen did not start in \(Self.loadTimeout)") }
             try await Task.sleep(for: .milliseconds(20))
         }
     }
@@ -84,7 +86,7 @@ final class CodeScreen: NSObject, WKNavigationDelegate {
             return value is NSNull ? nil : value
         } catch {
             let message = (error as NSError).userInfo["WKJavaScriptExceptionMessage"] as? String
-            throw ReelError("the code screen threw: \(message ?? error.localizedDescription)")
+            throw ReelError("the screen threw: \(message ?? error.localizedDescription)")
         }
     }
 
@@ -102,6 +104,21 @@ final class CodeScreen: NSObject, WKNavigationDelegate {
         return (changed, CGPoint(x: x, y: y))
     }
 
+    /// The size the page asks for (`reelScreen.size()`): the terminal's, from its columns and rows.
+    func measure() async throws -> CGSize {
+        let size = try await call("return reelScreen.size()") as? [String: Double]
+        guard let width = size?["width"], let height = size?["height"] else {
+            throw ReelError("the screen could not size itself")
+        }
+        return CGSize(width: width, height: height)
+    }
+
+    /// Gives the page a new size: the terminal's, once it knows how big its columns and rows are.
+    func resize(to size: CGSize) {
+        self.size = size
+        view.setFrameSize(size)
+    }
+
     /// The page as it is now, `scale` pixels a point.
     func snapshot(scale: Double) async throws -> CGImage {
         let configuration = WKSnapshotConfiguration()
@@ -110,7 +127,7 @@ final class CodeScreen: NSObject, WKNavigationDelegate {
         let image = try await view.takeSnapshot(configuration: configuration)
         let width = Int((size.width * scale).rounded()), height = Int((size.height * scale).rounded())
         guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-            throw ReelError("the code screen gave no picture")
+            throw ReelError("the screen gave no picture")
         }
         if cg.width == width, cg.height == height { return cg }
         // The view drew at its display's scale; the take is at `scale`.
@@ -118,10 +135,10 @@ final class CodeScreen: NSObject, WKNavigationDelegate {
             data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
             space: CGColorSpace(name: CGColorSpace.sRGB)!,
             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue | CGBitmapInfo.byteOrder32Little.rawValue
-        ) else { throw ReelError("cannot draw the code screen") }
+        ) else { throw ReelError("cannot draw the screen") }
         context.interpolationQuality = .high
         context.draw(cg, in: CGRect(x: 0, y: 0, width: width, height: height))
-        guard let scaled = context.makeImage() else { throw ReelError("cannot draw the code screen") }
+        guard let scaled = context.makeImage() else { throw ReelError("cannot draw the screen") }
         return scaled
     }
 }

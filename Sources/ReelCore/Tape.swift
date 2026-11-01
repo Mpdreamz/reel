@@ -60,6 +60,8 @@ public struct Tape: Equatable, Sendable {
     public var outro: Section?
     /// For a tape that `Open`s a web page.
     public var web: WebSettings
+    /// For a terminal screen.
+    public var terminal: TerminalSettings
     /// `Set FontSize`: a code screen's text, in points.
     public var fontSize: Int
     /// `Set Background`: the recording is framed on it in every output; nil frames only outputs with a shape.
@@ -77,9 +79,11 @@ public struct Tape: Equatable, Sendable {
     public static let defaultGifWidth = 800
     public static let defaultGifColors = 256
     public static let defaultFontSize = 18
+    public static let defaultQuiet: Duration = .milliseconds(500)
 
     /// What every tape starts with, and the error a tape gets when it does not.
-    static let preface = "a reel starts with Launch <app>, Open <url> or Screen code (after any Import lines), which says what it records"
+    static let preface =
+        "a reel starts with Launch <app>, Open <url>, Screen code or Screen terminal (after any Import lines), which says what it records"
 
     /// Whether playing the tape needs Accessibility: anything that finds, moves or types into the app.
     public var drivesTheApp: Bool {
@@ -140,7 +144,7 @@ public enum LaunchTarget: Equatable, Sendable {
     case app(URL)
     /// `Open <url>`: a web page, in a browser reel drives over the DevTools protocol.
     case web(URL)
-    /// `Screen code`: no app and no page, a screen reel draws itself (see `ScreenMovie`).
+    /// `Screen code`, `Screen terminal`: no app and no page, a screen reel draws itself (see `ScreenPage`).
     case screen(ScreenLayout)
 
     public var isWeb: Bool {
@@ -150,11 +154,49 @@ public enum LaunchTarget: Equatable, Sendable {
     public var isScreen: Bool {
         if case .screen = self { true } else { false }
     }
+
+    /// The screen a screen reel shows; nil for an app or a page.
+    public var screen: ScreenLayout? {
+        if case let .screen(layout) = self { layout } else { nil }
+    }
 }
 
-/// What a screen reel shows. One editor for now.
+/// What a screen reel shows: reel's own editor, or a terminal running a shell.
 public enum ScreenLayout: String, Equatable, Sendable, CaseIterable {
     case code
+    case terminal
+
+    /// For errors: "a code screen".
+    var name: String {
+        "a \(rawValue) screen"
+    }
+}
+
+/// A terminal screen's shell and how it is drawn.
+public struct TerminalSettings: Equatable, Sendable {
+    /// `Set Columns`, `Set Rows`: the terminal's size in characters, which also sizes the screen.
+    public var columns = 80
+    public var rows = 24
+    /// `Set WorkingDirectory`: where the shell starts; nil for the reel's folder.
+    public var workingDirectory: URL?
+    /// `Set Theme`: a Ghostty theme file; nil for reel's own colours.
+    public var theme: URL?
+    /// `Set Redact /regex/`: output that matches is drawn as dots, before it is kept.
+    public var redactions: [String] = []
+    /// `Set Title`: the window's title; nil for the shell and the folder.
+    public var title: String?
+
+    public init() {}
+}
+
+/// `Wait` on a terminal screen.
+public enum TerminalWait: Equatable, Sendable {
+    /// `Wait /regex/`: until the output since the last thing typed matches.
+    case output(String)
+    /// `Wait quiet [duration]`: until nothing is printed for that long.
+    case quiet(Duration)
+    /// `Wait exit`: until the command running ends and the prompt is back.
+    case exit
 }
 
 /// `Code <file> [lines a-b] [at …]`: a file opened in a code screen's editor.
@@ -234,6 +276,8 @@ public enum Command: Equatable, Sendable {
     case sleep(Duration)
     case click(Target)
     case wait(Target)
+    /// `Wait /regex/`, `Wait quiet`, `Wait exit` on a terminal screen.
+    case expect(TerminalWait)
     /// Each character, then the pause after it (`Type@<duration>`), nil for the tape's typing speed.
     case type(String, pause: Duration?)
     case key(KeyCombo, count: Int)
@@ -353,7 +397,7 @@ public struct TapeError: Error, Equatable, CustomStringConvertible, LocalizedErr
 
 public extension Tape {
     /// Settings whose value is a list, which may have spaces in it: `Set Profiles github, social`.
-    static let listSettings: Set<String> = ["Profiles", "Formats"]
+    static let listSettings: Set<String> = ["Profiles", "Formats", "Redact"]
 
     /// The tape read again for `profile`: its settings applied over the tape's, its Outputs named for it.
     func with(profile: Profile?, format: Output.Format? = nil) throws -> Tape {
@@ -437,6 +481,7 @@ public extension Tape {
         var introBackground: Background?, outroBackground: Background?
         var launch: (target: LaunchTarget, line: Int)?
         var fontSize: Int?
+        var terminal = TerminalSettings()
         var steps: [Step] = []
 
         /// One `Set`, from the tape or from its profile.
@@ -464,10 +509,11 @@ public extension Tape {
                 tested += names.map { ($0, origin) }
             }
             let isScreen = launch?.target.isScreen == true
+            let screen = launch?.target.screen
             func forWeb(_ what: String) throws {
                 if !isWeb {
                     throw fail("\(what) is for web pages (Open); this reel " +
-                        (isScreen ? "is a code screen" : "Launches an app"))
+                        (screen.map { "is \($0.name)" } ?? "Launches an app"))
                 }
             }
             switch setting {
@@ -513,7 +559,8 @@ public extension Tape {
                 }
                 encoding.width = width
             case "FontSize":
-                guard isScreen else { throw fail("Set FontSize is for a code screen (Screen code)") }
+                guard isScreen
+                else { throw fail("Set FontSize is for a code or terminal screen (Screen code, Screen terminal)") }
                 guard let size = Int(value), (8 ... 72).contains(size) else {
                     throw fail("FontSize must be a whole number of points from 8 to 72, not '\(value)'")
                 }
@@ -566,7 +613,8 @@ public extension Tape {
                     web.browser = .app(app)
                 }
             case "Viewport":
-                // A code screen is a page too: its size in points.
+                // A code screen is a page too: its size in points. A terminal's is its columns and rows.
+                if screen == .terminal { throw fail("a terminal screen's size is Set Columns and Set Rows") }
                 if !isScreen { try forWeb("Set Viewport") }
                 guard let parsed = parseSize(value) else {
                     throw fail("Viewport must be <width>x<height> in points, such as 1280x800, not '\(value)'")
@@ -574,7 +622,10 @@ public extension Tape {
                 web.viewport = parsed
             case "Size":
                 if isWeb { throw fail("Set Size is an app's window; a web page's size is Set Viewport") }
-                if isScreen { throw fail("Set Size is an app's window; a code screen's size is Set Viewport") }
+                if screen == .code { throw fail("Set Size is an app's window; a code screen's size is Set Viewport") }
+                if screen == .terminal {
+                    throw fail("Set Size is an app's window; a terminal screen's size is Set Columns and Set Rows")
+                }
                 guard let parsed = parseSize(value) else {
                     throw fail("Size must be <width>x<height> in points, such as 1280x800, not '\(value)'")
                 }
@@ -637,6 +688,33 @@ public extension Tape {
                 zoomTransition.duration = try duration(value, fail: fail)
             case "Subtitles":
                 voice.subtitles = try onOff("Subtitles", value, fail: fail)
+            case "Columns", "Rows", "WorkingDirectory", "Theme", "Redact", "Title":
+                guard screen == .terminal
+                else { throw fail("Set \(setting) is for a terminal screen (Screen terminal)") }
+                switch setting {
+                case "Columns":
+                    guard let n = Int(value), (20 ... 400).contains(n) else {
+                        throw fail("Columns must be a whole number from 20 to 400, not '\(value)'")
+                    }
+                    terminal.columns = n
+                case "Rows":
+                    guard let n = Int(value), (4 ... 200).contains(n) else {
+                        throw fail("Rows must be a whole number from 4 to 200, not '\(value)'")
+                    }
+                    terminal.rows = n
+                case "WorkingDirectory":
+                    terminal.workingDirectory = try find(value)
+                case "Theme":
+                    let url = try find(value)
+                    guard FileManager.default.fileExists(atPath: url.path) else {
+                        throw fail("no theme at \(url.path)")
+                    }
+                    terminal.theme = url
+                case "Redact":
+                    try terminal.redactions.append(regex(value, fail: fail))
+                default:
+                    terminal.title = value
+                }
             case "TypingSpeed":
                 typingSpeed = try duration(value, fail: fail)
             case "WaitTimeout":
@@ -647,7 +725,8 @@ public extension Tape {
                         + "KeyBadges, ClickRipples, Quality, Codec, VideoWidth, VideoFrameRate, MaxSize, MaxLength, Shape, "
                         + "Formats, Profiles, GifFrameRate, GifWidth, GifColors, Voice, VoiceServer, VoiceSeed, "
                         + "VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, "
-                        + "IntroBackground, OutroBackground, Browser, Viewport, FontSize, Background or Padding"
+                        + "IntroBackground, OutroBackground, Browser, Viewport, FontSize, Columns, Rows, WorkingDirectory, Theme, "
+                        + "Redact, Title, Background or Padding"
                 )
             }
         }
@@ -723,10 +802,19 @@ public extension Tape {
             if launch == nil, !["Launch", "Open", "Import", "Screen"].contains(name) { throw fail(Tape.preface) }
             let isWeb = launch?.target.isWeb == true
             let isScreen = launch?.target.isScreen == true
+            let screen = launch?.target.screen
             /// What this reel is, for errors.
-            let kind = isScreen ? "is a code screen" : isWeb ? "Opens web pages" : "Launches an app"
-            let forScreen = { (what: String) throws in
-                if !isScreen { throw fail("\(what) is for a code screen: start the reel with Screen code") }
+            let kind = screen.map { "is \($0.name)" } ?? (isWeb ? "Opens web pages" : "Launches an app")
+            /// A command only some screens take.
+            let forScreen = { (what: String, layouts: [ScreenLayout]) throws in
+                guard let screen, layouts.contains(screen) else {
+                    let names = layouts.map(\.rawValue)
+                    throw fail(
+                        "\(what) is for " +
+                            (layouts.count == 1 ? "a \(names[0])" : "a \(names.joined(separator: " or "))")
+                            + " screen: start the reel with " + names.map { "Screen \($0)" }.joined(separator: " or ")
+                    )
+                }
             }
 
             switch name {
@@ -826,8 +914,9 @@ public extension Tape {
                 if let earlier = launch {
                     throw fail(
                         isWeb ? "a web reel Opens pages; line \(earlier.line) already does, so there is no app to Launch"
-                            : isScreen ? "this reel is a code screen (line \(earlier.line)), so there is no app to Launch"
-                            : "a reel launches one app; line \(earlier.line) already does"
+                            : screen
+                            .map { "this reel is \($0.name) (line \(earlier.line)), so there is no app to Launch" }
+                            ?? "a reel launches one app; line \(earlier.line) already does"
                     )
                 }
                 // A path has a slash (`./Name.app` beside the tape); anything else is a bundle id, which may itself end
@@ -844,7 +933,7 @@ public extension Tape {
                 if let earlier = launch {
                     throw fail("line \(earlier.line) already says what this reel records; a reel records one thing")
                 }
-                let usage = "expected Screen code"
+                let usage = "expected Screen code or Screen terminal"
                 guard let layout = try ScreenLayout(rawValue: single(words, usage: usage, fail: fail)) else {
                     throw fail(usage)
                 }
@@ -852,7 +941,7 @@ public extension Tape {
                 try applyImports(isWeb: false)
 
             case "Code":
-                try forScreen("Code")
+                try forScreen("Code", [.code])
                 let usage = "expected Code <file> [lines <a>-<b>] [at line <n> | at \"<text>\"]"
                 guard let path = args.first, !path.quoted else { throw fail(usage) }
                 var rest = args.dropFirst()
@@ -873,7 +962,7 @@ public extension Tape {
                 step(.code(CodeFile(url: url, lines: range, at: at)))
 
             case "Go":
-                try forScreen("Go")
+                try forScreen("Go", [.code])
                 let usage = "expected Go line <n> or Go \"<text>\""
                 guard let first = args.first else { throw fail(usage) }
                 var rest = args.dropFirst()
@@ -882,7 +971,7 @@ public extension Tape {
                 step(.go(anchor))
 
             case "Focus":
-                try forScreen("Focus")
+                try forScreen("Focus", [.code])
                 if words == ["off"] {
                     step(.focus(nil))
                 } else {
@@ -893,7 +982,7 @@ public extension Tape {
                 }
 
             case "Mark":
-                try forScreen("Mark")
+                try forScreen("Mark", [.code, .terminal])
                 if args.count == 1, !args[0].quoted, args[0].text == "off" {
                     step(.mark(nil, number: nil))
                 } else {
@@ -910,7 +999,7 @@ public extension Tape {
                 }
 
             case "Callout":
-                try forScreen("Callout")
+                try forScreen("Callout", [.code, .terminal])
                 if args.count == 1, !args[0].quoted, args[0].text == "off" {
                     step(.callout(nil, label: nil))
                 } else {
@@ -928,6 +1017,22 @@ public extension Tape {
                 guard args.count == 1
                 else { throw fail("expected Click \"<label>\", Click #<identifier> or Click @x,y") }
                 try step(.click(target(args[0], fail: fail)))
+
+            case "Wait" where screen == .terminal && !(words.first?.hasPrefix("[") ?? false):
+                let usage = "expected Wait /<regex>/, Wait quiet [duration], Wait exit or Wait [marker]"
+                switch words.first {
+                case "exit":
+                    guard words.count == 1 else { throw fail(usage) }
+                    step(.expect(.exit))
+                case "quiet":
+                    guard words.count <= 2 else { throw fail(usage) }
+                    try step(.expect(.quiet(words.count == 2 ? duration(words[1], fail: fail) : Tape.defaultQuiet)))
+                case let first? where first.hasPrefix("/") && !args[0].quoted:
+                    // A pattern may hold spaces: the words between the slashes, as written.
+                    try step(.expect(.output(regex(words.joined(separator: " "), fail: fail))))
+                default:
+                    throw fail(usage)
+                }
 
             case "Wait":
                 guard args.count == 1
@@ -1123,7 +1228,9 @@ public extension Tape {
         }
         if launch.target.isScreen {
             for step in steps {
-                if let problem = screenProblem(step.command) { throw TapeError(line: step.line, message: problem) }
+                if let problem = screenProblem(step.command, on: launch.target.screen ?? .code) {
+                    throw TapeError(line: step.line, message: problem)
+                }
             }
         }
         if !launch.target.isWeb {
@@ -1170,6 +1277,12 @@ public extension Tape {
                 return section
             },
             web: web,
+            terminal: {
+                // The shell starts beside the reel unless it says otherwise.
+                var terminal = terminal
+                terminal.workingDirectory = terminal.workingDirectory ?? directory
+                return terminal
+            }(),
             fontSize: fontSize ?? defaultFontSize,
             background: background,
             padding: padding,
@@ -1391,22 +1504,65 @@ private func codeAnchor(
     return .line(n)
 }
 
-/// Why a step cannot be in a code screen, nil when it can. The editor is reel's own: there is nothing to click, scroll
-/// or wait for, and it takes only an editor's keys.
-private func screenProblem(_ command: Command) -> String? {
-    switch command {
-    case .click, .scroll, .open:
+/// Why a step cannot be on a screen, nil when it can. The screen is reel's own: there is nothing to click, scroll or
+/// find, and it takes only the keys its editor or terminal does.
+private func screenProblem(_ command: Command, on screen: ScreenLayout) -> String? {
+    switch (command, screen) {
+    case (.click, .code), (.scroll, .code), (.open, .code):
         "a code screen has no app or page to drive; it takes Code, Go, Type, Key and the rest"
-    case .wait:
+    case (.click, .terminal), (.scroll, .terminal), (.open, .terminal):
+        "a terminal screen has no app or page to drive; it takes Type, Key, Wait and the rest"
+    case (.wait, .code):
         "a code screen has nothing to wait for; Wait [marker] waits for narration"
-    case let .zoom(target, _, _) where target.isElement:
-        "a code screen zooms on a point (Zoom @x,y) or the cursor, not an element"
-    case let .key(combo, _)
+    case (.wait, .terminal):
+        "a terminal screen has no elements; Wait /regex/, Wait quiet or Wait exit wait for its output"
+    case let (.zoom(target, _, _), _) where target.isElement:
+        "\(screen.name) zooms on a point (Zoom @x,y) or the cursor, not an element"
+    case let (.key(combo, _), .code)
         where !combo.modifiers.subtracting(.shift).isEmpty || !ScreenKeys.supported.contains(combo.key):
         "a code screen's editor takes the keys \(ScreenKeys.supported.sorted().joined(separator: ", ")), "
             + "with shift to select, not \(combo.description)"
+    case let (.key(combo, _), .terminal) where TerminalKeys.bytes(for: combo) == nil:
+        "a terminal screen takes the keys \(TerminalKeys.names.sorted().joined(separator: ", ")) and ctrl+<letter>, "
+            + "not \(combo.description)"
     default:
         nil
+    }
+}
+
+/// `/pattern/` as a pattern, checked now rather than when the take waits on it.
+private func regex(_ text: String, fail: (String) -> TapeError) throws -> String {
+    guard text.count > 2, text.hasPrefix("/"), text.hasSuffix("/") else {
+        throw fail("a pattern is written between slashes: /Build complete/, not '\(text)'")
+    }
+    let pattern = String(text.dropFirst().dropLast())
+    do {
+        _ = try NSRegularExpression(pattern: pattern)
+    } catch {
+        throw fail("/\(pattern)/ is not a pattern reel can read: \(error.localizedDescription)")
+    }
+    return pattern
+}
+
+/// What a terminal's keys send to the shell.
+enum TerminalKeys {
+    static let sequences: [String: String] = [
+        "return": "\r", "enter": "\r", "tab": "\t", "space": " ", "backspace": "\u{7f}", "delete": "\u{7f}",
+        "forwarddelete": "\u{1b}[3~", "escape": "\u{1b}", "esc": "\u{1b}",
+        "up": "\u{1b}[A", "down": "\u{1b}[B", "right": "\u{1b}[C", "left": "\u{1b}[D",
+        "home": "\u{1b}[H", "end": "\u{1b}[F", "pageup": "\u{1b}[5~", "pagedown": "\u{1b}[6~",
+    ]
+    static var names: Set<String> {
+        Set(sequences.keys)
+    }
+
+    /// The bytes for `combo`: a named key without modifiers, or ctrl with a letter (`ctrl+c`); nil for anything else.
+    static func bytes(for combo: KeyCombo) -> String? {
+        if combo.modifiers.isEmpty { return sequences[combo.key] }
+        guard combo.modifiers == .control, combo.key.count == 1, let letter = combo.key.unicodeScalars.first,
+              ("a" ... "z").contains(letter)
+        else { return nil }
+        return String(UnicodeScalar(UInt8(letter.value - 96)))
     }
 }
 

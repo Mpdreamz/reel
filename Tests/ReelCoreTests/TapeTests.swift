@@ -117,12 +117,12 @@ struct TapeTests {
         (
             "Output a.mp4\nLaunch x",
             1,
-            "a reel starts with Launch <app>, Open <url> or Screen code (after any Import lines), which says what it records"
+            "a reel starts with Launch <app>, Open <url>, Screen code or Screen terminal (after any Import lines), which says what it records"
         ),
         (
             "# a demo\nSleep 1s\nLaunch x",
             2,
-            "a reel starts with Launch <app>, Open <url> or Screen code (after any Import lines), which says what it records"
+            "a reel starts with Launch <app>, Open <url>, Screen code or Screen terminal (after any Import lines), which says what it records"
         ),
         ("Launch x\nOutput a.mp4\nLaunch y", 3, "a reel launches one app; line 1 already does"),
         ("Launch x\nOutput a.webm", 2, "unsupported output type '.webm'; expected .mp4, .mov or .gif"),
@@ -143,7 +143,7 @@ struct TapeTests {
         (
             "Launch x\nSet Speed 2",
             2,
-            "unknown setting 'Speed'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, KeyBadges, ClickRipples, Quality, Codec, VideoWidth, VideoFrameRate, MaxSize, MaxLength, Shape, Formats, Profiles, GifFrameRate, GifWidth, GifColors, Voice, VoiceServer, VoiceSeed, VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, IntroBackground, OutroBackground, Browser, Viewport, FontSize, Background or Padding"
+            "unknown setting 'Speed'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, KeyBadges, ClickRipples, Quality, Codec, VideoWidth, VideoFrameRate, MaxSize, MaxLength, Shape, Formats, Profiles, GifFrameRate, GifWidth, GifColors, Voice, VoiceServer, VoiceSeed, VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, IntroBackground, OutroBackground, Browser, Viewport, FontSize, Columns, Rows, WorkingDirectory, Theme, Redact, Title, Background or Padding"
         ),
         ("Launch x\nSet Audio", 2, "expected Set <setting> <value>"),
         (

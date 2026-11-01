@@ -21,8 +21,10 @@ public enum Recorder {
         let narration = try await Narration.prepare(
             tape, into: location.directory, voices: tape.voice.synthesizer(for:), log: log
         )
-        if tape.launch.isScreen {
-            return try await recordScreen(tape, narration: narration, into: location, log: log)
+        switch tape.launch.screen {
+        case .code: return try await recordScreen(tape, narration: narration, into: location, log: log)
+        case .terminal: return try await recordTerminal(tape, narration: narration, into: location, log: log)
+        case nil: break
         }
         let stage = if case let .web(url) = tape.launch {
             try await webStage(tape, opening: url, log: log)
