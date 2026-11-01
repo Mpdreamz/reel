@@ -215,8 +215,9 @@ struct TerminalRecordingTests {
         // not count, even typed all at once.
         let enter = take.events[5], done = take.events[6]
         #expect(done.endMs - enter.startMs >= 480)
-        // And a quiet wait waits for quiet.
-        #expect(take.events[7].endMs - take.events[7].startMs >= 200)
+        // And a quiet wait waits for quiet: 300ms after the output, which came at least the sleep's 500ms after
+        // return. Not 300ms after the wait starts: by then the shell may have been quiet a while already.
+        #expect(take.events[7].endMs - enter.startMs >= 800)
         #expect(FileManager.default.fileExists(atPath: location.movie.path))
         #expect(take.cursor?.isEmpty == false)
     }
