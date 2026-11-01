@@ -61,9 +61,10 @@ struct FollowTests {
         let follows = played.calls.filter { $0.body.contains("follow") }
         #expect(follows.map { $0.arguments["l"] as? Int } == [2, 3, 4, nil])
         // Line 2 had started before the Follow: it shows from then (300ms after the file opened, in real time a little
-        // later), the rest when they started.
-        #expect((300 ..< 400).contains(follows[0].ms), "\(follows[0].ms)")
-        #expect((400 ... 600).contains(follows[1].ms), "\(follows[1].ms)")
+        // later, how much later depends on the machine), and in any case before line 3 started; the rest when they
+        // started (450ms in, real time), never before.
+        #expect((300 ..< 450).contains(follows[0].ms), "\(follows[0].ms)")
+        #expect((450 ..< 800).contains(follows[1].ms), "\(follows[1].ms)")
         #expect(follows[2].ms > follows[1].ms + 200)
         #expect(follows.allSatisfy { $0.arguments["p"] as? Int == 0 })
     }
