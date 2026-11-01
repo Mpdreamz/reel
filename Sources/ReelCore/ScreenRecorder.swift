@@ -469,14 +469,20 @@ extension SectionTransition {
 }
 
 /// A take's clock, in milliseconds. Its own (`real` false), which moves on as far as it is told at once, or real time,
-/// which it waits for.
+/// which it waits for. In real time it is never behind: a step that ran late moves what follows on, so a `Sleep 400ms`
+/// still lasts 400ms and the take shows what happened when it happened.
 final class TakeClock {
     let real: Bool
     private let start = ContinuousClock.now
-    private(set) var now = 0
+    private var reached = 0
 
     init(real: Bool) {
         self.real = real
+    }
+
+    /// Where the take is: as far as it has been told, and in real time, never earlier than now.
+    var now: Int {
+        real ? max(reached, Recorder.milliseconds(ContinuousClock.now - start)) : reached
     }
 
     func wait(until time: Int) async throws {
@@ -484,7 +490,7 @@ final class TakeClock {
             let due = start + .milliseconds(time)
             if due > ContinuousClock.now { try await Task.sleep(until: due) }
         }
-        now = max(now, time)
+        reached = max(reached, time)
     }
 }
 
