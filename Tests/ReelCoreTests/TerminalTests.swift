@@ -65,6 +65,36 @@ struct TerminalParsingTests {
         #expect(plain.terminal.columns == 80 && plain.terminal.rows == 24)
     }
 
+    @Test func aPatternIsOneWord() throws {
+        let tape = try parse(#"""
+        Screen terminal
+        Output a.mp4
+        Set Redact /token as [a-z]+/
+        Wait /All scenarios behaved as narrated/
+        Wait /x as y/ as done
+        Wait /a\/b c/
+        Wait /say "hi"  # twice/
+        Wait /plain/ as plain
+        """#)
+        #expect(tape.terminal.redactions == ["token as [a-z]+"])
+        #expect(tape.steps.map(\.command) == [
+            .expect(.output("All scenarios behaved as narrated")),
+            .expect(.output("x as y")),
+            .expect(.output(#"a\/b c"#)),
+            .expect(.output(#"say "hi"  # twice"#)),
+            .expect(.output("plain")),
+        ])
+        #expect(tape.steps.map(\.name) == [nil, "done", nil, nil, "plain"])
+        #expect(tape.steps[0].source == "Wait /All scenarios behaved as narrated/")
+    }
+
+    @Test func pathsAreStillWords() throws {
+        #expect(try tokenize("Output /tmp/a b.mp4", line: 1).map(\.text) == ["Output", "/tmp/a", "b.mp4"])
+        #expect(try tokenize("Output //docs/media/x.mp4", line: 1).map(\.text) == ["Output", "//docs/media/x.mp4"])
+        #expect(try tokenize("Key / 2", line: 1).map(\.text) == ["Key", "/", "2"])
+        #expect(try tokenize("Wait /a/ # note", line: 1).map(\.text) == ["Wait", "/a/"])
+    }
+
     @Test(arguments: [
         ("Screen terminal\nSet Viewport 800x600", 2, "a terminal screen's size is Set Columns and Set Rows"),
         (

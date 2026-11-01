@@ -57,6 +57,10 @@ Commands take as long as they take. Wait for them rather than guessing with `Sle
 | `Wait quiet [duration]` | Nothing has been printed for that long, 500ms unless given. |
 | `Wait exit` | The command running has ended and the prompt is back. |
 
+A pattern runs from its first slash to the next one that ends a word, so it can hold spaces, quotes, `#` and the word `as`:
+`Wait /All scenarios behaved as narrated/` waits for that text, and `Wait /x as y/ as done` names the step `done`.
+Write a slash inside it as `\/`.
+
 Each gives up after `WaitTimeout` (10s unless set) and stops the take, with the last lines printed:
 
 ```

@@ -1918,7 +1918,10 @@ extension Tape {
 }
 
 /// Splits a line into tokens: whitespace separates, double quotes group (`\"` and `\\` escape inside them). `#`
-/// starts a comment at the start of a line or followed by a space; `#play` after a command is an identifier.
+/// starts a comment at the start of a line or followed by a space; `#play` after a command is an identifier. A word
+/// that starts with `/` runs to the next `/` (`\/` skipped) when that one ends a word: `/Build complete/` is one token,
+/// spaces, quotes and `#` kept as written, so ` as ` in a pattern is not a step's name. `/tmp/a.mp4` is one word as
+/// before.
 func tokenize(_ line: String, line number: Int) throws -> [Token] {
     var tokens: [Token] = []
     var current = "", source = ""
@@ -1953,6 +1956,10 @@ func tokenize(_ line: String, line number: Int) throws -> [Token] {
             inToken = true
         } else if c == "#", !inToken, tokens.isEmpty || chars.first?.isWhitespace != false {
             break
+        } else if c == "/", !inToken, let length = patternLength(chars) {
+            let pattern = "/" + String(chars.prefix(length))
+            chars = chars.dropFirst(length)
+            tokens.append(Token(text: pattern, quoted: false, source: pattern))
         } else if c.isWhitespace {
             flush()
         } else {
@@ -1964,6 +1971,25 @@ func tokenize(_ line: String, line number: Int) throws -> [Token] {
     if quoted { throw TapeError(line: number, message: "unterminated quote") }
     flush()
     return tokens
+}
+
+/// How many characters after an opening `/` make the rest of a `/pattern/`, the closing slash included: up to the
+/// first `/` not escaped with `\`, when a word ends there. Nil when there is none, or a word goes on past it.
+private func patternLength(_ chars: ArraySlice<Character>) -> Int? {
+    var index = chars.startIndex
+    while index < chars.endIndex {
+        switch chars[index] {
+        case "\\":
+            index += 2
+        case "/":
+            let next = index + 1
+            guard next == chars.endIndex || chars[next].isWhitespace else { return nil }
+            return next - chars.startIndex
+        default:
+            index += 1
+        }
+    }
+    return nil
 }
 
 /// `12-40`, or a single line `12`.
