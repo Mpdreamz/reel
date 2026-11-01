@@ -1,0 +1,300 @@
+/*
+ * docs/reel-docs.css: the reel theme for docs-builder's design system (NAVIGATION_PREVIEW).
+ * Appended to the emitted _static/ds.css by scripts/docs-finish.sh, so it comes after the default theme and wins by
+ * cascade order within the same layer, without !important. The palette is the landing page's (docs/reel-landing.html)
+ * and the brand kit's (design/brand/themes/tokens.css): Ink, Slate and Gate amber in dark, Paper with a deep amber in
+ * light, Signal teal as the second colour. Roles are named in docs-builder's Assets/ds/themes/bold-minimal.css; each
+ * pair is `var(--ds-l, light) var(--ds-d, dark)`.
+ */
+
+/* Self-hosted (docs/fonts, OFL), the landing page's six files. The site lives under /reel: scripts/docs-finish.sh
+   checks these URLs carry the prefix it builds for. */
+@font-face {
+	font-family: 'Jost';
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url('/reel/fonts/jost-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'Jost';
+	font-style: normal;
+	font-weight: 500;
+	font-display: swap;
+	src: url('/reel/fonts/jost-latin-500-normal.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'Instrument Sans';
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url('/reel/fonts/instrument-sans-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'Instrument Sans';
+	font-style: normal;
+	font-weight: 500;
+	font-display: swap;
+	src: url('/reel/fonts/instrument-sans-latin-500-normal.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'JetBrains Mono';
+	font-style: normal;
+	font-weight: 400;
+	font-display: swap;
+	src: url('/reel/fonts/jetbrains-mono-latin-400-normal.woff2') format('woff2');
+}
+
+@font-face {
+	font-family: 'JetBrains Mono';
+	font-style: normal;
+	font-weight: 500;
+	font-display: swap;
+	src: url('/reel/fonts/jetbrains-mono-latin-500-normal.woff2') format('woff2');
+}
+
+@layer ds.tokens {
+	:root {
+		/* As on the landing page: Instrument Sans for prose and the chrome, Jost for headings and the brand, JetBrains
+		   Mono for code. */
+		--font-body: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+		--font-heading: 'Jost', 'Instrument Sans', system-ui, sans-serif;
+		--font-display: 'Jost', 'Instrument Sans', system-ui, sans-serif;
+		--font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+		/* The landing page's corners are soft: 8px buttons, 12px inputs, 14-16px cards and panels. */
+		--radius-sm: 8px;
+		--radius-md: 12px;
+		--radius-lg: 16px;
+		/* The landing page's nav: a 34px mark and a 28px name with 20px above and below. The layout offsets (sticky
+		   sidebar, scroll margins) follow this token. */
+		--header-height: 4.5rem;
+	}
+}
+
+@layer ds.theme {
+	:root,
+	[data-theme],
+	.hero-block:not(.hero-block--paper),
+	.band--ink,
+	.band--blue,
+	.band--dusk,
+	.band--aurora,
+	.cta-band:not(.cta-band--teal),
+	.band--lagoon,
+	.cta-band--teal {
+		--color-page: var(--ds-l, #f2f4f6) var(--ds-d, #111923);
+		--color-surface: var(--ds-l, #ffffff) var(--ds-d, #1d2b3a);
+		--color-surface-sunken: var(--ds-l, #e8ecf0) var(--ds-d, #0d141c);
+
+		--color-heading: var(--ds-l, #111923) var(--ds-d, #e7ecf1);
+		--color-text: var(--ds-l, #1d2b3a) var(--ds-d, #dce3ea);
+		--color-text-muted: var(--ds-l, #4f6275) var(--ds-d, #9babbb);
+
+		/* The landing page's hairlines, and controls a step stronger so they hold 3:1. */
+		--color-border: var(--ds-l, #d5dce3) var(--ds-d, #2a3b4e);
+		--color-border-strong: var(--ds-l, #111923) var(--ds-d, #e7ecf1);
+		--color-border-control: var(--ds-l, #718396) var(--ds-d, #687d93);
+
+		/* Gate amber: as on the landing page in dark; its deep amber in light, so links hold 4.5:1 on paper. */
+		--color-accent: var(--ds-l, #8f5200) var(--ds-d, #f2b04c);
+		--color-accent-hover: var(--ds-l, #6e3f00) var(--ds-d, #f6c477);
+		--color-on-accent: var(--ds-l, #ffffff) var(--ds-d, #111923);
+		--color-accent-surface: var(--ds-l, #fbf1e2) var(--ds-d, #2c2b28);
+		--color-accent-border: var(--ds-l, #e2b979) var(--ds-d, #6b5232);
+
+		/* Buttons: amber, ink on Gate in dark, white on the deep amber in light. */
+		--color-action: var(--ds-l, #8f5200) var(--ds-d, #f2b04c);
+		--color-action-hover: var(--ds-l, #7a4600) var(--ds-d, #f6c477);
+		--color-action-hover-deep: var(--ds-l, #5c3400) var(--ds-d, #c98d32);
+		--color-action-deep: var(--ds-l, #5c3400) var(--ds-d, #c08530);
+		--color-action-edge: var(--ds-l, #3f2400) var(--ds-d, #8f5f1c);
+		--color-action-border: var(--ds-l, #8f5200) var(--ds-d, #f2b04c);
+		--color-on-action: var(--ds-l, #ffffff) var(--ds-d, #111923);
+
+		--color-brand-deep: var(--ds-l, #8f5200) var(--ds-d, #f2b04c);
+		--color-brand-bright: #f2b04c;
+		/* Signal teal, the landing page's second colour (its step numbers). */
+		--color-highlight: var(--ds-l, #0e7364) var(--ds-d, #5cc8b6);
+		--color-highlight-surface: var(--ds-l, #e3f3f0) var(--ds-d, rgb(92 200 182 / 12%));
+		--color-emphasis: var(--ds-l, #1d2b3a) var(--ds-d, #1d2b3a);
+		--color-on-emphasis: #f2b04c;
+
+		--gradient-wash: var(--ds-l, linear-gradient(180deg, #f2f4f6 0%, #e8ecf0 100%))
+			var(--ds-d, linear-gradient(180deg, #1d2b3a 0%, #111923 100%));
+		--gradient-hero: var(--ds-l, linear-gradient(160deg, #f2f4f6 0%, #f6ead8 55%, #e3f3f0 100%))
+			var(--ds-d, linear-gradient(160deg, #1d2b3a 0%, #111923 60%, #0f2226 100%));
+		--color-hatch: var(--ds-l, rgb(143 82 0 / 6%)) var(--ds-d, rgb(242 176 76 / 5%));
+
+		/* Code is a dark Slate panel in both modes, as the landing page's script is in dark, with the brand's tape
+		   colours: commands amber, settings violet, strings teal, targets blue, durations coral, markers pink. */
+		--color-code-bg: var(--ds-l, #1d2b3a) var(--ds-d, #1d2b3a);
+		--color-code-border: var(--ds-l, transparent) var(--ds-d, #2a3b4e);
+		--color-code-text: #e7ecf1;
+		--color-code-danger: #f29e84;
+		--color-code-warning: #f2b04c;
+		--color-code-info: #86b6f2;
+		--color-code-muted: #9babbb;
+		--color-code-gutter: #8397ab;
+		--color-code-keyword: #f2b04c;
+		--color-code-string: #7fd1c0;
+		--color-code-number: #f29e84;
+		--color-code-attr: #b9a6f2;
+		--color-code-type: #86b6f2;
+		--color-code-variable: #e58fb8;
+		--color-code-literal: #f29e84;
+		--color-code-punctuation: #9babbb;
+
+		--color-focus-ring: var(--ds-l, #8f5200) var(--ds-d, #f2b04c);
+
+		/* Signal teal for "important" and success; warning in amber; danger stays the default's. */
+		--color-important: var(--ds-l, #0e7364) var(--ds-d, #5cc8b6);
+		--color-important-surface: var(--ds-l, #e9f6f3) var(--ds-d, rgb(92 200 182 / 10%));
+		--color-success: var(--ds-l, #0e7364) var(--ds-d, #5cc8b6);
+		--color-success-surface: var(--ds-l, #e9f6f3) var(--ds-d, rgb(92 200 182 / 8%));
+		--color-warning: var(--ds-l, #8f5200) var(--ds-d, #f2b04c);
+		--color-warning-surface: var(--ds-l, #fbf1e2) var(--ds-d, rgb(242 176 76 / 9%));
+
+		/* No offset slabs: the landing page's cards sit flat on a hairline. */
+		--color-slab-plate: var(--ds-l, #d5dce3) var(--ds-d, #0d141c);
+		--shadow-slab: 0 24px 60px -24px rgb(0 0 0 / var(--ds-l, 18%) var(--ds-d, 60%));
+		--shadow-slab-sm: 0 10px 24px -12px rgb(0 0 0 / var(--ds-l, 14%) var(--ds-d, 50%));
+		--shadow-slab-rest: 0 1px 0 var(--color-border);
+		--shadow-overlay: 0 24px 60px rgb(0 0 0 / var(--ds-l, 16%) var(--ds-d, 55%));
+
+		/* The teal call to action becomes Gate amber. */
+		--cta-top: #f6c477;
+		--cta-bottom: #f2b04c;
+		--cta-edge: #8f5f1c;
+		--cta-border: #f2b04c;
+		--cta-fg: #111923;
+		--cta-glow: rgb(242 176 76 / 30%);
+		--cta-hover-top: #f8d197;
+		--cta-hover-bottom: #f4bc66;
+		--cta-active-top: #f2b04c;
+		--cta-active-bottom: #e09c34;
+
+		--swatch-light: #f2f4f6;
+		--swatch-dark: #111923;
+		--swatch-black: #000;
+	}
+
+	/* True black keeps the dark roles, on black. */
+	[data-theme='black'] {
+		--color-page: #000;
+		--color-surface: #0b1118;
+		--color-surface-sunken: #05080b;
+		--color-border: #1d2b3a;
+		--color-code-bg: #0b1118;
+		--color-code-border: #1d2b3a;
+	}
+}
+
+@layer ds.pages {
+	/* Dark is the landing page's own: flat Ink, no mesh, cards in Slate. */
+	body.navigation-preview {
+		background-color: var(--color-page);
+	}
+
+	/* Light: the two brand colours as glows at the top corners, behind the header and title, scrolling away so prose
+	   reads on clean paper. Control borders hold 3:1 over the amber glow's brightest point. */
+	body.navigation-preview {
+		--glow-light:
+			radial-gradient(55% 520px at 0% 0%, rgb(242 176 76 / 24%), transparent 72%),
+			radial-gradient(50% 460px at 100% 0%, rgb(92 200 182 / 16%), transparent 72%);
+	}
+
+	:root[data-theme='light'] body.navigation-preview {
+		background-image: var(--glow-light);
+		background-attachment: scroll;
+		background-repeat: no-repeat;
+	}
+
+	@media (prefers-color-scheme: light) {
+		:root:not([data-theme]) body.navigation-preview {
+			background-image: var(--glow-light);
+			background-attachment: scroll;
+			background-repeat: no-repeat;
+		}
+	}
+
+	.site-header {
+		background: color-mix(in srgb, var(--color-page) 80%, transparent);
+		backdrop-filter: blur(12px);
+	}
+
+	/* The landing page's nav brand: the reel mark (branding.icon, inlined by scripts/docs-pages.py so it takes the
+	   accent colour) at 34px, and the name in Jost 500 at 28px beside it. */
+	.site-header__brand {
+		gap: 10px;
+		color: var(--color-heading);
+	}
+
+	.site-header__logo {
+		width: 34px;
+		height: 34px;
+		flex: none;
+		color: var(--color-accent);
+	}
+
+	.site-header__title {
+		font-family: var(--font-display);
+		font-weight: 500;
+		font-size: 1.75rem;
+		line-height: 1;
+		letter-spacing: -0.01em;
+	}
+
+	@media (max-width: 640px) {
+		.site-header__logo {
+			width: 28px;
+			height: 28px;
+		}
+
+		.site-header__title {
+			font-size: 1.5rem;
+		}
+	}
+
+	/* Headings in Jost 500, as on the landing page; it has no bolder weight. */
+	.prose :is(h1, h2, h3, h4) {
+		font-family: var(--font-heading);
+		font-weight: 500;
+		letter-spacing: -0.01em;
+		text-wrap: balance;
+	}
+
+	.prose h1 {
+		letter-spacing: -0.015em;
+	}
+
+	/* Sidebar: the current page in amber, as the landing page marks what's selected. */
+	.nav-tree__link[aria-current='page'] {
+		color: var(--color-accent);
+	}
+
+	/* The design system leaves .prose img uncapped, so a wide image runs past the column. */
+	.prose img {
+		max-width: 100%;
+		height: auto;
+	}
+
+	/* The design system gives .prose table a top margin, inside .table-wrapper too, whose surface then shows as an empty
+	   strip above every table. */
+	.prose .table-wrapper > table {
+		margin-top: 0;
+	}
+
+	/* Long unbroken headings (command names, settings) would push the outline wider than its column. */
+	.toc__link {
+		overflow-wrap: anywhere;
+	}
+
+	.prose kbd,
+	.kbd {
+		font-family: var(--font-mono);
+	}
+}

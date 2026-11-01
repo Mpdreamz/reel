@@ -55,5 +55,5 @@ run = "scripts/demos.sh"
 
 
 [tasks.docs]
-description = "Build the docs as CI does (docs-builder + landing page) and serve them on :4000/reel/ (-- --noserve to only build)"
+description = "Build the docs as CI does (docs-builder + theme + landing page) and serve them on :4000/reel/ (-- --noserve to only build)"
 run = "scripts/docs.sh"

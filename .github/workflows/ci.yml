@@ -48,3 +48,22 @@ jobs:
         run: |
           scripts/build-release.sh 0.0.0
           ruby -c packaging/homebrew/reel.rb
+
+  # The documentation, built as the docs workflow deploys it (design-system layout, prefix, theme, landing page), so a
+  # pull request that breaks it fails here rather than on main.
+  docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build documentation
+        uses: elastic/docs-builder@main
+        env:
+          FEATURE_NAVIGATION_PREVIEW: true
+        with:
+          prefix: reel
+
+      - name: Theme and landing page
+        run: scripts/docs-finish.sh .artifacts/docs/html reel
