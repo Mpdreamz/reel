@@ -33,6 +33,27 @@ public enum Scenes {
         return try read.with(profile: own)
     }
 
+    /// The size a sequence's scenes are framed and joined at: `canvas`, the largest any scene needs, made no wider
+    /// than the widest of `outputs` will be written (`Set VideoWidth`, `Set GifWidth`), so nothing larger than what
+    /// is kept goes through every pass. Movies are written at this size as they would be from the full canvas
+    /// (`Encoding.size`).
+    static func workingSize(of canvas: CGSize, for outputs: [Output], encoding: Encoding, gifWidth: Int) -> CGSize {
+        var widest = 0
+        for output in outputs {
+            if output.format == .gif {
+                widest = max(widest, gifWidth)
+            } else if let width = encoding.width {
+                widest = max(widest, width)
+            } else {
+                return canvas
+            }
+        }
+        guard widest > 0 else { return canvas }
+        var capped = encoding
+        capped.width = widest
+        return capped.size(for: canvas)
+    }
+
     /// Records every scene, in order, each into its own take (`.reel/<scene>/` next to its reel).
     public static func record(_ tape: Tape, log: (String) -> Void) async throws {
         let scenes = try load(tape)
@@ -96,9 +117,13 @@ extension Renderer {
                     shape: shape(output), padding: tape.padding, background: background
                 ).canvas
             }
-            let canvas = canvases.max { $0.width * $0.height < $1.width * $1.height } ?? CGSize(
+            let largest = canvases.max { $0.width * $0.height < $1.width * $1.height } ?? CGSize(
                 width: 1920,
                 height: 1080
+            )
+            let canvas = Scenes.workingSize(
+                of: largest, for: tape.outputs.filter { key($0) == key(output) }, encoding: tape.encoding,
+                gifWidth: tape.gifWidth
             )
             let tag = key(output).replacingOccurrences(of: ":", with: "x")
             var joined: URL?

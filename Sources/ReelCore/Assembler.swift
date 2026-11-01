@@ -263,7 +263,10 @@ public enum Assembler {
                 to: at.start + at.length
             ))
         }
-        video.animationTool = AVVideoCompositionCoreAnimationTool(postProcessingAsVideoLayer: picture, in: parent)
+        // Core Animation draws every frame of the movie, not only the titles': with none to draw, it is left out.
+        if [intro, outro].contains(where: { $0?.hasTitles == true }) {
+            video.animationTool = AVVideoCompositionCoreAnimationTool(postProcessingAsVideoLayer: picture, in: parent)
+        }
 
         let preset = lossless ? AVAssetExportPresetAppleProRes422LPCM : AVAssetExportPresetHighestQuality
         guard let session = AVAssetExportSession(asset: composition, presetName: preset)

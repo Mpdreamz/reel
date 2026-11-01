@@ -136,6 +136,27 @@ struct SceneParsingTests {
         #expect(try Scenes.tape(scene, for: nil).encoding.quality == 65)
     }
 
+    @Test func scenesAreJoinedNoLargerThanTheOutputsKeep() {
+        let canvas = CGSize(width: 2528, height: 1422)
+        let mp4 = Output(url: URL(filePath: "/t.mp4"), format: .mp4)
+        let gif = Output(url: URL(filePath: "/t.gif"), format: .gif)
+        var narrow = Encoding.standard
+        narrow.width = 1920
+        func size(_ outputs: [Output], _ encoding: Encoding, gif width: Int = 720) -> CGSize {
+            Scenes.workingSize(of: canvas, for: outputs, encoding: encoding, gifWidth: width)
+        }
+        // As wide as the widest Output, at the size the movie would have been scaled to from the full canvas.
+        #expect(size([mp4, gif], narrow) == CGSize(width: 1920, height: 1080))
+        #expect(size([mp4, gif], narrow) == narrow.size(for: canvas))
+        #expect(size([gif], .standard) == CGSize(width: 720, height: 404))
+        #expect(size([mp4, gif], narrow, gif: 2200) == CGSize(width: 2200, height: 1238))
+        // A movie at its full size, or Outputs wider than the canvas: the canvas, never larger.
+        #expect(size([mp4, gif], .standard) == canvas)
+        #expect(size([gif], .standard, gif: 4000) == canvas)
+        narrow.width = 8000
+        #expect(size([mp4], narrow) == canvas)
+    }
+
     @Test func aSceneJoinsNoScenesOfItsOwn() throws {
         let folder = try Folder()
         try folder.write("inner.reel", "Include a.reel\nOutput i.mp4")
@@ -197,6 +218,45 @@ struct SceneRenderingTests {
         Outro "Done" 2s
         """)
         #expect(try await abs(length(folder.url.appending(path: "fade.mp4")) - (both - 0.5 + 2 - 0.6)) < 0.1)
+    }
+
+    /// The colour at `x`, `y` (shares of the width and height) of the movie's frame at `seconds`, 0 to 255.
+    private func colour(_ url: URL, at seconds: Double, x: Double, y: Double) async throws -> [Int] {
+        let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
+        generator.requestedTimeToleranceBefore = .zero
+        generator.requestedTimeToleranceAfter = .zero
+        let (image, _) = try await generator.image(at: CMTime(seconds: seconds, preferredTimescale: 600))
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let context = try #require(CGContext(
+            data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        // The one pixel wanted lands on the context's only one; Core Graphics' y runs up.
+        let (width, height) = (Double(image.width), Double(image.height))
+        context.draw(image, in: CGRect(x: -x * width, y: -(1 - y) * height, width: width, height: height))
+        return pixel.prefix(3).map(Int.init)
+    }
+
+    @Test func joiningKeepsTheScenesColours() async throws {
+        let folder = try Folder()
+        let sting = URL(filePath: #filePath).deletingLastPathComponent().appending(
+            path: "../../design/motion/intro-reel-2s-16x9.mp4"
+        ).standardized
+        _ = try await render(folder, "colours.reel", """
+        Include a.reel
+        Include@cut b.reel
+        Include@cut a.reel
+        Output colours.mp4
+        Intro 1s
+        Set IntroBackground \(sting.path)
+        """)
+        // The editor's background, below the code, in the take and in the first scene of the joined movie: three
+        // passes (two joins, the intro) that each shifted it a little when Core Animation drew them.
+        let take = try await colour(
+            TakeLocation(tape: folder.url.appending(path: "a.reel")).movie, at: 0.5, x: 0.5, y: 0.8
+        )
+        let joined = try await colour(folder.url.appending(path: "colours.mp4"), at: 1.5, x: 0.5, y: 0.7)
+        #expect(zip(take, joined).allSatisfy { abs($0 - $1) <= 6 }, "the take's \(take), joined \(joined)")
     }
 
     @Test func aSceneWithoutATakeSaysHowToGetOne() async throws {

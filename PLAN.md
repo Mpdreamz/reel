@@ -291,7 +291,10 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   the sequence's profile when the scene knows that name. Every scene is framed on one canvas: the Output's shape,
   16:9 without one, at the largest size any scene needs, so they line up. Then they are joined one after the other,
   each following scene coming in as an untitled video outro of what came before (`Assembler`), with its sound and
-  its transition, and the sequence's intro and outro go around the whole. Outputs are written as for any reel.
+  its transition, and the sequence's intro and outro go around the whole. Outputs are written as for any reel. The
+  canvas is framed and joined no wider than the widest Output of its shape is written (`Set VideoWidth`,
+  `Set GifWidth`; `Scenes.workingSize`), at the size the movie would have been scaled to, so each pass handles no
+  more pixels than are kept.
 - **Not yet:** scenes written inline in one file, and narration that carries across a cut.
 
 ## Reels together
@@ -361,7 +364,8 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   into keyframes for the titles, so a title moves (or is wiped) with its section. The intro and the outro are drawn
   over the demo: crossfades, zooms and wipes work on them and reveal the demo beneath; slides push both. A fade goes
   through black across the cut, half on either side; the others overlap the two sections for their length. Sounds
-  cross the same way (through silence for a fade).
+  cross the same way (through silence for a fade). The titles are drawn by Core Animation, which draws every frame
+  of the movie, so a section with no title or subtitle (a sting, or the next scene of a sequence) leaves it out.
 - **Render-time only**, like captions: a changed title, background or transition needs no new take.
 
 ## GIFs
