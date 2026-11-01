@@ -37,6 +37,8 @@ Before the first step.
 | `Sleep <duration>` | Waits. |
 | `Wait <element>` | Waits until the element shows, up to `WaitTimeout`. |
 | `Wait [marker]` | Waits until the narration reaches a `[marker]` in an earlier `Say@over`. |
+| `Wait for <name>`, `Wait for <name> to end` | Waits until a step named `<name>` in another reel running with this one starts, or ends. See [Reels together](../demos/together.md). |
+| `… as <name>` | At the end of any step: names it, for other reels to wait for. |
 | `Click <element or @x,y>` | Glides the cursor there and clicks. |
 | `Type "<text>"`, `Type@<duration> "<text>"` | Types a character at a time. `\n` is return, `\t` tab. |
 | `Key <combo> [count]` | `return`, `a`, `cmd+s`, `ctrl+shift+tab`, `f5`, `fn+left`; repeated `count` times (1 to 100). |

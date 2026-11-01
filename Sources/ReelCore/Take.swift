@@ -98,6 +98,11 @@ public struct TakeLocation: Sendable {
         directory = tape.deletingLastPathComponent().appending(path: ".reel/\(name)", directoryHint: .isDirectory)
     }
 
+    /// The reel's file name, as other reels on its channel hear it.
+    public var reelName: String {
+        directory.lastPathComponent + ".reel"
+    }
+
     public var movie: URL {
         directory.appending(path: "take.mov")
     }

@@ -33,13 +33,22 @@ extension Recorder {
         var events: [Take.Event] = []
         var clock = SpeechClock()
         try await advance(to: 0)
+        let channel = Channel.fromEnvironment()
         for step in tape.steps where !step.command.isRenderOnly {
             var begin = now
             var clip: String?
+            channel?.post(reel: location.reelName, line: step.line, name: step.name, phase: .start)
             do {
                 switch step.command {
                 case let .sleep(duration):
                     try await advance(to: now + milliseconds(duration))
+                case let .waitFor(name, end):
+                    // The other reel keeps real time: the take's clock moves on by as long as the wait took.
+                    let started = ContinuousClock.now
+                    try await Channel.wait(
+                        channel, for: name, end: end, timeout: tape.waitTimeout, line: step.line, log: log
+                    )
+                    try await advance(to: now + milliseconds(ContinuousClock.now - started))
                 case let .say(_, over):
                     guard let line = narration.lines[step.line]
                     else { throw ReelError("line \(step.line) was not voiced") }
@@ -125,6 +134,7 @@ extension Recorder {
                 throw ReelError("line \(step.line): \(error.description)")
             }
             events.append(Take.Event(line: step.line, command: step.source, startMs: begin, endMs: now, clip: clip))
+            channel?.post(reel: location.reelName, line: step.line, name: step.name, phase: .end)
         }
         // The take runs until the last line has been said.
         try await advance(to: Int((clock.speechEnd * 1000).rounded()))
