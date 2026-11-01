@@ -82,6 +82,27 @@ together for each shape the Outputs take: side by side in a wide cut, stacked in
 backdrop. The director's narration and captions go over the whole, then the intro and outro. Moving between
 arrangements, a spotlight, fullscreen and picture-in-picture come next.
 
+## An app something else opens
+
+```
+Screen terminal as term
+  Type "reel musicbox.reel"
+  Key return as run
+
+Attach dev.musicbox.app as app
+
+Output showcase.mp4
+Wait for app
+Say "And there it is."
+```
+
+`Attach <bundle id or .app path> as <name>` is a track that launches nothing: it waits for that app to open (here,
+launched by the reel the terminal runs) and records its window from then on, as an app track would. It says its name
+on the channel when the window shows, so the other tracks and the director `Wait for app`. Steps under it, if any,
+play once it has. It records for as long as the rest of the reel plays, or until the app quits. An app already open
+is attached at once; one that takes long to open has `WaitTimeout`, and at least a minute. Recording an app needs
+Screen Recording, as any app reel does.
+
 ## Following a reel as it runs
 
 ```

@@ -116,6 +116,7 @@ struct Check: AsyncParsableCommand {
         let rendered = try parsed.profilesToRender(chosen: profiles.chosen)
         switch parsed.launch {
         case let .bundleID(id): say("launch \(id)")
+        case let .attach(app): say("attach to \(app) once something opens it")
         case let .app(url): say("launch \(url.path)")
         case let .web(url):
             say("open \(url.absoluteString) at \(Int(parsed.web.viewport.width))x\(Int(parsed.web.viewport.height))")

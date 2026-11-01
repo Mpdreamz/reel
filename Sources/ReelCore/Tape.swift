@@ -155,6 +155,9 @@ public enum LaunchTarget: Equatable, Sendable {
     /// `Screen terminal as term` and its indented steps, `With x.reel as name`: several subjects recorded at once,
     /// each a track of its own, the reel's unindented steps the director's (see `Tracks`).
     case together
+    /// `Attach <app> as <name>`: a track recording an app something else opens (a reel run in a terminal track), from
+    /// when its window shows. A bundle id, or an app's path.
+    case attach(String)
 
     public var isTogether: Bool {
         self == .together
@@ -173,6 +176,7 @@ public enum LaunchTarget: Equatable, Sendable {
         case let .screen(layout): layout.name
         case .sequence: "scenes"
         case .together: "tracks"
+        case let .attach(app): "\((app as NSString).lastPathComponent), once something opens it"
         }
     }
 
@@ -920,7 +924,10 @@ public extension Tape {
             }
             // The first line says what the tape records; everything after is read knowing it.
             if launch == nil,
-               !["Launch", "Open", "Import", "Screen", "Include", "With"].contains(name) { throw fail(Tape.preface) }
+               !["Launch", "Open", "Import", "Screen", "Include", "With", "Attach"].contains(name)
+            {
+                throw fail(Tape.preface)
+            }
             let isWeb = launch?.target.isWeb == true
             let isScreen = launch?.target.isScreen == true
             let screen = launch?.target.screen
@@ -942,7 +949,7 @@ public extension Tape {
 
             // `Screen terminal as term`, and the indented lines under it: a track, read as a reel of its own from the
             // same text, every other line blank, so what it says about a line is about the file's.
-            if let stepName, ["Launch", "Open", "Screen"].contains(name), !asTrack {
+            if let stepName, ["Launch", "Open", "Screen", "Attach"].contains(name), !asTrack {
                 if let earlier = launch, !earlier.target.isTogether {
                     throw fail("line \(earlier.line) says what this reel records alone; a reel of tracks names each, "
                         + "\(name) … as <name>")
@@ -1102,6 +1109,19 @@ public extension Tape {
                     guard isWeb else { throw fail("Open goes to a web page; this reel \(kind)") }
                     step(.open(url))
                 }
+
+            case "Attach":
+                try setup(name)
+                guard asTrack else {
+                    throw fail("Attach records an app something else opens, as a track: Attach <app> as <name>")
+                }
+                let target = try single(words, usage: "Attach <bundle id or .app path> as <name>", fail: fail)
+                launch = try (
+                    .attach(target.contains("/")
+                        ? locate(target, from: directory, at: "line \(line)", fail: fail).path : target),
+                    line
+                )
+                try applyImports(isWeb: false)
 
             case "Launch":
                 try setup(name)
@@ -1480,7 +1500,7 @@ public extension Tape {
                 let known = [
                     "Output", "Set", "Launch", "Sleep", "Click", "Wait", "Type", "Key", "Scroll", "Caption", "Say",
                     "Zoom", "Speed", "Hide", "Show", "Intro", "Outro", "Open", "Screen", "Code", "Go", "Focus", "Mark",
-                    "Callout", "Include", "Split", "Pane", "Peek", "Link", "Diff", "Morph", "With", "Follow",
+                    "Callout", "Include", "Split", "Pane", "Peek", "Link", "Diff", "Morph", "With", "Follow", "Attach",
                 ]
                 let hint = known.first { $0.lowercased() == name.lowercased() }.map { "; did you mean \($0)?" }
                 throw fail("unknown command '\(name)'" + (hint ?? "; expected one of \(known.joined(separator: ", "))"))

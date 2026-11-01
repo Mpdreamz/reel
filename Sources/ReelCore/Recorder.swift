@@ -13,7 +13,7 @@ public enum Recorder {
     /// Records `tape` into `location`, on `channel` with any other reels running with it (`REEL_CHANNEL`, nil alone).
     public static func record(
         _ tape: Tape, into location: TakeLocation, channel: Channel? = Channel.fromEnvironment(),
-        as runner: String? = nil, log: (String) -> Void
+        as runner: String? = nil, until stop: Stop? = nil, log: (String) -> Void
     ) async throws -> Take {
         guard !tape.launch.isSequence else {
             throw ReelError("a reel of scenes has no take of its own: Scenes.record records each scene")
@@ -97,6 +97,10 @@ public enum Recorder {
         do {
             start = try await firstFrame(of: writer, sink: sink)
             let startedAt = Channel.now - milliseconds(since: start)
+            // An attached app has shown itself: the other tracks hear it by the track's name.
+            if case .attach = tape.launch, let runner {
+                channel?.post(reel: location.reelName, line: 0, name: runner, phase: .start)
+            }
             var events: [Take.Event] = []
             var clock = SpeechClock()
             // The element a zoom is locked on: its frame is read again after every step, so render can follow it.
@@ -153,6 +157,13 @@ public enum Recorder {
             }
             // The take runs until the last line has been said.
             try await sleep(until: clock.speechEnd, since: start)
+            // An attached app is recorded for as long as the rest of the reel plays, or until it quits.
+            if case .attach = tape.launch, let stop, let pid = stage.pid {
+                let app = NSRunningApplication(processIdentifier: pid)
+                while !stop.fired, app?.isTerminated == false {
+                    try await Task.sleep(for: .milliseconds(100))
+                }
+            }
             try await stream.stopCapture()
             let end = now()
             try await writer.finish(at: end)
@@ -193,11 +204,17 @@ public enum Recorder {
         /// Whether a running app is part of what is recorded (its sound kept).
         var owns: (SCRunningApplication) -> Bool
         var close: () -> Void = {}
+        /// The app's process, for an app (not a page).
+        var pid: pid_t?
     }
 
     /// An app, launched and driven through Accessibility, its whole window recorded.
     private static func appStage(_ tape: Tape, log: (String) -> Void) async throws -> Stage {
-        let pid = try await launch(tape.launch)
+        let pid = if case let .attach(app) = tape.launch {
+            try await attach(app, within: max(tape.waitTimeout, attachTimeout), log: log)
+        } else {
+            try await launch(tape.launch)
+        }
         log("waiting for a window of pid \(pid)")
         var (window, display, content) = try await firstWindow(of: pid)
 
@@ -226,7 +243,7 @@ public enum Recorder {
         }
         return Stage(
             window: window, display: display, content: content, crop: CGRect(origin: .zero, size: window.frame.size),
-            driver: driver, owns: { $0.processID == pid }
+            driver: driver, owns: { $0.processID == pid }, pid: pid
         )
     }
 
@@ -316,6 +333,31 @@ public enum Recorder {
         }
     }
 
+    /// How long an attached app has, at least, to be opened: by a reel run in a terminal track, which takes a moment.
+    static let attachTimeout: Duration = .seconds(60)
+
+    /// The running app `app` names (a bundle id, or an app's path), once something has opened it.
+    static func attach(_ app: String, within timeout: Duration, log: (String) -> Void) async throws -> pid_t {
+        log("waiting for \((app as NSString).lastPathComponent) to open")
+        let deadline = ContinuousClock.now + timeout
+        while true {
+            if let found = running(app) { return found }
+            if ContinuousClock.now > deadline {
+                throw ReelError("\((app as NSString).lastPathComponent) did not open within \(timeout.written)")
+            }
+            try await Task.sleep(for: .milliseconds(100))
+        }
+    }
+
+    /// The pid of a running app with `app`'s bundle id or at its path.
+    static func running(_ app: String) -> pid_t? {
+        let url = app.contains("/") ? URL(fileURLWithPath: app).standardizedFileURL : nil
+        return NSWorkspace.shared.runningApplications.first { running in
+            !running.isTerminated
+                && (url.map { running.bundleURL?.standardizedFileURL == $0 } ?? (running.bundleIdentifier == app))
+        }?.processIdentifier
+    }
+
     private static func launch(_ target: LaunchTarget) async throws -> pid_t {
         let url: URL
         switch target {
@@ -338,6 +380,8 @@ public enum Recorder {
             preconditionFailure("a reel of scenes records each scene's reel")
         case .together:
             preconditionFailure("a reel of tracks records each track")
+        case .attach:
+            preconditionFailure("an attached app is opened by something else")
         }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
@@ -483,5 +527,21 @@ private final class CursorSampler: @unchecked Sendable {
         task?.cancel()
         task = nil
         return lock.withLock { samples }
+    }
+}
+
+/// Said once the rest of a reel of tracks has played: what an attached app's track records until.
+public final class Stop: @unchecked Sendable {
+    private let lock = NSLock()
+    private var done = false
+
+    public init() {}
+
+    public var fired: Bool {
+        lock.withLock { done }
+    }
+
+    public func fire() {
+        lock.withLock { done = true }
     }
 }
