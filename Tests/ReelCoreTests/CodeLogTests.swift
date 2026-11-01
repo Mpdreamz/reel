@@ -34,11 +34,29 @@ struct CodeLogTests {
         let pause = channel.events.filter { $0.name == "pause" }
         #expect(pause.map(\.phase) == [.start, .end])
         // What it says on the channel happens when the take says it does: 400ms apart, as the other reels hear it.
-        #expect(pause[1].at - pause[0].at >= 380, "\(pause[1].at - pause[0].at) ms")
-        #expect(take.events.map(\.endMs) == [300, 700])
-        // Alone, the same take, as fast as it can draw.
+        #expect(pause[1].at - pause[0].at >= 395, "\(pause[1].at - pause[0].at) ms")
+        // In real time the take shows when things happened, at least as late as planned and each as long.
+        let ends = take.events.map(\.endMs)
+        #expect(ends[0] >= 300 && ends[1] - ends[0] >= 400, "\(ends)")
+        // Alone, as planned to the millisecond, as fast as it can draw.
         let alone = try await record(script, channel: nil)
-        #expect(alone.sameMoments(take))
+        #expect(alone.events.map(\.endMs) == [300, 700])
+    }
+
+    @Test func aLateStepMovesWhatFollowsInsteadOfShorteningIt() async throws {
+        let clock = TakeClock(real: true)
+        try await clock.wait(until: 100)
+        // Something held the step up: it is 150ms later than the clock thought.
+        try await Task.sleep(for: .milliseconds(150))
+        let before = ContinuousClock.now
+        try await clock.wait(until: clock.now + 200)
+        #expect(ContinuousClock.now - before >= .milliseconds(195), "a 200ms step lasts 200ms")
+        #expect(clock.now >= 450)
+        // Its own clock is never late: it is wherever it is told.
+        let own = TakeClock(real: false)
+        try await own.wait(until: 100)
+        try await own.wait(until: own.now + 200)
+        #expect(own.now == 300)
     }
 
     @Test @MainActor func reelScriptsAreColoured() async throws {
