@@ -68,6 +68,26 @@ Peek "profileID()" Voicebox.swift at "func profileID"
 | `Peek "<text>" <file> [lines <a>-<b>] [at …]` | Opens the file in a box under the line with the text, as an editor peeks a definition: up to 8 lines, scrolled to its place, that line highlighted. `Peek off` closes it. |
 | `Link "<a>" -> "<b>" ["<label>"]` | An arrow from the first `a` to the first `b`, drawing itself in, with a label. Split, it goes across: `a` is looked for on the left first, `b` on the other side. In one pane, it curves out past the end of both lines. Links add up until `Link off`. |
 
+## Diffs
+
+```
+Diff@crossfade code/SpeechClock-before.swift code/SpeechClock.swift
+Go hunk 1
+Diff Sources/Clock.swift since HEAD~1 at hunk 2
+```
+
+| Command | |
+|---|---|
+| `Diff <before> <after>` | The two versions as one: every line of either, kept, added (green, `+`) or removed (red, `−`, without a number), and in a line that was edited rather than replaced, the words that changed. The header says what it compares and counts the lines added and removed. |
+| `Diff <file> since <revision>` | The file now against the version git has at the revision: `HEAD~1`, a tag, a commit. The header names the commit. |
+| `Diff@<transition> …`, `… at line <n>`, `… at hunk <n>`, `… at "<text>"` | Comes in and opens where `Code` does. |
+| `Go hunk <n>` | To the first change of the nth run of changes. |
+
+Line numbers in a diff are the new file's: `Go line 12` and `Focus lines 16-18` mean those lines of the file as it is
+now. reel works the diff out itself, line by line and then word by word, so it's the same every time. Two files make
+a demo that stays the same as the repository moves on; a revision reads the version from git at the moment of
+recording.
+
 Relations are declared in the reel: reel colours code but doesn't understand it, so it can't find what implements
 what on its own. The texts are anchors, matched exactly, as `Mark` matches them.
 

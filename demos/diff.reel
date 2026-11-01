@@ -1,0 +1,32 @@
+# reel's diff demo: a pull request's change, walked through hunk by hunk. demos/code has both versions, so the diff
+# stays the same as the repository moves on; `Diff <file> since <revision>` reads the older one from git instead.
+# `mise run demos diff` records it.
+Import //demos/reel.reelpreset
+Screen code
+
+Output //docs/media/diff.mp4
+Output //docs/media/diff.gif
+Set Viewport 1100x620
+Set FontSize 18
+# The whole diff fills the screen, and the last hunk sits where subtitles go: they are for the muted feeds only.
+Set Subtitles social|feed|square ? on : off
+Intro@crossfade,ease-out,600ms square ? "reel" "What changed" : 2s
+Outro@fade,800ms square ? "Recorded with reel" "brew install --cask mpdreamz/tap/reel" : 2s
+
+Code code/SpeechClock-before.swift
+Say "Here's the clock before this change."
+Diff@crossfade,700ms code/SpeechClock-before.swift code/SpeechClock.swift
+Say "And here's what the change did, line by line."
+Go hunk 1
+Mark "markers" 1
+Say "It keeps the markers each line reaches,"
+Mark off
+Go hunk 3
+Focus lines 16-18
+Say "fills them in as a line starts,"
+Focus off
+Go hunk 4
+Callout "func time(of marker: String)" "new: when a marker comes"
+Say "and answers when one comes. Even a renamed argument shows, word by word."
+Callout off
+Sleep 1s

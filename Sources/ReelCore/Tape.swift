@@ -238,6 +238,23 @@ public struct CodeFile: Equatable, Sendable {
 public enum CodeAnchor: Equatable, Sendable {
     case line(Int)
     case text(String)
+    /// `hunk 2`: the second run of changes in a diff.
+    case hunk(Int)
+}
+
+/// `Diff <before> <after>`, `Diff <file> since <revision>`: what a diff compares.
+public struct DiffSource: Equatable, Sendable {
+    public enum Before: Equatable, Sendable {
+        /// Another file: the version before.
+        case file(URL)
+        /// The file as git has it at a revision (`HEAD~1`, a tag, a commit).
+        case revision(String)
+    }
+
+    public var before: Before
+    public var after: URL
+    /// Where the cursor goes: a line of the new file, some text, or a hunk.
+    public var at: CodeAnchor?
 }
 
 /// Which browser shows a web page. Anything but WebKit is a promise the tape makes: when it cannot be kept, recording
@@ -328,6 +345,8 @@ public enum Command: Equatable, Sendable {
     case open(URL)
     /// `Code <file>`: opens a file in a code screen's editor.
     case code(CodeFile, transition: SectionTransition?)
+    /// `Diff <before> <after>`, `Diff <file> since <revision>`: two versions of a file as one, what changed marked.
+    case diff(DiffSource, transition: SectionTransition?)
     /// `Split <file>`: the file in a second pane beside the first, which it makes the active one; `Split off` (nil)
     /// closes it.
     case split(CodeFile?)
@@ -833,7 +852,9 @@ public extension Tape {
             }
             // `Type@20ms`: a command may carry an option after `@`; only Type takes one.
             let (name, option) = first.quoted ? (first.text, nil) : split(first.text)
-            if option != nil, !["Type", "Say", "Zoom", "Intro", "Outro", "Output", "Include", "Code"].contains(name) {
+            if option != nil, !["Type", "Say", "Zoom", "Intro", "Outro", "Output", "Include", "Code", "Diff"]
+                .contains(name)
+            {
                 throw fail("\(name) takes no @option")
             }
             // The first line says what the tape records; everything after is read knowing it.
@@ -1036,6 +1057,35 @@ public extension Tape {
                 let file = try codeFile(args[...], usage: "Code[@<transition>]")
                 try step(.code(file, transition: option.map { try SectionTransition($0, fail: fail) }))
 
+            case "Diff":
+                try forScreen("Diff", [.code])
+                let usage = "expected Diff[@<transition>] <before> <after> or Diff[@<transition>] <file> since <revision>, "
+                    + "then [at line <n> | at hunk <n> | at \"<text>\"]"
+                var rest = args[...]
+                guard let first = rest.popFirst(), !first.quoted, let second = rest.popFirst(), !second.quoted else {
+                    throw fail(usage)
+                }
+                let after: URL
+                let before: DiffSource.Before
+                if second.text == "since" {
+                    guard let revision = rest.popFirst(), !revision.text.isEmpty else { throw fail(usage) }
+                    after = try locate(first.text, from: directory, at: "line \(line)", fail: fail)
+                    before = .revision(revision.text)
+                } else {
+                    before = try .file(locate(first.text, from: directory, at: "line \(line)", fail: fail))
+                    after = try locate(second.text, from: directory, at: "line \(line)", fail: fail)
+                }
+                var at: CodeAnchor?
+                if let word = rest.popFirst() {
+                    guard !word.quoted, word.text == "at", let next = rest.popFirst() else { throw fail(usage) }
+                    at = try codeAnchor(next, rest: &rest, fail: fail)
+                }
+                guard rest.isEmpty else { throw fail(usage) }
+                try step(.diff(
+                    DiffSource(before: before, after: after, at: at),
+                    transition: option.map { try SectionTransition($0, fail: fail) }
+                ))
+
             case "Split":
                 try forScreen("Split", [.code])
                 if words == ["off"] {
@@ -1080,7 +1130,7 @@ public extension Tape {
 
             case "Go":
                 try forScreen("Go", [.code])
-                let usage = "expected Go line <n> or Go \"<text>\""
+                let usage = "expected Go line <n>, Go hunk <n> or Go \"<text>\""
                 guard let first = args.first else { throw fail(usage) }
                 var rest = args.dropFirst()
                 let anchor = try codeAnchor(first, rest: &rest, fail: fail)
@@ -1284,7 +1334,7 @@ public extension Tape {
                 let known = [
                     "Output", "Set", "Launch", "Sleep", "Click", "Wait", "Type", "Key", "Scroll", "Caption", "Say",
                     "Zoom", "Speed", "Hide", "Show", "Intro", "Outro", "Open", "Screen", "Code", "Go", "Focus", "Mark",
-                    "Callout", "Include", "Split", "Pane", "Peek", "Link",
+                    "Callout", "Include", "Split", "Pane", "Peek", "Link", "Diff",
                 ]
                 let hint = known.first { $0.lowercased() == name.lowercased() }.map { "; did you mean \($0)?" }
                 throw fail("unknown command '\(name)'" + (hint ?? "; expected one of \(known.joined(separator: ", "))"))
@@ -1618,13 +1668,15 @@ private func codeAnchor(
     _ word: Token, rest: inout ArraySlice<Token>, fail: (String) -> TapeError
 ) throws -> CodeAnchor {
     if word.quoted {
-        guard !word.text.isEmpty else { throw fail("a place in the code is line <n> or some text to find, in quotes") }
+        guard !word.text.isEmpty else {
+            throw fail("a place in the code is line <n>, hunk <n> or some text to find, in quotes")
+        }
         return .text(word.text)
     }
-    guard word.text == "line", let n = rest.popFirst().flatMap({ Int($0.text) }), n >= 1 else {
-        throw fail("a place in the code is line <n> or some text to find, in quotes")
+    guard ["line", "hunk"].contains(word.text), let n = rest.popFirst().flatMap({ Int($0.text) }), n >= 1 else {
+        throw fail("a place in the code is line <n>, hunk <n> or some text to find, in quotes")
     }
-    return .line(n)
+    return word.text == "line" ? .line(n) : .hunk(n)
 }
 
 /// Why a step cannot be on a screen, nil when it can. The screen is reel's own: there is nothing to click, scroll or

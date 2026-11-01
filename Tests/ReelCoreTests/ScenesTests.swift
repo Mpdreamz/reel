@@ -145,7 +145,7 @@ struct SceneParsingTests {
         )) { try Scenes.load(tape) }
         try folder.write("broken.reel", "Screen code\nOutput b.mp4\nGo")
         #expect(throws: TapeError(
-            message: "broken.reel line 3: expected Go line <n> or Go \"<text>\""
+            message: "broken.reel line 3: expected Go line <n>, Go hunk <n> or Go \"<text>\""
         )) { try Scenes.load(folder.parse("Include broken.reel\nOutput t.mp4")) }
     }
 }

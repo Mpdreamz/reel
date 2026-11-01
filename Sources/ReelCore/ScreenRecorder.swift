@@ -52,6 +52,12 @@ extension Recorder {
                         "return await reelScreen.open(f, t)", ["f": screenFile(file), "t": transition?.page ?? NSNull()]
                     )
                     try await advance(to: now + (transition.map { milliseconds($0.duration) } ?? screenTimings.open))
+                case let .diff(source, transition):
+                    try await screen.step(
+                        "return await reelScreen.open(f, t)",
+                        ["f": screenDiff(source), "t": transition?.page ?? NSNull()]
+                    )
+                    try await advance(to: now + (transition.map { milliseconds($0.duration) } ?? screenTimings.open))
                 case let .split(file):
                     try await screen.step("return await reelScreen.split(f)", ["f": file.map(screenFile) ?? NSNull()])
                     try await advance(to: now + paneTimings.split)
@@ -137,20 +143,86 @@ extension Recorder {
             lines = Array(lines[(range.lowerBound - 1) ..< range.upperBound])
             first = range.lowerBound
         }
-        let folder = file.url.deletingLastPathComponent()
-        let directory: String = if let root = Paths.gitRoot(from: folder) {
-            String(folder.standardizedFileURL.path.dropFirst(root.standardizedFileURL.path.count))
-                .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        } else {
-            folder.lastPathComponent
-        }
         return [
             "name": file.url.lastPathComponent,
-            "directory": directory,
+            "directory": folderName(of: file.url),
             "text": lines.joined(separator: "\n"),
             "firstLine": first,
             "at": file.at.map(\.page) ?? NSNull(),
         ]
+    }
+
+    /// The folder a file is in, as its header shows it: from the git root, or just its name outside a repository.
+    static func folderName(of file: URL) -> String {
+        let folder = file.deletingLastPathComponent()
+        guard let root = Paths.gitRoot(from: folder) else { return folder.lastPathComponent }
+        return String(folder.standardizedFileURL.path.dropFirst(root.standardizedFileURL.path.count))
+            .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+    }
+
+    /// What the page needs to show a diff: the two versions as one, each line's kind and number in the new file,
+    /// the words that changed, where the hunks start, and what it compares, for its header.
+    static func screenDiff(_ source: DiffSource) throws -> [String: Any] {
+        func read(_ url: URL) throws -> String {
+            do {
+                return try String(contentsOf: url, encoding: .utf8)
+            } catch {
+                throw ReelError("cannot read \(url.path): \(error.localizedDescription)")
+            }
+        }
+        let after = try read(source.after)
+        let before: String, label: String
+        switch source.before {
+        case let .file(url):
+            before = try read(url)
+            label = "\(url.lastPathComponent) → \(source.after.lastPathComponent)"
+        case let .revision(revision):
+            let folder = source.after.deletingLastPathComponent()
+            before = try git(["show", "\(revision):./\(source.after.lastPathComponent)"], in: folder)
+            let short = try git(["rev-parse", "--short", revision], in: folder)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            label = short == revision ? "since \(revision)" : "since \(revision) (\(short))"
+        }
+        let diff = CodeDiff(before: before, after: after)
+        return [
+            "name": source.after.lastPathComponent,
+            "directory": folderName(of: source.after),
+            "text": diff.rows.map(\.text).joined(separator: "\n"),
+            "firstLine": 1,
+            "at": source.at.map(\.page) ?? NSNull(),
+            "diff": [
+                "kinds": diff.rows.map(\.kind.rawValue),
+                "numbers": diff.rows.map { $0.number.map { $0 as Any } ?? NSNull() },
+                "words": diff.rows.map { $0.words.map { [$0.lowerBound, $0.upperBound] } },
+                "hunks": diff.hunks,
+                "added": diff.added,
+                "removed": diff.removed,
+                "label": label,
+            ] as [String: Any],
+        ]
+    }
+
+    /// What git prints for `arguments`, run in `folder`; what it says went wrong when it fails.
+    static func git(_ arguments: [String], in folder: URL) throws -> String {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        process.arguments = ["-C", folder.path] + arguments
+        let out = Pipe(), err = Pipe()
+        process.standardOutput = out
+        process.standardError = err
+        do {
+            try process.run()
+        } catch {
+            throw ReelError("cannot run git: \(error.localizedDescription)")
+        }
+        let output = out.fileHandleForReading.readDataToEndOfFile()
+        let problem = String(decoding: err.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw ReelError("git \(arguments.joined(separator: " ")): "
+                + problem.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return String(decoding: output, as: UTF8.self)
     }
 
     static func milliseconds(_ duration: Duration) -> Int {
@@ -164,6 +236,7 @@ extension CodeAnchor {
         switch self {
         case let .line(n): ["line": n]
         case let .text(text): ["text": text]
+        case let .hunk(n): ["hunk": n]
         }
     }
 }
