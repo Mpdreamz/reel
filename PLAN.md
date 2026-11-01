@@ -309,7 +309,9 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   its transition, and the sequence's intro and outro go around the whole. Outputs are written as for any reel. A
   reel of tracks has its tracks rendered once (`renderTrackDemos`), then, for each canvas, composed straight onto it
   (`composeTracks`, on the sequence's backdrop and padding) and its director's reel rendered over that, its intro and
-  outro left out, as `renderTracks` does for the reel on its own.
+  outro left out, as `renderTracks` does for the reel on its own. The canvas is framed and joined no wider than the
+  widest Output of its shape is written (`Set VideoWidth`, `Set GifWidth`; `Scenes.workingSize`), at the size the
+  movie would have been scaled to, so each pass handles no more pixels than are kept.
 - **Not yet:** scenes written inline in one file, and narration that carries across a cut.
 
 ## Reels together

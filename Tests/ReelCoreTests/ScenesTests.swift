@@ -151,6 +151,27 @@ struct SceneParsingTests {
         #expect(scenes[1].tape.tracks.map(\.name) == ["left", "right"])
     }
 
+    @Test func scenesAreJoinedNoLargerThanTheOutputsKeep() {
+        let canvas = CGSize(width: 2528, height: 1422)
+        let mp4 = Output(url: URL(filePath: "/t.mp4"), format: .mp4)
+        let gif = Output(url: URL(filePath: "/t.gif"), format: .gif)
+        var narrow = Encoding.standard
+        narrow.width = 1920
+        func size(_ outputs: [Output], _ encoding: Encoding, gif width: Int = 720) -> CGSize {
+            Scenes.workingSize(of: canvas, for: outputs, encoding: encoding, gifWidth: width)
+        }
+        // As wide as the widest Output, at the size the movie would have been scaled to from the full canvas.
+        #expect(size([mp4, gif], narrow) == CGSize(width: 1920, height: 1080))
+        #expect(size([mp4, gif], narrow) == narrow.size(for: canvas))
+        #expect(size([gif], .standard) == CGSize(width: 720, height: 404))
+        #expect(size([mp4, gif], narrow, gif: 2200) == CGSize(width: 2200, height: 1238))
+        // A movie at its full size, or Outputs wider than the canvas: the canvas, never larger.
+        #expect(size([mp4, gif], .standard) == canvas)
+        #expect(size([gif], .standard, gif: 4000) == canvas)
+        narrow.width = 8000
+        #expect(size([mp4], narrow) == canvas)
+    }
+
     @Test func aSceneJoinsNoScenesOfItsOwn() throws {
         let folder = try Folder()
         try folder.write("inner.reel", "Include a.reel\nOutput i.mp4")
