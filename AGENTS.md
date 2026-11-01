@@ -39,7 +39,8 @@ or both. Read `PLAN.md` first.
   (`docs/media/commons-web.mp4`), with `web-poster.jpg` a frame of it; its code video, `docs/landing/code-demo.mp4`,
   is the code demo's (`docs/media/code-web.mp4`), with `code-poster.jpg`; its command line video,
   `docs/landing/cli-demo.mp4`, is the terminal demo's (`docs/media/cli-web.mp4`), with `cli-poster.jpg`.
-  `demos/tour.reel` joins the code and command line demos as scenes; it records nothing of its own.
+  `demos/tour.reel` joins the two code demos (`code.reel`, `relations.reel`) and the command line demo as scenes; it
+  records nothing of its own.
 - The code and terminal screens (`Screen code`, `Screen terminal`) are pages in `Sources/ReelCore/Resources/Screen`:
   `screen.html`/`screen.js` and `terminal.html`/`terminal.js`, the fonts, Monaco and xterm.js, which
   `scripts/vendor-monaco.sh` and `scripts/vendor-xterm.sh` download at a pinned version and checksum (bump both there

@@ -11,21 +11,40 @@
 @font-face { font-family: 'Instrument Sans'; font-weight: 500; src: url(fonts/instrument-sans-latin-500-normal.woff2) format('woff2'); }
 :root {
   --bg: #111923; --card: #1d2b3a; --fg: #E7ECF1; --line: #2a3b4e; --mut: #9BABBB; --acc: #F2B04C; --sig: #5CC8B6;
-  --dim: 1; --header: 48px;
+  --header: 48px;
 }
 html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
-#header {
+/* A pane: a file's header and its editor, with reel's overlay on top. Two side by side after Split. */
+.pane { position: absolute; top: 0; bottom: 0; overflow: hidden; background: var(--bg); --dim: 1; }
+.pane + .pane { box-shadow: -1px 0 0 var(--line); }
+.content, .leaving { position: absolute; inset: 0; }
+.header {
   position: absolute; left: 0; right: 0; top: 0; height: var(--header); box-sizing: border-box;
   display: flex; align-items: center; gap: 12px; padding: 0 22px; background: var(--card);
   border-bottom: 1px solid var(--line); font: 500 15px 'Instrument Sans', sans-serif; color: var(--fg);
 }
-#header .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--acc); flex: none; }
-#header .name { font-family: 'JetBrains Mono', monospace; font-weight: 500; }
-#header .path { color: var(--mut); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#header .lang { margin-left: auto; color: var(--mut); font-weight: 400; text-transform: lowercase; }
-#header:empty { display: none; }
-#code { position: absolute; left: 0; right: 0; top: var(--header); bottom: 0; }
-#overlay { position: absolute; left: 0; right: 0; top: var(--header); bottom: 0; pointer-events: none; overflow: hidden; }
+.header .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--acc); flex: none; }
+.header .name { font-family: 'JetBrains Mono', monospace; font-weight: 500; white-space: nowrap; }
+.header .path { color: var(--mut); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.header .lang { margin-left: auto; color: var(--mut); font-weight: 400; text-transform: lowercase; }
+.header:empty { display: none; }
+.code { position: absolute; left: 0; right: 0; top: var(--header); bottom: 0; }
+.overlay { position: absolute; left: 0; right: 0; top: var(--header); bottom: 0; pointer-events: none; overflow: hidden; }
+/* Peek: another file in a box under a line. */
+.peek { box-sizing: border-box; border-top: 2px solid var(--sig); border-bottom: 2px solid var(--sig);
+  background: var(--card); overflow: hidden; }
+.peek .bar { height: 30px; display: flex; align-items: center; gap: 10px; padding: 0 14px; box-sizing: border-box;
+  font: 500 13px 'Instrument Sans', sans-serif; color: var(--fg); border-bottom: 1px solid var(--line); }
+.peek .bar .name { font-family: 'JetBrains Mono', monospace; }
+.peek .bar .path { color: var(--mut); font-weight: 400; }
+.peek .editor { position: relative; }
+.peek-line { background: rgba(92, 200, 182, 0.14); }
+/* Links: arrows between places, over every pane. */
+#links { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+#links path { fill: none; stroke: var(--sig); stroke-width: 2.5; stroke-linecap: round; }
+#links .label rect { fill: var(--sig); }
+#links .label text { fill: var(--bg); font: 500 15px 'Instrument Sans', sans-serif; }
+#links .end { box-sizing: border-box; }
 /* Monaco's own cursor is drawn only while it has focus, which a page nobody shows never gets: reel draws its own. */
 .monaco-editor .cursors-layer { display: none; }
 .reel-dim { opacity: var(--dim); }
@@ -50,9 +69,9 @@ html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
 </style>
 </head>
 <body>
-<div id="header"></div>
-<div id="code"></div>
-<div id="overlay"></div>
+<div id="stage"></div>
+<svg id="links" xmlns="http://www.w3.org/2000/svg"><defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5"
+  markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 1 L 9 5 L 0 9 z" style="fill: var(--sig); stroke: none"/></marker></defs></svg>
 <script>
 // reel's clock: animation frames run when reel pumps them, at the time reel says.
 (function () {

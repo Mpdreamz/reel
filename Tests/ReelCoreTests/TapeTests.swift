@@ -111,7 +111,7 @@ struct TapeTests {
         (
             "Launch x\nOutput a.mp4\nTypo",
             3,
-            "unknown command 'Typo'; expected one of Output, Set, Launch, Sleep, Click, Wait, Type, Key, Scroll, Caption, Say, Zoom, Speed, Hide, Show, Intro, Outro, Open, Screen, Code, Go, Focus, Mark, Callout, Include"
+            "unknown command 'Typo'; expected one of Output, Set, Launch, Sleep, Click, Wait, Type, Key, Scroll, Caption, Say, Zoom, Speed, Hide, Show, Intro, Outro, Open, Screen, Code, Go, Focus, Mark, Callout, Include, Split, Pane, Peek, Link"
         ),
         ("Launch x\nSleep 1s\nOutput a.mp4", 3, "Output is setup and must come before the first step (line 2)"),
         (

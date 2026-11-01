@@ -50,8 +50,11 @@ struct ScreenParsingTests {
         #expect(Array(tape.steps.map(\.command).prefix(14)) == [
             .code(CodeFile(
                 url: URL(fileURLWithPath: "/tmp/demos/Sources/Player.swift"), lines: 10 ... 40, at: .text("func play")
-            )),
-            .code(CodeFile(url: URL(fileURLWithPath: "/tmp/demos/Player.java"), lines: nil, at: .line(12))),
+            ), transition: nil),
+            .code(
+                CodeFile(url: URL(fileURLWithPath: "/tmp/demos/Player.java"), lines: nil, at: .line(12)),
+                transition: nil
+            ),
             .go(.line(30)),
             .go(.text("return")),
             .focus(20 ... 24),
@@ -95,11 +98,11 @@ struct ScreenParsingTests {
         ("Screen code\nSet Browser chromium", 2, "Set Browser is for web pages (Open); this reel is a code screen"),
         (
             "Screen code\nOutput a.mp4\nCode \"a.swift\"", 3,
-            "expected Code <file> [lines <a>-<b>] [at line <n> | at \"<text>\"]"
+            "expected Code[@<transition>] <file> [lines <a>-<b>] [at line <n> | at \"<text>\"]"
         ),
         (
             "Screen code\nOutput a.mp4\nCode a.swift lines 9-3", 3,
-            "expected Code <file> [lines <a>-<b>] [at line <n> | at \"<text>\"]"
+            "expected Code[@<transition>] <file> [lines <a>-<b>] [at line <n> | at \"<text>\"]"
         ),
         (
             "Screen code\nOutput a.mp4\nCode a.swift at func", 3,
