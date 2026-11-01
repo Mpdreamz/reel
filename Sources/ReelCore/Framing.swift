@@ -214,6 +214,13 @@ final class FrameCompositor: NSObject, AVVideoCompositing, @unchecked Sendable {
             x: framing.content.minX, y: framing.canvas.height - framing.content.maxY,
             width: framing.content.width, height: framing.content.height
         )
+        return window(picture, in: slot, corner: framing.corner, canvas: canvas).composited(over: background)
+            .cropped(to: canvas)
+    }
+
+    /// A picture as a window in `slot` (Core Image's coordinates): scaled into it, its corners rounded, over its soft
+    /// shadow.
+    static func window(_ picture: CIImage, in slot: CGRect, corner: Double, canvas: CGRect) -> CIImage {
         let placed = picture
             .transformed(by: CGAffineTransform(
                 scaleX: slot.width / picture.extent.width, y: slot.height / picture.extent.height
@@ -221,7 +228,7 @@ final class FrameCompositor: NSObject, AVVideoCompositing, @unchecked Sendable {
             .transformed(by: CGAffineTransform(translationX: slot.minX, y: slot.minY))
         let rounded = CIFilter.roundedRectangleGenerator()
         rounded.extent = slot
-        rounded.radius = Float(framing.corner)
+        rounded.radius = Float(corner)
         rounded.color = .white
         let mask = rounded.outputImage ?? CIImage.empty()
         // The shadow: the window's shape, dark, blurred, a little below it.
@@ -234,10 +241,10 @@ final class FrameCompositor: NSObject, AVVideoCompositing, @unchecked Sendable {
             .applyingGaussianBlur(sigma: blur)
             .transformed(by: CGAffineTransform(translationX: 0, y: -slot.height * 0.012))
             .cropped(to: canvas)
-        let window = placed.applyingFilter("CIBlendWithMask", parameters: [
+        let shaped = placed.applyingFilter("CIBlendWithMask", parameters: [
             kCIInputBackgroundImageKey: CIImage.empty(), kCIInputMaskImageKey: mask,
         ])
-        return window.composited(over: shadow.composited(over: background)).cropped(to: canvas)
+        return shaped.composited(over: shadow).cropped(to: canvas)
     }
 
     /// Scales an image to cover `rect`, centred, cropping what overflows.

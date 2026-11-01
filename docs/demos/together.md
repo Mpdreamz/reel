@@ -1,5 +1,5 @@
 ---
-description: "Reels that run at the same time: named steps, and one reel waiting for another's."
+description: "Reels and subjects at the same time: named steps, waiting for each other, and tracks recorded together."
 ---
 
 # Reels together
@@ -40,6 +40,47 @@ line 8: waited 10s for ready to start on the channel; the last it heard was musi
 ```
 
 `reel check` lists a reel's named steps and what it waits for.
+
+## Tracks: several subjects in one reel
+
+```
+Screen terminal as term
+  Set Columns 84
+  Wait for opened
+  Type "reel musicbox.reel"
+  Key return as run
+  Wait /wrote/ as done
+
+Screen code as script
+  Code musicbox.reel as opened
+  Wait for run
+
+Output showcase.mp4
+Output@9:16 showcase-tall.mp4
+Say "One command records a whole demo."
+Wait for done
+```
+
+A reel can record several subjects at once. Each is a track: its line says what it records and ends with `as <name>`,
+and its steps are indented under it. A track can also be a file of its own, `With term.reel as term`, which is any
+reel (its Outputs, intro and outro left out). Every track is read top to bottom, as its own reel would be, and they
+all play at the same time; they meet only through named steps, with `Wait for`.
+
+The unindented steps are the director's: `Say`, `Caption`, `Sleep`, `Wait for`, `Wait [marker]`, `Speed` and
+`Hide` … `Show`, over every track. A step that acts on a subject belongs indented under its track.
+
+- **Real input takes turns.** Two app tracks clicking at the same moment would share one mouse, so their steps take
+  turns. Typing into a terminal or a code screen uses no real input and doesn't wait.
+- **A deadlock stops at once.** When every track waits for a step only another of them would take, the take stops
+  with who waits for what: `no track can go on: script waits for run; term waits for opened`. A wait for a step no
+  track has could come from a reel run in a terminal, so that one waits its `WaitTimeout`.
+- **Each track records into a take of its own**, under `.reel/<reel>/tracks/<name>/`, with the moment it started, so
+  render lines them up.
+
+In render, each track is rendered as its own reel would be (its overlays, cuts and zooms), then all of them are drawn
+together for each shape the Outputs take: side by side in a wide cut, stacked in a tall one, each as a window on the
+backdrop. The director's narration and captions go over the whole, then the intro and outro. Moving between
+arrangements, a spotlight, fullscreen and picture-in-picture come next.
 
 ## How reels hear each other
 

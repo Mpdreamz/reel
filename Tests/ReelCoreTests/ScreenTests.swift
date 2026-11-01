@@ -215,7 +215,7 @@ struct ScreenRecordingTests {
         """
         let (first, one) = try await record("one.reel", script)
         let (second, two) = try await record("two.reel", script)
-        #expect(first == second)
+        #expect(first.sameMoments(second))
         #expect(first.width == 1280 && first.height == 720)
         #expect(first.events.count == 9)
 

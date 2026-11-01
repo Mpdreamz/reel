@@ -1,5 +1,6 @@
 import AVFoundation
 import Foundation
+@testable import ReelCore
 import Testing
 
 /// A movie's frames as BGRA bytes, as written (no frame for a still screen).
@@ -34,4 +35,14 @@ func frameDifference(_ a: Data, _ b: Data) -> Double {
         }
     }
     return Double(total) / Double(a.count)
+}
+
+extension Take {
+    /// The same take but for when it was recorded (`startedAt`, the wall clock), which two recordings never share.
+    func sameMoments(_ other: Take) -> Bool {
+        var a = self, b = other
+        a.startedAt = nil
+        b.startedAt = nil
+        return a == b
+    }
 }

@@ -64,6 +64,8 @@ public struct Tape: Equatable, Sendable {
     public var terminal: TerminalSettings
     /// For a sequence: the reels it joins, in order.
     public var scenes: [Scene]
+    /// For a reel that records several subjects at once: each one's track.
+    public var tracks: [Track]
     /// `Set FontSize`: a code screen's text, in points.
     public var fontSize: Int
     /// `Set Background`: the recording is framed on it in every output; nil frames only outputs with a shape.
@@ -122,7 +124,7 @@ public struct Output: Equatable, Sendable {
     public var shape: Shape?
 
     /// A canvas: an aspect ratio (its size worked out from the recording) or an exact size in pixels.
-    public enum Shape: Equatable, Sendable, CustomStringConvertible {
+    public enum Shape: Hashable, Sendable, CustomStringConvertible {
         case aspect(Int, Int)
         case size(Int, Int)
 
@@ -150,6 +152,13 @@ public enum LaunchTarget: Equatable, Sendable {
     case screen(ScreenLayout)
     /// `Include <scene.reel>`: other reels, recorded each on its own and joined (see `Scenes`).
     case sequence
+    /// `Screen terminal as term` and its indented steps, `With x.reel as name`: several subjects recorded at once,
+    /// each a track of its own, the reel's unindented steps the director's (see `Tracks`).
+    case together
+
+    public var isTogether: Bool {
+        self == .together
+    }
 
     public var isSequence: Bool {
         self == .sequence
@@ -163,6 +172,7 @@ public enum LaunchTarget: Equatable, Sendable {
         case let .web(url): url.host() ?? url.lastPathComponent
         case let .screen(layout): layout.name
         case .sequence: "scenes"
+        case .together: "tracks"
         }
     }
 
@@ -196,6 +206,17 @@ public enum ScreenLayout: String, Equatable, Sendable, CaseIterable {
 public struct Scene: Equatable, Sendable {
     public var url: URL
     public var transition: SectionTransition?
+}
+
+/// One subject of a reel that records several at once: its name, and the reel of its own it plays, written inline (its
+/// indented steps) or in a file (`With x.reel as name`).
+public struct Track: Equatable, Sendable {
+    public var name: String
+    /// The line that declares it.
+    public var line: Int
+    /// The file it was read from; nil for one written inline.
+    public var file: URL?
+    public var tape: Tape
 }
 
 /// A terminal screen's shell and how it is drawn.
@@ -488,17 +509,20 @@ public extension Tape {
         known.first { $0.name == name }
     }
 
-    static func load(_ url: URL) throws -> Tape {
+    static func load(_ url: URL, asTrack: Bool = false) throws -> Tape {
         guard url.pathExtension == "reel" else {
             throw TapeError(message: "\(url.lastPathComponent) is not a reel script; those are .reel files")
         }
-        return try parse(String(contentsOf: url, encoding: .utf8), relativeTo: url.deletingLastPathComponent())
+        return try parse(
+            String(contentsOf: url, encoding: .utf8), relativeTo: url.deletingLastPathComponent(), asTrack: asTrack
+        )
     }
 
     /// Parses a tape. Relative paths (`Output`, `Launch` of an `.app`) resolve against `directory`. With a profile,
     /// its settings apply after the tape's own.
     static func parse(
-        _ text: String, relativeTo directory: URL, profile: Profile? = nil, format: Output.Format? = nil
+        _ text: String, relativeTo directory: URL, profile: Profile? = nil, format: Output.Format? = nil,
+        asTrack: Bool = false
     ) throws -> Tape {
         // Every name a condition tests, with its line, checked once every profile is known.
         var tested: [(name: String, origin: String)] = []
@@ -547,6 +571,9 @@ public extension Tape {
         var fontSize: Int?
         var terminal = TerminalSettings()
         var scenes: [Scene] = []
+        var tracks: [Track] = []
+        /// Every track's named steps, with their lines: names are unique across a reel's tracks and its own steps.
+        var trackNames: [String: Int] = [:]
         var steps: [Step] = []
         /// Each step's name, with its line.
         var named: [String: Int] = [:]
@@ -890,7 +917,7 @@ public extension Tape {
             }
             // The first line says what the tape records; everything after is read knowing it.
             if launch == nil,
-               !["Launch", "Open", "Import", "Screen", "Include"].contains(name) { throw fail(Tape.preface) }
+               !["Launch", "Open", "Import", "Screen", "Include", "With"].contains(name) { throw fail(Tape.preface) }
             let isWeb = launch?.target.isWeb == true
             let isScreen = launch?.target.isScreen == true
             let screen = launch?.target.screen
@@ -907,6 +934,53 @@ public extension Tape {
                             (layouts.count == 1 ? "a \(names[0])" : "a \(names.joined(separator: " or "))")
                             + " screen: start the reel with " + names.map { "Screen \($0)" }.joined(separator: " or ")
                     )
+                }
+            }
+
+            // `Screen terminal as term`, and the indented lines under it: a track, read as a reel of its own from the
+            // same text, every other line blank, so what it says about a line is about the file's.
+            if let stepName, ["Launch", "Open", "Screen"].contains(name), !asTrack {
+                if let earlier = launch, !earlier.target.isTogether {
+                    throw fail("line \(earlier.line) says what this reel records alone; a reel of tracks names each, "
+                        + "\(name) … as <name>")
+                }
+                var end = index + 1
+                while end < lines.count, lines[end].trimmingCharacters(in: .whitespaces).isEmpty
+                    || lines[end].first == " " || lines[end].first == "\t"
+                {
+                    end += 1
+                }
+                var own = lines.map { line -> String in
+                    // Its imports, which come before everything, are its own too.
+                    (try? tokenize(line, line: 0).first?.text) == "Import" ? line : ""
+                }
+                own[index] = tokens.dropLast(2).map(\.source).joined(separator: " ")
+                for at in index + 1 ..< end {
+                    own[at] = lines[at].trimmingCharacters(in: .whitespaces)
+                }
+                let read = try Tape.parse(
+                    own.joined(separator: "\n"), relativeTo: directory, profile: profile, format: format, asTrack: true
+                )
+                try addTrack(Track(name: stepName, line: line, file: nil, tape: read))
+                consumed = end - index - 1
+                continue
+            }
+            func addTrack(_ track: Track) throws {
+                if let earlier = trackNames[track.name] ?? named[track.name] {
+                    throw fail("line \(earlier) is already named \(track.name)")
+                }
+                trackNames[track.name] = line
+                for step in track.tape.steps {
+                    guard let name = step.name else { continue }
+                    if let earlier = trackNames[name] ?? named[name] {
+                        throw TapeError(line: step.line, message: "line \(earlier) is already named \(name)")
+                    }
+                    trackNames[name] = step.line
+                }
+                tracks.append(track)
+                if launch == nil {
+                    launch = (.together, line)
+                    try applyImports(isWeb: false)
                 }
             }
 
@@ -1048,6 +1122,26 @@ public extension Tape {
                     line
                 )
                 try applyImports(isWeb: false)
+
+            case "With":
+                try setup(name)
+                guard !asTrack
+                else { throw fail("a track records one subject; With belongs in the reel that joins them") }
+                guard let stepName else { throw fail("expected With <track.reel> as <name>") }
+                if let earlier = launch, !earlier.target.isTogether {
+                    throw fail("With adds a track to a reel of tracks; this reel \(kind) (line \(earlier.line))")
+                }
+                let path = try single(words, usage: "With <track.reel> as <name>", fail: fail)
+                let url = try locate(path, from: directory, at: "line \(line)", fail: fail)
+                guard FileManager.default.fileExists(atPath: url.path) else { throw fail("no reel at \(url.path)") }
+                let read: Tape
+                do {
+                    read = try Tape.load(url, asTrack: true)
+                } catch let error as TapeError {
+                    throw fail("\(url.lastPathComponent)\(error.line.map { " line \($0)" } ?? ""): \(error.message)")
+                }
+                try addTrack(Track(name: stepName, line: line, file: url, tape: read))
+                continue
 
             case "Include":
                 try setup(name)
@@ -1378,7 +1472,7 @@ public extension Tape {
                 let known = [
                     "Output", "Set", "Launch", "Sleep", "Click", "Wait", "Type", "Key", "Scroll", "Caption", "Say",
                     "Zoom", "Speed", "Hide", "Show", "Intro", "Outro", "Open", "Screen", "Code", "Go", "Focus", "Mark",
-                    "Callout", "Include", "Split", "Pane", "Peek", "Link", "Diff", "Morph",
+                    "Callout", "Include", "Split", "Pane", "Peek", "Link", "Diff", "Morph", "With",
                 ]
                 let hint = known.first { $0.lowercased() == name.lowercased() }.map { "; did you mean \($0)?" }
                 throw fail("unknown command '\(name)'" + (hint ?? "; expected one of \(known.joined(separator: ", "))"))
@@ -1400,7 +1494,22 @@ public extension Tape {
                 )
             }
         }
-        guard !outputs.isEmpty else { throw TapeError(message: "the reel has no Output") }
+        if launch.target.isTogether {
+            // The director's steps: what is said and shown over every track, and when.
+            for step in steps {
+                switch step.command {
+                case .say, .caption, .sleep, .waitFor, .reach, .speed, .hide: continue
+                default:
+                    let command = step.source.split(separator: " ").first.map(String.init) ?? "it"
+                    throw TapeError(
+                        line: step.line,
+                        message: "\(command) acts on a subject: indent it under the track it belongs to"
+                    )
+                }
+            }
+        }
+        // A track has no Outputs of its own: the reel that joins it writes them.
+        guard asTrack || !outputs.isEmpty else { throw TapeError(message: "the reel has no Output") }
         for (name, section, background, line) in [
             ("Intro", intro, introBackground ?? intro?.background, introLine),
             ("Outro", outro, outroBackground ?? outro?.background, outroLine),
@@ -1514,6 +1623,7 @@ public extension Tape {
                 return terminal
             }(),
             scenes: scenes,
+            tracks: tracks,
             fontSize: fontSize ?? defaultFontSize,
             background: background,
             padding: padding,

@@ -25,9 +25,11 @@ extension Recorder {
     /// time. Alone, the steps play on the take's own clock, at once. On a channel, with other reels, they keep real
     /// time, so what they say there lines up with what the others do.
     static func recordScreen(
-        _ tape: Tape, narration: Narration, into location: TakeLocation, channel: Channel?, log: (String) -> Void
+        _ tape: Tape, narration: Narration, into location: TakeLocation, channel: Channel?, as runner: String? = nil,
+        log: (String) -> Void
     ) async throws -> Take {
         let clock = TakeClock(real: channel != nil)
+        let startedAt = Channel.now
         var now: Int {
             clock.now
         }
@@ -54,7 +56,7 @@ extension Recorder {
                     // The other reel keeps real time: the take's clock moves on by as long as the wait took.
                     let started = ContinuousClock.now
                     try await Channel.wait(
-                        channel, for: name, end: end, timeout: tape.waitTimeout, line: step.line, log: log
+                        channel, for: name, end: end, timeout: tape.waitTimeout, line: step.line, as: runner, log: log
                     )
                     try await advance(to: now + milliseconds(ContinuousClock.now - started))
                 case let .say(_, over):
@@ -146,7 +148,8 @@ extension Recorder {
         }
         // The take runs until the last line has been said.
         try await advance(to: Int((speech.speechEnd * 1000).rounded()))
-        let take = try await drawCode(calls, until: now, events: events, tape: tape, into: location, log: log)
+        var take = try await drawCode(calls, until: now, events: events, tape: tape, into: location, log: log)
+        take.startedAt = startedAt
         try location.write(take)
         return take
     }

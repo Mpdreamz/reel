@@ -65,6 +65,11 @@ public enum Renderer {
             try await renderScenes(tape: tape, from: location, log: log)
             return
         }
+        // A reel of tracks draws them together first; what that makes is then rendered here, its tracks gone.
+        if tape.launch.isTogether, !tape.tracks.isEmpty {
+            try await renderTracks(tape: tape, from: location, log: log)
+            return
+        }
         let prepared = try await prepare(tape: tape, from: location, log: log)
         let (take, overlays, soundtrack, cut) = (prepared.take, prepared.overlays, prepared.soundtrack, prepared.cut)
         // Each output's framing: none (the bare recording), or the recording on a canvas (Set Background, Output@…).
