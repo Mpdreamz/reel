@@ -58,7 +58,7 @@ Captions, zooms, speed-ups, cuts, title cards and every output setting are appli
   Web pages in WebKit, built in, or Chromium.
 - **Walks through code:** `Screen code` shows source in an editor of reel's own, with a focus that dims the rest,
   numbered marks, callouts and typing; files side by side, linked, peeked and moved between with transitions; diffs,
-  word by word. Nothing to install and no permissions, and the same take every time.
+  word by word; and one version morphing into the next. Nothing to install and no permissions, and the same take every time.
 - **Joins scenes:** `Include` puts several reels into one video (an app, a page, code, a terminal), each with its
   own narration and edits, with transitions between them.
 - **Records the command line:** `Screen terminal` runs a real shell in a terminal of reel's own, waits on what it

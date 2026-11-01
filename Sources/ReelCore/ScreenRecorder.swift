@@ -7,6 +7,8 @@ extension Recorder {
     static let screenTimings: (open: Int, go: Int, focus: Int, mark: Int, key: Int) = (300, 400, 350, 180, 120)
     /// The same for splitting the screen, switching panes, a peek opening and a link drawing itself.
     static let paneTimings: (split: Int, pane: Int, peek: Int, link: Int) = (450, 100, 320, 500)
+    /// How a morph moves when its reel says nothing.
+    static let morphMotion = Transition(easing: .easeInOut, duration: .milliseconds(900))
     /// The most lines a peek shows; it scrolls to its place in the file.
     static let peekLines = 8
 
@@ -58,6 +60,14 @@ extension Recorder {
                         ["f": screenDiff(source), "t": transition?.page ?? NSNull()]
                     )
                     try await advance(to: now + (transition.map { milliseconds($0.duration) } ?? screenTimings.open))
+                case let .morph(file, motion):
+                    let (easing, seconds) = (motion ?? Transition(easing: nil, duration: nil)).over(morphMotion)
+                    let ms = Int((seconds * 1000).rounded())
+                    try await screen.step(
+                        "return await reelScreen.morph(f, m)",
+                        ["f": screenFile(file), "m": ["easing": easing.rawValue, "ms": ms]]
+                    )
+                    try await advance(to: now + ms)
                 case let .split(file):
                     try await screen.step("return await reelScreen.split(f)", ["f": file.map(screenFile) ?? NSNull()])
                     try await advance(to: now + paneTimings.split)

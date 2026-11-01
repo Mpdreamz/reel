@@ -223,47 +223,13 @@ struct PaneDrawingTests {
             try script.write(to: url, atomically: true, encoding: .utf8)
             let location = TakeLocation(tape: url)
             let take = try await Recorder.record(Tape.parse(script, relativeTo: folder), into: location, log: { _ in })
-            try await takes.append((take, frames(AVURLAsset(url: location.movie))))
+            try await takes.append((take, movieFrames(AVURLAsset(url: location.movie))))
         }
         #expect(takes[0].0 == takes[1].0)
         #expect(takes[0].1.count == takes[1].1.count)
         #expect(takes[0].1.count > 30, "a frame for each moment something moved")
         for (index, (a, b)) in zip(takes[0].1, takes[1].1).enumerated() {
-            #expect(difference(a, b) < 0.5, "frame \(index) differs by \(difference(a, b))")
+            #expect(frameDifference(a, b) < 0.5, "frame \(index) differs by \(frameDifference(a, b))")
         }
     }
-}
-
-/// A movie's frames as BGRA bytes, as written (no frame for a still screen).
-private func frames(_ asset: AVAsset) async throws -> [Data] {
-    let track = try #require(try await asset.loadTracks(withMediaType: .video).first)
-    let reader = try AVAssetReader(asset: asset)
-    let output = AVAssetReaderTrackOutput(track: track, outputSettings: [
-        kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-    ])
-    reader.add(output)
-    reader.startReading()
-    var all: [Data] = []
-    while let sample = output.copyNextSampleBuffer() {
-        guard let buffer = CMSampleBufferGetImageBuffer(sample) else { continue }
-        CVPixelBufferLockBaseAddress(buffer, .readOnly)
-        let length = CVPixelBufferGetBytesPerRow(buffer) * CVPixelBufferGetHeight(buffer)
-        all.append(Data(bytes: CVPixelBufferGetBaseAddress(buffer)!, count: length))
-        CVPixelBufferUnlockBaseAddress(buffer, .readOnly)
-    }
-    return all
-}
-
-/// The mean difference of each byte, out of 255.
-private func difference(_ a: Data, _ b: Data) -> Double {
-    guard a.count == b.count else { return 255 }
-    var total = 0
-    a.withUnsafeBytes { x in
-        b.withUnsafeBytes { y in
-            for i in 0 ..< a.count {
-                total += abs(Int(x[i]) - Int(y[i]))
-            }
-        }
-    }
-    return Double(total) / Double(a.count)
 }

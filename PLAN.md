@@ -28,8 +28,9 @@
    on one canvas, with transitions between them and the sequence's intro and outro around them (see "Scenes"). Still
    to come: a terminal width per profile (`Set Columns social ? 56 : 100`, one take per width).
 12. **Between files.** `Code@<transition>`, `Split` and `Pane`, `Peek`, `Link` on a code screen (see "Code screens").
-13. **Diffs.** `Diff <before> <after>`, `Diff <file> since <revision>`, `Go hunk <n>` (see "Code screens"). Next:
-   morphing one snippet into the next, then picture-in-picture.
+13. **Diffs.** `Diff <before> <after>`, `Diff <file> since <revision>`, `Go hunk <n>` (see "Code screens").
+14. **Morph.** `Morph <file>`: the file shown turns into the next, word by word (see "Code screens"). Next:
+   picture-in-picture and side by side across scenes.
 
 ## The reel
 
@@ -79,6 +80,7 @@ sits next to the same things.
 | `Link "<a>" -> "<b>" ["<label>"]`, `Link off` | An arrow from one text to another, labelled, across the panes when split. |
 | `Diff[@<transition>] <before> <after> [at …]`, `Diff <file> since <revision> [at …]` | Two versions of a file as one: kept, added and removed lines, changed words marked. |
 | `Go hunk <n>`, `… at hunk <n>` | The first change of a diff's nth run of changes. |
+| `Morph[@<easing>,<duration>] <file> […]` | The file shown turns into this one: shared words move, the rest fade; 900ms ease-in-out by default. |
 | `Sleep <duration>` | Wait. |
 | `Wait <element>` | Wait until the element shows. |
 | `Click <element or @x,y>` | Glide the cursor there and click. |
@@ -244,6 +246,13 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   least 40% of their words, the words that changed. Monaco's own diff editor computes in a worker, which a page nobody
   sees does not run. The page shows the result in an ordinary pane with decorations; `Go line`, `Focus` and the line
   numbers use the new file's numbering. `since <revision>` reads the older version with `git show` when recording.
+- **Morph** is drawn by reel over the editor. It measures every word the pane shows (text, place and colour, from
+  Monaco's rendered lines), opens the next file and lays it out at once (`editor.render(true)`), and measures again.
+  Lines that read the same are paired first, in order (the longest common run), so a moved line travels whole; the
+  words of the lines left are paired in order, then any left over with the nearest of the same text. Copies of the
+  words move on reel's clock while the real text is hidden, each corrected once for where a span sets its text against
+  where Monaco does, and drawn without the font's ligatures as Monaco draws them, so the real text takes over at the
+  end without a jump.
 - **Keys.** `Type` and the keys an editor takes: return (keeping the line's indent), tab, space, backspace,
   forwarddelete, escape, the arrows, home, end, page up and down, with shift to select. Anything else is refused at
   its line.
