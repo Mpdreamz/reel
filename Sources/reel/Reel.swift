@@ -104,6 +104,11 @@ struct Check: AsyncParsableCommand {
         case let .app(url): say("launch \(url.path)")
         case let .web(url):
             say("open \(url.absoluteString) at \(Int(parsed.web.viewport.width))x\(Int(parsed.web.viewport.height))")
+        case .screen(.terminal):
+            say(
+                "run zsh in \(parsed.terminal.workingDirectory?.path ?? ".") at \(parsed.terminal.columns)x\(parsed.terminal.rows), "
+                    + "text at \(parsed.fontSize) points"
+            )
         case let .screen(layout):
             say(
                 "draw a \(layout.rawValue) screen at \(Int(parsed.web.viewport.width))x\(Int(parsed.web.viewport.height)), "

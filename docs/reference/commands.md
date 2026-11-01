@@ -12,6 +12,7 @@ description: "Every command a reel can hold."
 | `Launch <bundle id or .app path>` | The app to record: a bundle id, or a path with a slash (`./Name.app`). reel waits for its first window. |
 | `Open <url>` | A web page to record instead: `https://…`, `http://…`, `file://…` or an `.html` path. Later in the reel, goes to another page. |
 | `Screen code` | A [code screen](../demos/code.md) to record instead: an editor of reel's own. |
+| `Screen terminal` | A [terminal](../demos/terminal.md) to record instead: a real shell in a terminal of reel's own. |
 
 ## Setup
 
@@ -62,6 +63,17 @@ After `Screen code`. See [Code](../demos/code.md).
 | `Focus lines <a>-<b>`, `Focus off` | Dims every other line. |
 | `Mark "<text>" [n]`, `Mark off` | A box around the text, numbered `n`; boxes add up until `Mark off`. |
 | `Callout "<text>" "<label>"`, `Callout off` | A bubble saying the label beside the text's line. |
+
+## Terminals
+
+After `Screen terminal`. See [Terminal](../demos/terminal.md). `Type`, `Key` (the keys a shell takes, and `ctrl+` a
+letter), `Mark` and `Callout` work too.
+
+| Command | |
+|---|---|
+| `Wait /<regex>/` | Until what was printed since the last thing typed matches. |
+| `Wait quiet [duration]` | Until nothing has been printed for that long, 500ms unless given. |
+| `Wait exit` | Until the command running ends and the prompt is back. |
 
 Elements are `"Label"`, `#identifier`, `@x,y` points, or on a web page `css:<selector>`: see
 [Elements](../reels/elements.md).

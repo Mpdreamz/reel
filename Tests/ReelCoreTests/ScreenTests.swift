@@ -71,7 +71,7 @@ struct ScreenParsingTests {
     }
 
     @Test(arguments: [
-        ("Screen terminal\nOutput a.mp4", 1, "expected Screen code"),
+        ("Screen editor\nOutput a.mp4", 1, "expected Screen code or Screen terminal"),
         (
             "Screen code\nOutput a.mp4\nScreen code",
             3,
@@ -83,9 +83,13 @@ struct ScreenParsingTests {
         (
             "Open https://a.dev\nOutput a.mp4\nMark \"x\"",
             3,
-            "Mark is for a code screen: start the reel with Screen code"
+            "Mark is for a code or terminal screen: start the reel with Screen code or Screen terminal"
         ),
-        ("Launch x\nSet FontSize 20", 2, "Set FontSize is for a code screen (Screen code)"),
+        (
+            "Launch x\nSet FontSize 20",
+            2,
+            "Set FontSize is for a code or terminal screen (Screen code, Screen terminal)"
+        ),
         ("Screen code\nSet FontSize 7", 2, "FontSize must be a whole number of points from 8 to 72, not '7'"),
         ("Screen code\nSet Size 800x600", 2, "Set Size is an app's window; a code screen's size is Set Viewport"),
         ("Screen code\nSet Browser chromium", 2, "Set Browser is for web pages (Open); this reel is a code screen"),

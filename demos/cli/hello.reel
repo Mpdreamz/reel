@@ -1,0 +1,8 @@
+Screen code
+Output hello.mp4
+Output hello.gif
+Set Viewport 900x500
+Code SpeechClock.swift
+Go "func say"
+Mark "max(now, speechEnd)" 1
+Sleep 1s

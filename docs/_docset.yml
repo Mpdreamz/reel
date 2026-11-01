@@ -29,6 +29,7 @@ toc:
       - file: driving-apps.md
       - file: web-pages.md
       - file: code.md
+      - file: terminal.md
       - file: narration.md
       - file: overlays.md
       - file: zoom-speed-and-trim.md

@@ -1,5 +1,5 @@
 ---
-description: "Driving apps, web pages and code, narration, captions and badges, zoom, speed-ups and cuts, and title cards."
+description: "Driving apps, web pages, code and the command line, narration, captions and badges, zoom, speed-ups and cuts, and title cards."
 ---
 
 # Making a demo
@@ -18,6 +18,7 @@ render. That split decides what needs a new recording.
 | Intro, outro, backgrounds, framing | Only a render |
 | Every output setting: quality, size, shape, GIFs, profiles | Only a render |
 | On a [code screen](code.md): `Code`, `Go`, `Focus`, `Mark`, `Callout` | A new take, drawn in seconds without capturing anything |
+| On a [terminal](terminal.md): what is typed, the waits, `Mark`, `Callout`, `Redact` | A new take: the commands run again |
 
 `reel render` refuses a take whose actions no longer match the reel, and says which line changed.
 
@@ -26,6 +27,7 @@ render. That split decides what needs a new recording.
 | [Driving apps](driving-apps.md) | Real clicks, typing, keys and scrolling, and keeping the window the right size. |
 | [Web pages](web-pages.md) | `Open` a page in WebKit or Chromium instead of launching an app. |
 | [Code](code.md) | Walk through source in an editor of reel's own, with focus, marks and callouts. |
+| [Terminal](terminal.md) | A real shell in a terminal of reel's own: commands, waits on their output, redaction. |
 | [Narration](narration.md) | `Say` lines in a macOS or voicebox voice, timed to the clicks, with the app's sound ducked. |
 | [Captions, badges and ripples](overlays.md) | What is drawn over the recording. |
 | [Zoom, speed and trim](zoom-speed-and-trim.md) | Follow an element, speed through the boring part, cut what shouldn't be seen. |

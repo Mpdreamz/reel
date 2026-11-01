@@ -127,4 +127,12 @@ extension Duration {
     var seconds: Double {
         Double(components.seconds) + Double(components.attoseconds) / 1e18
     }
+
+    /// As a reel writes it: `2s`, `500ms`, `1.5s`.
+    var written: String {
+        let ms = Recorder.milliseconds(self)
+        if ms % 1000 == 0 { return "\(ms / 1000)s" }
+        if ms < 1000 { return "\(ms)ms" }
+        return "\(Double(ms) / 1000)s"
+    }
 }

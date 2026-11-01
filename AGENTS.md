@@ -37,12 +37,15 @@ or both. Read `PLAN.md` first.
   and `reel-demo.gif` are the Musicbox demo's `web` cut: copy `docs/media/musicbox-web.mp4` and `.gif` over them
   after `mise run demos`. Its web pages video, `docs/landing/web-demo.mp4`, is the Commons demo's `web` cut
   (`docs/media/commons-web.mp4`), with `web-poster.jpg` a frame of it; its code video, `docs/landing/code-demo.mp4`,
-  is the code demo's (`docs/media/code-web.mp4`), with `code-poster.jpg`.
-- The code screen (`Screen code`) is a page in `Sources/ReelCore/Resources/Screen`: `screen.html` and `screen.js`,
-  the fonts, and Monaco, which `scripts/vendor-monaco.sh` downloads at a pinned version and checksum (bump both there
-  and run it again; never edit `monaco/` by hand). Nothing in the page may read the wall clock: animations are tweens
-  on `screen.now`, which `pump` moves, or the same reel would draw different takes (`ScreenRecordingTests` catches
-  it). SwiftPM builds the page into `Reel_ReelCore.bundle`, which every way of installing reel puts beside the binary.
+  is the code demo's (`docs/media/code-web.mp4`), with `code-poster.jpg`; its command line video,
+  `docs/landing/cli-demo.mp4`, is the terminal demo's (`docs/media/cli-web.mp4`), with `cli-poster.jpg`.
+- The code and terminal screens (`Screen code`, `Screen terminal`) are pages in `Sources/ReelCore/Resources/Screen`:
+  `screen.html`/`screen.js` and `terminal.html`/`terminal.js`, the fonts, Monaco and xterm.js, which
+  `scripts/vendor-monaco.sh` and `scripts/vendor-xterm.sh` download at a pinned version and checksum (bump both there
+  and run it again; never edit `monaco/` or `xterm/` by hand). Nothing in the page may read the wall clock: animations
+  are tweens on `screen.now`, which `pump` moves, or the same reel would draw different takes (`ScreenRecordingTests`
+  and `TerminalRecordingTests` catch it). SwiftPM builds the page into `Reel_ReelCore.bundle`, which every way of
+  installing reel puts beside the binary.
 - The brand (logo, icons, colours, fonts, editor themes) is in `design/brand`, social images in `design/social`, the
   designed stings in `design/motion`; the demos' backgrounds in `demos/backgrounds`.
 - Branch names: `feature/`, `fix/`, `docs/`, `chore/`, `ci/`. Pull requests are squash-merged.

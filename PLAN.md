@@ -21,14 +21,17 @@
    platforms are still to be discussed.
 9. **Code screens.** `Screen code` instead of `Launch` or `Open`: reel's own editor (Monaco, shipped with reel) in a
    page nobody sees, drawn a frame at a time, with `Code`, `Go`, `Focus`, `Mark` and `Callout` (see "Code screens").
-   Next: a terminal screen, scenes that join kinds in one video, moving between files (`Peek`, `Split`, `Link`),
-   diffs, then morphing one snippet into the next.
+10. **Terminal screens.** `Screen terminal`: a real zsh in a pseudo-terminal of reel's own, drawn with xterm.js
+   from what it printed and when, with `Wait /regex/`, `Wait quiet`, `Wait exit`, `Set Redact`, Ghostty themes and
+   window chrome (see "Terminal screens"). Next: a terminal width per profile (`Set Columns social ? 56 : 100`,
+   one take per width), scenes that join kinds in one video, moving between files (`Peek`, `Split`, `Link`), diffs,
+   then morphing one snippet into the next.
 
 ## The reel
 
 A reel is a `.reel` file (not `.tape`, which is VHS's, and which editors and GitHub would take for a VHS tape); any
 other file is refused. One command per line. `#` starts a comment at the start of a line or followed by a space (`#play` after a command
-is an identifier). A reel starts with `Launch <app>`, `Open <url>` or `Screen code` (after any `Import` lines, see "Presets"), which says what it records; the rest is read
+is an identifier). A reel starts with `Launch <app>`, `Open <url>`, `Screen code` or `Screen terminal` (after any `Import` lines, see "Presets"), which says what it records; the rest is read
 knowing it, so a setting for another kind (`Set Viewport` in an app reel, `Set Size` in a web reel, a `css:`
 target in an app reel, `Click` on a code screen) is refused at its line rather than ignored. Setup (`Output`, `Set`, `Intro`, `Outro`) comes
 next, and recording starts at the first command after it. Durations are `500ms`, `2s`, `1.5s`, `1m` or a bare number of seconds.
@@ -54,7 +57,12 @@ sits next to the same things.
 | `Set Browser webkit\|chromium\|<app>` | WebKit, built in, is the default. `chromium` is any Chromium-based browser reel finds; an `.app` is that one. A chosen browser that cannot be had refuses the take; it never falls back. |
 | `Set Viewport <w>x<h>` | The page's size in points, default 1280x800; a code screen's size too. |
 | `Screen code` | A code screen to record instead of an app or a page: reel's own editor. See "Code screens". |
-| `Set FontSize <points>` | A code screen's text, 8–72, default 18. |
+| `Set FontSize <points>` | A code screen's or a terminal's text, 8–72, default 18. |
+| `Screen terminal` | A terminal to record instead: a real zsh in a terminal of reel's own. See "Terminal screens". |
+| `Set Columns <n>`, `Set Rows <n>` | A terminal's size in characters, default 80 by 24; it sizes the screen. |
+| `Set WorkingDirectory <path>`, `Set Title "<text>"`, `Set Theme <file.ghostty>` | Where the shell starts (the reel's folder), the window's title, the colours. |
+| `Set Redact /<regex>/` | Cover what matches on a terminal's screen with dots, typed or printed; one per line. |
+| `Wait /<regex>/`, `Wait quiet [duration]`, `Wait exit` | On a terminal: until the output since the last input matches, until nothing is printed for a while (500ms), until the command ends. |
 | `Code <file> [lines <a>-<b>] [at line <n> \| at "<text>"]` | Show a file (only lines `a`–`b`, numbered as in the file), the cursor at a line or the first text. |
 | `Go line <n>`, `Go "<text>"` | Move the cursor there, the view easing to it when it is out of sight. |
 | `Focus lines <a>-<b>`, `Focus off` | Dim every other line until `Focus off`. |
@@ -217,6 +225,25 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 - **Keys.** `Type` and the keys an editor takes: return (keeping the line's indent), tab, space, backspace,
   forwarddelete, escape, the arrows, home, end, page up and down, with shift to select. Anything else is refused at
   its line.
+
+## Terminal screens
+
+- **A real shell.** `zsh -d -i` under `forkpty`, its home a temporary folder with a `.zshrc` of reel's: the folder and
+  reel's chevron as the prompt, no history, no global rc files, and a `precmd` that prints OSC 133;D after every
+  command, which is how `Wait exit` knows the prompt is back. Only `PATH`, `LANG` and a few basics come from the
+  environment reel runs in. The commands are real, so a reel shows what is installed.
+- **Two passes.** The shell runs in real time and every read is kept with its time (a character split across two
+  reads waits for the rest); waits poll what was printed since the last input, without escape sequences. Then the
+  terminal is drawn from that, as a code screen is: xterm.js (`scripts/vendor-xterm.sh` pins it) in a page nobody
+  sees, fed each piece at its time, a frame snapshotted when its time comes. Drawing the same output twice gives the
+  same frames; the shell's timing differs between takes, as an app's does.
+- **What it draws.** A window: a bar with three dots and the title, then the terminal, sized from its columns and
+  rows. xterm.js draws its cursor only once focused or typed into, so reel shows it itself. Marks and callouts find
+  the last place their text shows, newest output first, and keep to that line of the buffer as the output scrolls.
+- **Redaction** is drawn, not edited: the buffer keeps the real text, and every frame covers what a pattern matches
+  on screen with dots, so a secret is covered from the first character that matches as it is typed. Editing the
+  buffer instead leaked the rest of a typed secret, once its start no longer matched.
+- **Size per profile** is not there yet: `Columns` is a recording setting, the same for every profile.
 
 ## Framing
 

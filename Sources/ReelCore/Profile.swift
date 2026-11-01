@@ -29,7 +29,8 @@ public struct Profile: Equatable, Sendable {
     /// Settings a profile cannot change: they are fixed when recording, and one take serves every profile.
     static let recordingSettings: Set<String> = [
         "FrameRate", "Audio", "Size", "TypingSpeed", "WaitTimeout", "Voice", "VoiceServer", "VoiceSeed",
-        "VoiceLanguage", "Browser", "Viewport",
+        "VoiceLanguage", "Browser", "Viewport", "FontSize", "Columns", "Rows", "WorkingDirectory", "Theme",
+        "Redact", "Title",
     ]
 
     /// Names an Output's type takes, kept for conditions on it.

@@ -58,6 +58,8 @@ Captions, zooms, speed-ups, cuts, title cards and every output setting are appli
   Web pages in WebKit, built in, or Chromium.
 - **Walks through code:** `Screen code` shows source in an editor of reel's own, with a focus that dims the rest,
   numbered marks, callouts and typing. Nothing to install and no permissions, and the same take every time.
+- **Records the command line:** `Screen terminal` runs a real shell in a terminal of reel's own, waits on what it
+  prints, covers secrets, and points at output. No permissions either.
 - **Narrates:** `Say` lines in an AI voice from [voicebox](https://github.com/jamiepine/voicebox) (local; clone your
   own or use a preset) or a macOS voice, clicks landing on a word, the app's sound ducked underneath, subtitles for
   muted feeds.
@@ -85,5 +87,6 @@ mise run docs      # the website and docs, on http://localhost:4000/reel/
 [AGENTS.md](AGENTS.md) has the conventions; [PLAN.md](PLAN.md) the design and the reel language in full.
 
 The brand (logo, icons, colours, fonts, themes) is in [design/brand](design/brand); its fonts are under the SIL Open
-Font License. The code screen ships [Monaco](https://github.com/microsoft/monaco-editor) (MIT, its licence and notices
-beside it in `Sources/ReelCore/Resources/Screen/monaco`) and two of those fonts.
+Font License. The code and terminal screens ship [Monaco](https://github.com/microsoft/monaco-editor) and
+[xterm.js](https://github.com/xtermjs/xterm.js) (both MIT, their licences beside them in
+`Sources/ReelCore/Resources/Screen`) and two of those fonts.
