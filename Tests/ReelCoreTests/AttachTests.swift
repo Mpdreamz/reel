@@ -34,6 +34,26 @@ struct AttachTests {
         #expect(Recorder.running("com.example.nothing.at.all") == nil)
     }
 
+    @Test func anAppOpenedWhileTheMainThreadIsBusyIsFoundAtOnce() async throws {
+        // Chess, hidden: an app no one has open. NSWorkspace's list of running apps is only brought up to date on
+        // the main run loop, which a reel busy recording does not turn; held here for the whole test.
+        let id = "com.apple.Chess"
+        try #require(NSRunningApplication.runningApplications(withBundleIdentifier: id).isEmpty)
+        try #require(NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) != nil)
+        let busy = DispatchSemaphore(value: 0)
+        DispatchQueue.main.async { _ = busy.wait(timeout: .now() + 10) }
+        defer {
+            busy.signal()
+            NSRunningApplication.runningApplications(withBundleIdentifier: id).forEach { $0.forceTerminate() }
+        }
+        let open = Process()
+        open.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        open.arguments = ["-g", "-j", "-b", id]
+        try open.run()
+        let pid = try await Recorder.attach(id, within: .seconds(5), log: { _ in })
+        #expect(NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == id)
+    }
+
     @Test func anAppThatNeverOpensSaysSo() async throws {
         let error = await #expect(throws: ReelError.self) {
             try await Recorder.attach("com.example.nothing.at.all", within: .milliseconds(250), log: { _ in })

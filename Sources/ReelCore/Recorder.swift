@@ -353,12 +353,14 @@ public enum Recorder {
         }
     }
 
-    /// The pid of a running app with `app`'s bundle id or at its path.
+    /// The pid of a running app with `app`'s bundle id or at its path. Asked of the system each time:
+    /// `NSWorkspace.shared.runningApplications` is only brought up to date on the main run loop, which a reel busy
+    /// recording does not turn, and missed an app opened by a reel in a terminal track until that reel was done.
     static func running(_ app: String) -> pid_t? {
         let url = app.contains("/") ? URL(fileURLWithPath: app).standardizedFileURL : nil
-        return NSWorkspace.shared.runningApplications.first { running in
-            !running.isTerminated
-                && (url.map { running.bundleURL?.standardizedFileURL == $0 } ?? (running.bundleIdentifier == app))
+        guard let id = url.map({ Bundle(url: $0)?.bundleIdentifier }) ?? app else { return nil }
+        return NSRunningApplication.runningApplications(withBundleIdentifier: id).first { running in
+            !running.isTerminated && (url.map { running.bundleURL?.standardizedFileURL == $0 } ?? true)
         }?.processIdentifier
     }
 
