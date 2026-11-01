@@ -34,8 +34,8 @@
    over a channel (see "Reels together"). Phase 2: code screens recorded as timed logs, reel scripts coloured.
    Phase 3: tracks, several subjects recorded at once in one reel (indented or `With x.reel as name`) and drawn
    together. Phase 4: `Follow`, a code screen marking the line of the reel it shows as that reel runs. Phase 5:
-   `Attach`, an app something else opens, as a track. Next: the director's moves (`Layout`, `Split`, `Spotlight`,
-   `Fullscreen`, `Pip`), then the showcase.
+   `Attach`, an app something else opens, as a track. Phase 6: the director's moves (`Set Layout`, `Layout`,
+   `Split`, `Spotlight`, `Fullscreen`, `Pip`). Next: the showcase; later, `Set Spotlight auto`.
 
 ## The reel
 
@@ -316,8 +316,12 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   outside and waits its timeout. App steps take turns with the real mouse and keyboard (`InputTurns`).
 - **Rendering tracks:** each track's demo is rendered as its reel would render it, then a compositor
   (`TracksCompositor`) draws them all on one canvas per Output shape, each from its offset (`startedAt` against the
-  director's), as windows on the backdrop: side by side when wide, stacked when tall (`TrackLayout`), a track that has
-  ended holding its last frame, the movie running as long as the director does. That movie is the director's take,
+  director's), as windows on the backdrop, a track that has ended holding its last frame, the movie running as long
+  as the director does. Where each is comes from `Direction`: a list of shots, each easing every track's placement
+  (window, opacity, which is on top) from where it was at that moment to where the director's stage now puts it
+  (`TrackLayout.placements`). A stage is the arrangement (`|` turned to `/` on a tall canvas), the split, the
+  spotlight, a fullscreen or a picture-in-picture, and which tracks have started; the moves' times are their anchors
+  in the director's take, and a track that starts more than half a second late is a change of its own. That movie is the director's take,
   rendered as any take: narration, captions, intro and outro. A background video is drawn as its first frame for now.
 - **Attach.** A track whose subject is an app something else opens: it polls the running apps for its bundle id or
   path (at least a minute), then records the window as an app track does, posting its own name on the channel at the

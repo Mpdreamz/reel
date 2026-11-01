@@ -49,7 +49,7 @@ final class WebDriver: Driving {
         switch command {
         case let .sleep(duration):
             try await Task.sleep(for: duration)
-        case .caption, .say, .reach, .speed, .hide:
+        case .caption, .say, .reach, .speed, .hide, .move:
             break
         case .code, .go, .focus, .mark, .callout, .expect, .split, .pane, .peek, .link, .diff, .morph, .waitFor,
              .follow:

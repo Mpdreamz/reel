@@ -111,7 +111,7 @@ struct TapeTests {
         (
             "Launch x\nOutput a.mp4\nTypo",
             3,
-            "unknown command 'Typo'; expected one of Output, Set, Launch, Sleep, Click, Wait, Type, Key, Scroll, Caption, Say, Zoom, Speed, Hide, Show, Intro, Outro, Open, Screen, Code, Go, Focus, Mark, Callout, Include, Split, Pane, Peek, Link, Diff, Morph, With, Follow, Attach"
+            "unknown command 'Typo'; expected one of Output, Set, Launch, Sleep, Click, Wait, Type, Key, Scroll, Caption, Say, Zoom, Speed, Hide, Show, Intro, Outro, Open, Screen, Code, Go, Focus, Mark, Callout, Include, Split, Pane, Peek, Link, Diff, Morph, With, Follow, Attach, Layout, Spotlight, Fullscreen, Pip"
         ),
         ("Launch x\nSleep 1s\nOutput a.mp4", 3, "Output is setup and must come before the first step (line 2)"),
         (
@@ -143,7 +143,7 @@ struct TapeTests {
         (
             "Launch x\nSet Speed 2",
             2,
-            "unknown setting 'Speed'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, KeyBadges, ClickRipples, Quality, Codec, VideoWidth, VideoFrameRate, MaxSize, MaxLength, Shape, Formats, Profiles, GifFrameRate, GifWidth, GifColors, Voice, VoiceServer, VoiceSeed, VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, IntroBackground, OutroBackground, Browser, Viewport, FontSize, Columns, Rows, WorkingDirectory, Theme, Redact, Title, Background or Padding"
+            "unknown setting 'Speed'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, KeyBadges, ClickRipples, Quality, Codec, VideoWidth, VideoFrameRate, MaxSize, MaxLength, Shape, Formats, Profiles, GifFrameRate, GifWidth, GifColors, Voice, VoiceServer, VoiceSeed, VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, IntroBackground, OutroBackground, Browser, Viewport, FontSize, Columns, Rows, WorkingDirectory, Theme, Redact, Title, Background, Padding or Layout"
         ),
         ("Launch x\nSet Audio", 2, "expected Set <setting> <value>"),
         (

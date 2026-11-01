@@ -79,8 +79,63 @@ The unindented steps are the director's: `Say`, `Caption`, `Sleep`, `Wait for`, 
 
 In render, each track is rendered as its own reel would be (its overlays, cuts and zooms), then all of them are drawn
 together for each shape the Outputs take: side by side in a wide cut, stacked in a tall one, each as a window on the
-backdrop. The director's narration and captions go over the whole, then the intro and outro. Moving between
-arrangements, a spotlight, fullscreen and picture-in-picture come next.
+backdrop. The director's narration and captions go over the whole, then the intro and outro.
+
+## Directing the tracks
+
+```
+Screen terminal as term
+  Type "reel musicbox.reel"
+  Key return as run
+  Wait /wrote/ as done
+
+Screen code as script
+  Code musicbox.reel
+  Follow
+  Wait for done to end
+
+Attach dev.musicbox.app as app
+
+Output showcase.mp4
+Output@9:16 showcase-tall.mp4
+Set Layout (term / script) | app
+Say "One command records a whole demo."
+Wait for app
+Spotlight app
+Say "Here is what it records."
+Pip@smooth,1s term over app
+Wait for done
+Pip off
+```
+
+The director moves the camera over the tracks, as `Zoom` moves it over a window: each move eases from where
+everything is to where it goes, at render time, so a move changes without a new take. A move happens at the end of
+the director's step before it, as a caption does.
+
+| | |
+|---|---|
+| `Set Layout <arrangement>` | How the tracks share the canvas to start with. Side by side when not set. |
+| `Layout <arrangement>` | Arranges them anew; ends a fullscreen or a picture-in-picture. |
+| `Split <share>% …`, `Split off` | The top cut's parts get these shares, in order; off gives them back their own. |
+| `Spotlight <track>`, `Spotlight off` | That track larger (70% of each cut it is in), the others smaller. |
+| `Fullscreen <track>`, `Fullscreen off` | That track alone, as large as the canvas holds it; the others fade. |
+| `Pip <track> [over <track>] [corner]`, `Pip off` | That track small in a corner, over the rest or over one; what it is not over fades. Corners: `top-left`, `top-right`, `bottom-left`, `bottom-right` (the default). |
+
+Each move takes `@<easing>,<duration>`, as a zoom does (`Fullscreen@snap app`, `Pip@smooth,1s term`); a move eases
+in and out over 600ms unless it says.
+
+An arrangement names the tracks with `|` between those side by side and `/` between those one above the other,
+grouped with parentheses: `(term / script) | app` is the terminal over the script, beside the app. A track it leaves
+out is not shown. A part may carry its share of its cut, `term 40% | app`; the parts without one share what is left
+by their own sizes. Without shares, a cut is as large as the canvas holds it at the tracks' own shapes; with them, it
+fills the canvas and each track is as large as its share holds it.
+
+- **A tall cut stacks.** An arrangement is written for a wide canvas; in a tall Output, each `|` becomes `/`, so
+  `(term / script) | app` is three tracks one above the other.
+- **Each profile its own.** A move or a layout can differ by profile with a condition, as a caption can:
+  `Set Layout social ? term / app : term | app`, `Spotlight social ? app : off`.
+- **A track grows in when it starts.** One that starts later than the rest (an `Attach`ed app, typically) is left
+  out until its first frame, then the others make room as it grows in.
 
 ## An app something else opens
 

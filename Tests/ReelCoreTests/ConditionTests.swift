@@ -105,7 +105,7 @@ struct ConditionTests {
         ("Set Profiles social ? github : web", "line 3: Profiles cannot differ by profile: it chooses them"),
         (
             "Say social ? \"Hi\" : \"Hello\"",
-            "line 3: a condition (?) works in Set, Caption, Intro and Outro, which render decides; Say happens when recording, the same for every profile"
+            "line 3: a condition (?) works in Set, Caption, Intro, Outro and the director's moves, which render decides; Say happens when recording, the same for every profile"
         ),
         (
             "Set Quality tiktok ? 50 : 60",

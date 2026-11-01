@@ -50,6 +50,7 @@ with `reel render`, and profiles and [conditions](../outputs/conditions.md) can 
 |---|---|---|
 | `Background` | `#rrggbb`, an image or a video (looped, silent): frames every output | none |
 | `Padding` | Room around a framed recording, 0% to 30% of the canvas's shorter side | 6% |
+| `Layout` | In a reel of tracks: how they share the canvas, such as `(term / script) \| app`. See [Directing the tracks](../demos/together.md#directing-the-tracks) | side by side |
 | `Shape` | `16:9`, `1:1`, `9:16` or `<w>x<h>`: every output with no shape of its own | none |
 | `Quality` | 1 to 100 | 65 |
 | `Codec` | `h264`, `hevc`, `prores` | h264 |

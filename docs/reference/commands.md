@@ -13,6 +13,7 @@ description: "Every command a reel can hold."
 | `Open <url>` | A web page to record instead: `https://…`, `http://…`, `file://…` or an `.html` path. Later in the reel, goes to another page. |
 | `Screen code` | A [code screen](../demos/code.md) to record instead: an editor of reel's own. |
 | `Attach <bundle id or .app path> as <name>` | In a reel of tracks: an app something else opens, recorded from when its window shows. See [Reels together](../demos/together.md). |
+| `Layout <arrangement>`, `Split <share>% …`, `Spotlight <track>`, `Fullscreen <track>`, `Pip <track> [over <track>] [corner]` | In a reel of tracks, the director's moves over them, each with `off` and `@<easing>,<duration>`. See [Directing the tracks](../demos/together.md#directing-the-tracks). |
 | `Screen terminal` | A [terminal](../demos/terminal.md) to record instead: a real shell in a terminal of reel's own. |
 | `Include <scene.reel>`, `Include@<transition> <scene.reel>` | Other reels to join, as [scenes](../demos/scenes.md), in order; each after the first moves in from the one before. |
 

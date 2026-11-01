@@ -108,17 +108,23 @@ struct TrackParsingTests {
 struct TrackLayoutTests {
     @Test func wideSideBySideTallStacked() {
         let sizes = [CGSize(width: 1600, height: 900), CGSize(width: 1280, height: 720)]
-        let wide = TrackLayout.make(sizes: sizes, scales: [2, 2], shape: .aspect(16, 9), padding: 0.06)
+        let wide = TrackLayout.make(
+            names: ["a", "b"], sizes: sizes, scales: [2, 2], shape: .aspect(16, 9), padding: 0.06
+        )
         #expect(abs(wide.canvas.width / wide.canvas.height - 16.0 / 9) < 0.01)
+        let cells = wide.placements(wide.stage).compactMap(\.frame)
         // Left to right, as tall as each other, one after the other.
-        #expect(wide.cells[0].maxX < wide.cells[1].minX)
-        #expect(wide.cells[0].height == wide.cells[1].height)
-        #expect(abs(wide.cells[0].width / wide.cells[0].height - 16.0 / 9) < 0.01)
-        let tall = TrackLayout.make(sizes: sizes, scales: [2, 2], shape: .aspect(9, 16), padding: 0.06)
+        #expect(cells[0].maxX < cells[1].minX)
+        #expect(abs(cells[0].height - cells[1].height) < 0.5)
+        #expect(abs(cells[0].width / cells[0].height - 16.0 / 9) < 0.01)
+        let tall = TrackLayout.make(
+            names: ["a", "b"], sizes: sizes, scales: [2, 2], shape: .aspect(9, 16), padding: 0.06
+        )
         #expect(abs(tall.canvas.width / tall.canvas.height - 9.0 / 16) < 0.01)
+        let stacked = tall.placements(tall.stage).compactMap(\.frame)
         // Top to bottom, as wide as each other.
-        #expect(tall.cells[0].maxY < tall.cells[1].minY)
-        #expect(tall.cells[0].width == tall.cells[1].width)
+        #expect(stacked[0].maxY < stacked[1].minY)
+        #expect(abs(stacked[0].width - stacked[1].width) < 0.5)
     }
 }
 

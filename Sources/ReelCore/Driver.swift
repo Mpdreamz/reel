@@ -103,13 +103,13 @@ final class Driver: Driving {
 
     private func performing(_ command: Command) async throws -> CGRect? {
         switch command {
-        case .sleep, .wait, .caption, .say, .reach, .zoom, .speed, .hide, .open: break
+        case .sleep, .wait, .caption, .say, .reach, .zoom, .speed, .hide, .open, .move: break
         default: try await ensureInFront()
         }
         switch command {
         case let .sleep(duration):
             try await Task.sleep(for: duration)
-        case .caption, .say, .reach, .speed, .hide:
+        case .caption, .say, .reach, .speed, .hide, .move:
             // Narration runs on the recorder's speech clock; the rest is render's.
             break
         case .open:
