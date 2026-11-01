@@ -54,8 +54,8 @@ Before the first step.
 | `Zoom @x,y [scale]`, `Zoom cursor [scale]` | Onto a point, or following the cursor; 2× unless a scale is given. Scales are 1× to 8×. |
 | `Zoom off` | Back to the whole window. |
 | `Zoom@<easing>,<duration> …` | A zoom with its own move. |
-| `Speed <rate>x` … `Speed off` | Plays the stretch faster, above 1× up to 16×. |
-| `Hide` … `Show` | Leaves the stretch out. A `Hide` with no `Show` runs to the end. |
+| `Speed <rate>x` … `Speed off` | Plays the stretch faster, above 1× up to 16×. In a reel of tracks, the director's only. |
+| `Hide` … `Show` | Leaves the stretch out. A `Hide` with no `Show` runs to the end. In a reel of tracks, the director's only. |
 
 ## Code screens
 
