@@ -156,6 +156,25 @@
       return null;
     },
 
+    /// Highlights `line` (as the file numbers it) in pane `index`, the line a reel shown there is running, and eases
+    /// the view to it; null takes the highlight away. A line the pane does not show is passed over.
+    follow(line, index) {
+      const pane = panes[index] || active;
+      if (!pane.file) return null;
+      if (line === null) {
+        pane.following = pane.ed.deltaDecorations(pane.following || [], []);
+        return null;
+      }
+      const row = rowOf(pane.file, pane.ed.getModel(), line);
+      if (row === null) return null;
+      pane.following = pane.ed.deltaDecorations(pane.following || [], [{
+        range: new monaco.Range(row, 1, row, 1),
+        options: { isWholeLine: true, className: 'follow-line', linesDecorationsClassName: 'follow-mark' },
+      }]);
+      reveal(pane, row, row, 300);
+      return null;
+    },
+
     /// Opens a second pane beside the first with `f`, and makes it the active one; null closes it again.
     async split(f) {
       if (f === null) {
@@ -428,7 +447,8 @@
   };
 
   // Every step marks the next frame as changed.
-  for (const name of ['open', 'morph', 'split', 'pane', 'go', 'type', 'key', 'focus', 'mark', 'callout', 'peek', 'link']) {
+  for (const name of ['open', 'morph', 'split', 'pane', 'go', 'type', 'key', 'focus', 'mark', 'callout', 'peek', 'link',
+    'follow']) {
     const step = screen[name];
     screen[name] = function () { dirty = true; return step.apply(screen, arguments); };
   }

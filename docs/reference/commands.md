@@ -73,6 +73,7 @@ After `Screen code`. See [Code](../demos/code.md).
 | `Link "<a>" -> "<b>" ["<label>"]`, `Link off` | An arrow from one place to another, across the panes when split. |
 | `Diff[@<transition>] <before> <after> [at …]`, `Diff <file> since <revision> [at …]` | Two versions as one, what changed marked. |
 | `Go hunk <n>`, `… at hunk <n>` | A diff's nth run of changes. |
+| `Follow`, `Follow off` | Marks the line of the reel the pane shows that is running right now, somewhere on the channel. See [Reels together](../demos/together.md). |
 | `Morph[@<easing>,<duration>] <file> [lines <a>-<b>] [at …]` | The file shown turns into this one, its words moving to their new places. |
 
 ## Terminals

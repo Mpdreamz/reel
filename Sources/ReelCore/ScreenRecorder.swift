@@ -28,8 +28,33 @@ extension Recorder {
         _ tape: Tape, narration: Narration, into location: TakeLocation, channel: Channel?, as runner: String? = nil,
         log: (String) -> Void
     ) async throws -> Take {
-        let clock = TakeClock(real: channel != nil)
         let startedAt = Channel.now
+        let played = try await playCode(
+            tape, narration: narration, reel: location.reelName, channel: channel, startedAt: startedAt, as: runner,
+            log: log
+        )
+        var take = try await drawCode(
+            played.calls, until: played.end, events: played.events, tape: tape, into: location, log: log
+        )
+        take.startedAt = startedAt
+        try location.write(take)
+        return take
+    }
+
+    /// What a code screen's steps play: the calls to its page and when, its timeline, and when it ends.
+    struct Played {
+        var calls: [CodeCall]
+        var events: [Take.Event]
+        var end: Int
+    }
+
+    /// The first pass: the steps, played on the take's clock (real time on a channel), writing down each call to the
+    /// page. `startedAt` is the wall clock at its time 0, which `Follow` times what it hears on the channel by.
+    static func playCode(
+        _ tape: Tape, narration: Narration, reel: String, channel: Channel?, startedAt: Int, as runner: String? = nil,
+        log: (String) -> Void
+    ) async throws -> Played {
+        let clock = TakeClock(real: channel != nil)
         var now: Int {
             clock.now
         }
@@ -38,15 +63,29 @@ extension Recorder {
         }
 
         var events: [Take.Event] = []
-        var calls: [CodeCall] = []
+        let calls = CallLog()
         var speech = SpeechClock()
+        // Which file each pane shows, and which pane steps act on: what `Follow` follows.
+        var shown: [Int: String] = [:]
+        var active = 0
+        var following: (pane: Int, task: Task<Void, Never>)?
+        func stopFollowing() {
+            following?.task.cancel()
+            following = nil
+        }
+        defer { stopFollowing() }
         for step in tape.steps where !step.command.isRenderOnly {
             var begin = now
             var clip: String?
-            channel?.post(reel: location.reelName, line: step.line, name: step.name, phase: .start)
+            channel?.post(reel: reel, line: step.line, name: step.name, phase: .start)
             // Throws only as its arguments do: reading a file can.
             func call(_ body: String, _ arguments: [String: Any]) throws {
                 calls.append(CodeCall(ms: now, line: step.line, body: body, arguments: arguments))
+            }
+            // A pane given another file stops following the one it showed.
+            func show(_ name: String, in pane: Int) {
+                if following?.pane == pane { stopFollowing() }
+                shown[pane] = name
             }
             do {
                 switch step.command {
@@ -68,18 +107,44 @@ extension Recorder {
                     try await advance(to: Int((resume * 1000).rounded()))
                 case let .reach(marker):
                     if let time = speech.time(of: marker) { try await advance(to: Int((time * 1000).rounded())) }
+                case let .follow(on):
+                    stopFollowing()
+                    guard on else {
+                        try call("return reelScreen.follow(null, p)", ["p": active])
+                        break
+                    }
+                    guard let channel else {
+                        log(
+                            "line \(step.line): skipped Follow: no reel runs with this one (\(Channel.variable) is not set)"
+                        )
+                        break
+                    }
+                    guard let name = shown[active]
+                    else { throw ReelError("Follow follows the reel a pane shows: Code it first") }
+                    following = (active, follow(
+                        name,
+                        on: channel,
+                        into: calls,
+                        pane: active,
+                        from: now,
+                        startedAt: startedAt,
+                        line: step.line
+                    ))
                 case let .code(file, transition):
+                    show(file.url.lastPathComponent, in: active)
                     try call(
                         "return await reelScreen.open(f, t)", ["f": screenFile(file), "t": transition?.page ?? NSNull()]
                     )
                     try await advance(to: now + (transition.map { milliseconds($0.duration) } ?? screenTimings.open))
                 case let .diff(source, transition):
+                    show(source.after.lastPathComponent, in: active)
                     try call(
                         "return await reelScreen.open(f, t)",
                         ["f": screenDiff(source), "t": transition?.page ?? NSNull()]
                     )
                     try await advance(to: now + (transition.map { milliseconds($0.duration) } ?? screenTimings.open))
                 case let .morph(file, motion):
+                    show(file.url.lastPathComponent, in: active)
                     let (easing, seconds) = (motion ?? Transition(easing: nil, duration: nil)).over(morphMotion)
                     let ms = Int((seconds * 1000).rounded())
                     try call(
@@ -88,9 +153,18 @@ extension Recorder {
                     )
                     try await advance(to: now + ms)
                 case let .split(file):
+                    if let file {
+                        show(file.url.lastPathComponent, in: 1)
+                        active = 1
+                    } else {
+                        if following?.pane == 1 { stopFollowing() }
+                        shown[1] = nil
+                        active = 0
+                    }
                     try call("return await reelScreen.split(f)", ["f": file.map(screenFile) ?? NSNull()])
                     try await advance(to: now + paneTimings.split)
                 case let .pane(side):
+                    active = side
                     try call("return reelScreen.pane(i)", ["i": side])
                     try await advance(to: now + paneTimings.pane)
                 case let .peek(text, file):
@@ -144,14 +218,33 @@ extension Recorder {
                 throw ReelError("line \(step.line): \(error.description)")
             }
             events.append(Take.Event(line: step.line, command: step.source, startMs: begin, endMs: now, clip: clip))
-            channel?.post(reel: location.reelName, line: step.line, name: step.name, phase: .end)
+            channel?.post(reel: reel, line: step.line, name: step.name, phase: .end)
         }
         // The take runs until the last line has been said.
         try await advance(to: Int((speech.speechEnd * 1000).rounded()))
-        var take = try await drawCode(calls, until: now, events: events, tape: tape, into: location, log: log)
-        take.startedAt = startedAt
-        try location.write(take)
-        return take
+        stopFollowing()
+        return Played(calls: calls.all, events: events, end: now)
+    }
+
+    /// Watches the channel for the steps of the reel `name` starting, each a call that highlights its line in `pane`,
+    /// at the moment it started on the take's clock (one already started counts from `from`, so the latest shows).
+    static func follow(
+        _ name: String, on channel: Channel, into calls: CallLog, pane: Int, from: Int, startedAt: Int, line: Int
+    ) -> Task<Void, Never> {
+        Task {
+            var heard = 0
+            while !Task.isCancelled {
+                let events = channel.events
+                for event in events.dropFirst(heard) where event.reel == name && event.phase == .start {
+                    calls.append(CodeCall(
+                        ms: max(from, event.at - startedAt), line: line,
+                        body: "return reelScreen.follow(l, p)", arguments: ["l": event.line, "p": pane]
+                    ))
+                }
+                heard = events.count
+                try? await Task.sleep(for: Channel.poll)
+            }
+        }
     }
 
     /// The second pass: the page, each call made at its time, a frame drawn whenever one is due. A call the page
@@ -398,5 +491,23 @@ final class TakeClock {
             if due > ContinuousClock.now { try await Task.sleep(until: due) }
         }
         reached = max(reached, time)
+    }
+}
+
+/// The calls a code screen's steps make, and those `Follow` adds as it hears them: written from two tasks at once.
+final class CallLog: @unchecked Sendable {
+    private let lock = NSLock()
+    private var calls: [Recorder.CodeCall] = []
+
+    func append(_ call: Recorder.CodeCall) {
+        lock.withLock { calls.append(call) }
+    }
+
+    /// In the order they are made: by time, and as written where two share one.
+    var all: [Recorder.CodeCall] {
+        lock
+            .withLock {
+                calls.enumerated().sorted { ($0.element.ms, $0.offset) < ($1.element.ms, $1.offset) }.map(\.element)
+            }
     }
 }
