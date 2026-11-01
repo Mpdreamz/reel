@@ -8,11 +8,12 @@ description: "Every command a reel can hold."
 
 | Command | |
 |---|---|
-| `Import <path>` | A [preset](../outputs/presets.md) to read first. Only on the first lines, before `Launch`, `Open` or `Screen`. |
+| `Import <path>` | A [preset](../outputs/presets.md) to read first. Only on the first lines, before `Launch`, `Open`, `Screen` or `Include`. |
 | `Launch <bundle id or .app path>` | The app to record: a bundle id, or a path with a slash (`./Name.app`). reel waits for its first window. |
 | `Open <url>` | A web page to record instead: `https://…`, `http://…`, `file://…` or an `.html` path. Later in the reel, goes to another page. |
 | `Screen code` | A [code screen](../demos/code.md) to record instead: an editor of reel's own. |
 | `Screen terminal` | A [terminal](../demos/terminal.md) to record instead: a real shell in a terminal of reel's own. |
+| `Include <scene.reel>`, `Include@<transition> <scene.reel>` | Other reels to join, as [scenes](../demos/scenes.md), in order; each after the first moves in from the one before. |
 
 ## Setup
 

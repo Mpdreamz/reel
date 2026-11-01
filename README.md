@@ -58,6 +58,8 @@ Captions, zooms, speed-ups, cuts, title cards and every output setting are appli
   Web pages in WebKit, built in, or Chromium.
 - **Walks through code:** `Screen code` shows source in an editor of reel's own, with a focus that dims the rest,
   numbered marks, callouts and typing. Nothing to install and no permissions, and the same take every time.
+- **Joins scenes:** `Include` puts several reels into one video (an app, a page, code, a terminal), each with its
+  own narration and edits, with transitions between them.
 - **Records the command line:** `Screen terminal` runs a real shell in a terminal of reel's own, waits on what it
   prints, covers secrets, and points at output. No permissions either.
 - **Narrates:** `Say` lines in an AI voice from [voicebox](https://github.com/jamiepine/voicebox) (local; clone your

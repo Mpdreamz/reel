@@ -23,15 +23,17 @@
    page nobody sees, drawn a frame at a time, with `Code`, `Go`, `Focus`, `Mark` and `Callout` (see "Code screens").
 10. **Terminal screens.** `Screen terminal`: a real zsh in a pseudo-terminal of reel's own, drawn with xterm.js
    from what it printed and when, with `Wait /regex/`, `Wait quiet`, `Wait exit`, `Set Redact`, Ghostty themes and
-   window chrome (see "Terminal screens"). Next: a terminal width per profile (`Set Columns social ? 56 : 100`,
-   one take per width), scenes that join kinds in one video, moving between files (`Peek`, `Split`, `Link`), diffs,
-   then morphing one snippet into the next.
+   window chrome (see "Terminal screens").
+11. **Scenes.** `Include[@<transition>] <scene.reel>`: other reels joined into one video, each recorded as its own,
+   on one canvas, with transitions between them and the sequence's intro and outro around them (see "Scenes"). Next:
+   a terminal width per profile (`Set Columns social ? 56 : 100`, one take per width), moving between files (`Peek`,
+   `Split`, `Link`), diffs, then morphing one snippet into the next.
 
 ## The reel
 
 A reel is a `.reel` file (not `.tape`, which is VHS's, and which editors and GitHub would take for a VHS tape); any
 other file is refused. One command per line. `#` starts a comment at the start of a line or followed by a space (`#play` after a command
-is an identifier). A reel starts with `Launch <app>`, `Open <url>`, `Screen code` or `Screen terminal` (after any `Import` lines, see "Presets"), which says what it records; the rest is read
+is an identifier). A reel starts with `Launch <app>`, `Open <url>`, `Screen code`, `Screen terminal` or `Include <scene.reel>` (after any `Import` lines, see "Presets"), which says what it records; the rest is read
 knowing it, so a setting for another kind (`Set Viewport` in an app reel, `Set Size` in a web reel, a `css:`
 target in an app reel, `Click` on a code screen) is refused at its line rather than ignored. Setup (`Output`, `Set`, `Intro`, `Outro`) comes
 next, and recording starts at the first command after it. Durations are `500ms`, `2s`, `1.5s`, `1m` or a bare number of seconds.
@@ -62,6 +64,7 @@ sits next to the same things.
 | `Set Columns <n>`, `Set Rows <n>` | A terminal's size in characters, default 80 by 24; it sizes the screen. |
 | `Set WorkingDirectory <path>`, `Set Title "<text>"`, `Set Theme <file.ghostty>` | Where the shell starts (the reel's folder), the window's title, the colours. |
 | `Set Redact /<regex>/` | Cover what matches on a terminal's screen with dots, typed or printed; one per line. |
+| `Include <scene.reel>`, `Include@<transition> <scene.reel>` | Join other reels into one video, as scenes. See "Scenes". |
 | `Wait /<regex>/`, `Wait quiet [duration]`, `Wait exit` | On a terminal: until the output since the last input matches, until nothing is printed for a while (500ms), until the command ends. |
 | `Code <file> [lines <a>-<b>] [at line <n> \| at "<text>"]` | Show a file (only lines `a`–`b`, numbered as in the file), the cursor at a line or the first text. |
 | `Go line <n>`, `Go "<text>"` | Move the cursor there, the view easing to it when it is out of sight. |
@@ -244,6 +247,18 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   on screen with dots, so a secret is covered from the first character that matches as it is typed. Editing the
   buffer instead leaked the rest of a typed secret, once its start no longer matched.
 - **Size per profile** is not there yet: `Columns` is a recording setting, the same for every profile.
+
+## Scenes
+
+- **A reel of reels.** `Include` makes a reel a sequence: its scenes are other reels, each recorded into its own take
+  next to its own reel (`Scenes.record`), and it has no steps and no recording settings of its own (a preset's pass
+  by). `reel record` records every scene; `reel render` needs each scene's take and names a missing one.
+- **Render.** Each scene's demo is rendered as its own reel renders it (overlays, narration, cuts, zooms), read for
+  the sequence's profile when the scene knows that name. Every scene is framed on one canvas: the Output's shape,
+  16:9 without one, at the largest size any scene needs, so they line up. Then they are joined one after the other,
+  each following scene coming in as an untitled video outro of what came before (`Assembler`), with its sound and
+  its transition, and the sequence's intro and outro go around the whole. Outputs are written as for any reel.
+- **Not yet:** scenes written inline in one file, and narration that carries across a cut.
 
 ## Framing
 

@@ -11,6 +11,9 @@ public enum Recorder {
     static let firstFrameTimeout: Duration = .seconds(5)
 
     public static func record(_ tape: Tape, into location: TakeLocation, log: (String) -> Void) async throws -> Take {
+        guard !tape.launch.isSequence else {
+            throw ReelError("a reel of scenes has no take of its own: Scenes.record records each scene")
+        }
         if tape.drivesTheApp, !tape.launch.isWeb, !AXIsProcessTrusted() {
             throw ReelError(
                 "this reel drives the app, which needs Accessibility for this terminal: System Settings → "
@@ -304,6 +307,8 @@ public enum Recorder {
             preconditionFailure("a web page is opened by its stage")
         case .screen:
             preconditionFailure("a code screen is drawn, not launched")
+        case .sequence:
+            preconditionFailure("a reel of scenes records each scene's reel")
         }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
