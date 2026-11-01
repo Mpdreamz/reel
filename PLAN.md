@@ -63,7 +63,7 @@ sits next to the same things.
 | `Set TypingSpeed <duration>` | The pause after each typed character, default 50ms. |
 | `Set WaitTimeout <duration>` | How long `Wait` and `Click` look for an element, default 10s. |
 | `Launch <bundle id or .app path>` | The app to record: a bundle id, or a path with a slash (`./Name.app` beside the reel). Reel waits for its first window. |
-| `Open <url>` | A web page to record instead of an app: `https://…`, `file://…` or an `.html` path. Later in the reel, goes to another page. |
+| `Open <url>` | A web page to record instead of an app: `https://…`, `file://…` or an `.html` path, `#fragment` allowed. Later in the reel, goes to another page; a new fragment of the same page only scrolls, the same address reloads. |
 | `Set Browser webkit\|chromium\|<app>` | WebKit, built in, is the default. `chromium` is any Chromium-based browser reel finds; an `.app` is that one. A chosen browser that cannot be had refuses the take; it never falls back. |
 | `Set Viewport <w>x<h>` | The page's size in points, default 1280x800; a code screen's size too. |
 | `Screen code` | A code screen to record instead of an app or a page: reel's own editor. See "Code screens". |
@@ -216,12 +216,17 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   with a DevTools port (`--remote-debugging-port=0`, read from `DevToolsActivePort`), sized until the page is
   `Viewport`, quit and its profile removed when the take ends. Input is DevTools' (`Input.dispatchMouseEvent`,
   `dispatchKeyEvent`): hovers and wheel events included. Editing shortcuts are sent as the commands DevTools needs.
+- **Open, later.** The driver asks the page where it is (`location.href`) and compares, as a browser does: another
+  document loads, and waits for a new document (a flag set on the old one is gone) that is complete. The same
+  document at a new `#fragment` is `location.assign`, which loads nothing, so waiting for a load hung for 15 s;
+  it waits for the scroll to be still instead. The very same address reloads (`reload()`, `Page.reload`), so a page's
+  animations start over: navigating there would only scroll to the fragment again.
 - **Recording.** ScreenCaptureKit, as for an app, cropped to the page under the title bar, the browser's helper
   processes' sound kept. Neither takes the mouse or the keyboard, and neither needs Accessibility. The real cursor
   is hidden; render draws an arrow along the driver's path, through edits and zooms.
 - `mise run live-web` records `reels/web.reel` against `reels/web/fixture.html` twice, in WebKit and with `Set
-  Browser chromium`: the page logs what happened and the reel waits for each entry, so a step that did not work stops
-  the take.
+  Browser chromium`: the page logs what happened (a `hashchange`, a reload) and the reel waits for each entry, so a
+  step that did not work stops the take.
 
 ## Code screens
 
