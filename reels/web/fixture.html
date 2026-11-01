@@ -17,7 +17,7 @@
 </head>
 <body>
 <!-- The page reel's web reel drives: what happens is written to #log, so the reel can Wait for it. -->
-<h1>reel web fixture</h1>
+<h1 id="top">reel web fixture</h1>
 <div class="row">
   <button id="play">Play</button>
   <input id="name" placeholder="Name">
@@ -25,6 +25,9 @@
 </div>
 <div id="list"></div>
 <div id="log"></div>
+<!-- Room to scroll: Open fixture.html#end goes to the end of the same page, which loads nothing. -->
+<div style="height: 1600px"></div>
+<h2 id="end">The end of the page</h2>
 <script>
   // One element an entry, so a reel's Wait "<entry>" matches it exactly.
   const log = text => { const entry = document.createElement('div'); entry.textContent = text; document.getElementById('log').append(entry); };
@@ -40,6 +43,9 @@
     tone.connect(level).connect(audio.destination); tone.start();
     log('played');
   });
+  // An Open that differs only by its #fragment stays on the page; an Open of the same address reloads it.
+  addEventListener('hashchange', () => log('at ' + location.hash.slice(1)));
+  if (performance.getEntriesByType('navigation')[0]?.type === 'reload') log('reloaded');
   document.getElementById('name').addEventListener('keydown', event => {
     if (event.key === 'Enter') log('submitted ' + event.target.value);
   });

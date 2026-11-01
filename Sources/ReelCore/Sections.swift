@@ -13,11 +13,6 @@ public struct Section: Equatable, Sendable {
 
     public static let defaultLength = Duration.seconds(3)
 
-    /// Whether it says anything: a section with neither title nor subtitle is only its background.
-    var hasTitles: Bool {
-        !title.isEmpty || !(subtitle ?? "").isEmpty
-    }
-
     init(
         title: String, subtitle: String?, duration: Duration?, background: Background = .standard,
         transition: SectionTransition

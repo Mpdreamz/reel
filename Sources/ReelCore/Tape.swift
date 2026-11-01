@@ -16,6 +16,9 @@ public struct Tape: Equatable, Sendable {
     public var keyBadges: Bool
     /// Draw a ripple where each `Click` lands (render time).
     public var clickRipples: Bool
+    /// Show the cursor: the arrow a web reel draws along its driver's path (render time), or the real cursor an app
+    /// reel records (recording time).
+    public var cursor: Bool
     /// Frames a second in a `.gif` Output; still stretches become one frame whatever the rate.
     public var gifFrameRate: Int
     /// Pixels wide of a `.gif` Output, at most the video's own width.
@@ -90,6 +93,10 @@ public struct Tape: Equatable, Sendable {
     /// What every tape starts with, and the error a tape gets when it does not.
     static let preface =
         "a reel starts with Launch <app>, Open <url>, Screen code, Screen terminal or Include <scene.reel> (after any Import lines), which says what it records"
+
+    /// Why `Set Cursor` in an app reel is the same for every profile.
+    static let appCursor =
+        "Cursor cannot differ by profile in an app reel: the real cursor is recorded, and one take serves every profile"
 
     /// Whether playing the tape needs Accessibility: anything that finds, moves or types into the app.
     public var drivesTheApp: Bool {
@@ -193,6 +200,14 @@ public enum LaunchTarget: Equatable, Sendable {
     /// The screen a screen reel shows; nil for an app or a page.
     public var screen: ScreenLayout? {
         if case let .screen(layout) = self { layout } else { nil }
+    }
+
+    /// An app, whose real cursor is in the take: `Set Cursor` is then fixed when recording.
+    var recordsTheCursor: Bool {
+        switch self {
+        case .bundleID, .app, .attach: true
+        case .web, .screen, .sequence, .together: false
+        }
     }
 }
 
@@ -558,6 +573,7 @@ public extension Tape {
         var waitTimeout: Duration?
         var keyBadges: Bool?
         var clickRipples: Bool?
+        var cursor: Bool?
         var gifFrameRate: Int?
         var gifWidth: Int?
         var gifColors: Int?
@@ -609,6 +625,7 @@ public extension Tape {
                             + (setting == "Profiles" ? "it chooses them" : "it is fixed when recording")
                     )
                 }
+                if setting == "Cursor", launch?.target.recordsTheCursor == true { throw fail(Tape.appCursor) }
                 var names: [String] = []
                 value = try Condition.choose(
                     tokens, profile: profile?.name, format: format, names: &names, fail: fail
@@ -635,6 +652,11 @@ public extension Tape {
                 keyBadges = try onOff("KeyBadges", value, fail: fail)
             case "ClickRipples":
                 clickRipples = try onOff("ClickRipples", value, fail: fail)
+            case "Cursor":
+                if let screen {
+                    throw fail("Cursor is for web pages and apps; \(screen.name) draws no cursor, only its caret")
+                }
+                cursor = try onOff("Cursor", value, fail: fail)
             case "GifFrameRate":
                 guard let rate = Int(value), (1 ... 50).contains(rate) else {
                     throw fail("GifFrameRate must be a whole number from 1 to 50, not '\(value)'")
@@ -836,7 +858,7 @@ public extension Tape {
             default:
                 throw fail(
                     "unknown setting '\(setting)'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, "
-                        + "KeyBadges, ClickRipples, Quality, Codec, VideoWidth, VideoFrameRate, MaxSize, MaxLength, Shape, "
+                        + "KeyBadges, ClickRipples, Cursor, Quality, Codec, VideoWidth, VideoFrameRate, MaxSize, MaxLength, Shape, "
                         + "Formats, Profiles, GifFrameRate, GifWidth, GifColors, Voice, VoiceServer, VoiceSeed, "
                         + "VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, "
                         + "IntroBackground, OutroBackground, Browser, Viewport, FontSize, Columns, Rows, WorkingDirectory, Theme, "
@@ -903,6 +925,9 @@ public extension Tape {
                             "\(setting.text) cannot differ by profile: "
                                 + (setting.text == "Profiles" ? "it chooses them" : "it is fixed when recording")
                         )
+                    }
+                    if setting.text == "Cursor", launch?.target.recordsTheCursor == true {
+                        throw fail(Tape.appCursor)
                     }
                     args = try [setting] + Condition.choose(
                         Array(args.dropFirst()), profile: profile?.name, format: format, names: &names, fail: fail
@@ -1659,10 +1684,14 @@ public extension Tape {
         if let profile {
             for setting in profile.settings {
                 let origin = setting.origin.map { " (\($0))" } ?? ""
+                let recorded = cursor
                 try set(
                     setting.name, setting.value, isWeb: launch.target.isWeb, from: setting.directory ?? directory,
                     at: setting.origin ?? "profile \(profile.name)"
                 ) { TapeError(message: "profile \(profile.name)\(origin): \($0)") }
+                if launch.target.recordsTheCursor, (cursor ?? true) != (recorded ?? true) {
+                    throw TapeError(message: "profile \(profile.name)\(origin): \(Tape.appCursor)")
+                }
             }
         }
         // `Set Shape` frames every Output that names no shape of its own; `Set Formats` leaves out the others; a
@@ -1718,6 +1747,7 @@ public extension Tape {
             waitTimeout: waitTimeout ?? defaultWaitTimeout,
             keyBadges: keyBadges ?? true,
             clickRipples: clickRipples ?? true,
+            cursor: cursor ?? true,
             gifFrameRate: gifFrameRate ?? defaultGifFrameRate,
             gifWidth: gifWidth ?? defaultGifWidth,
             gifColors: gifColors ?? defaultGifColors,
@@ -1842,7 +1872,17 @@ private func webAddress(
     if let url = URL(string: value), let scheme = url.scheme, ["http", "https", "file"].contains(scheme) {
         return url
     }
-    if value.hasSuffix(".html") || value.hasSuffix(".htm") { return try resolve(value) }
+    // A page beside the reel, at a fragment when one follows: `site/index.html#pricing`.
+    let parts = value.split(separator: "#", maxSplits: 1, omittingEmptySubsequences: false)
+    let path = String(parts[0])
+    if path.hasSuffix(".html") || path.hasSuffix(".htm") {
+        let url = try resolve(path)
+        guard parts.count == 2, var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url
+        }
+        components.fragment = String(parts[1])
+        return components.url ?? url
+    }
     throw fail("'\(value)' is not a web address; write https://…, http://…, file://… or a path to an .html file")
 }
 

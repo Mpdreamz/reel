@@ -72,8 +72,9 @@ public enum Recorder {
         config.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(tape.frameRate))
         config.pixelFormat = kCVPixelFormatType_32BGRA
         config.colorSpaceName = CGColorSpace.sRGB
-        // A web page's cursor is drawn at render time: the real one never moves there.
-        config.showsCursor = stage.web == nil
+        // A web page's cursor is drawn at render time: the real one never moves there. An app's is recorded, unless
+        // the reel says Set Cursor off.
+        config.showsCursor = stage.web == nil && tape.cursor
         config.queueDepth = 6
         config.capturesAudio = tape.audio
         config.sampleRate = 48000

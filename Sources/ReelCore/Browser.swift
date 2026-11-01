@@ -137,6 +137,18 @@ public final class Browser: @unchecked Sendable {
         try await waitForLoad(leaving: true)
     }
 
+    /// Loads the page again and waits until it has.
+    func reload() async throws {
+        _ = try await page.evaluate("window.__reelLeaving = true")
+        try await page.send("Page.reload")
+        try await waitForLoad(leaving: true)
+    }
+
+    /// Where the page is now.
+    func location() async throws -> URL? {
+        try await (page.evaluate("location.href") as? String).flatMap(URL.init(string:))
+    }
+
     /// Until the document is complete (and, after navigating, is a new one).
     func waitForLoad(leaving: Bool = false) async throws {
         let deadline = Date().addingTimeInterval(DevTools.timeout)

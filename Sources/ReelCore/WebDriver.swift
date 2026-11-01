@@ -14,6 +14,42 @@ protocol Page: AnyObject {
     func key(_ combo: KeyCombo) async throws
     /// Goes to `url` and waits until the new page has loaded.
     func navigate(to url: URL) async throws
+    /// Loads the page again and waits until it has.
+    func reload() async throws
+    /// Where the page is now.
+    func location() async throws -> URL?
+}
+
+/// What an `Open` does, given where the page is: another document loads; the same document at a new `#fragment`
+/// loads nothing (the browser only scrolls to it); the very same address loads again, so the page starts over.
+enum Navigation: Equatable {
+    case load, fragment, reload
+
+    init(from current: URL?, to target: URL) {
+        guard let current, let here = Self.document(current), here == Self.document(target) else {
+            self = .load
+            return
+        }
+        let (from, to) = (
+            URLComponents(url: current, resolvingAgainstBaseURL: true)?.fragment,
+            URLComponents(url: target, resolvingAgainstBaseURL: true)?.fragment
+        )
+        if from == to {
+            self = .reload
+        } else {
+            // Leaving the fragment off is a load of the page; only a new fragment stays on it.
+            self = to == nil ? .load : .fragment
+        }
+    }
+
+    /// The address without its fragment, as a browser compares two: scheme and host in any case, `/` for no path.
+    private static func document(_ url: URL) -> String? {
+        guard let parts = URLComponents(url: url, resolvingAgainstBaseURL: true) else { return nil }
+        let path = parts.path.isEmpty ? "/" : parts.path
+        let port = parts.port.map { ":\($0)" } ?? ""
+        let query = parts.query.map { "?" + $0 } ?? ""
+        return "\(parts.scheme?.lowercased() ?? "")://\(parts.host?.lowercased() ?? "")\(port)\(path)\(query)"
+    }
 }
 
 enum MouseAction {
@@ -91,9 +127,29 @@ final class WebDriver: Driving {
         case let .zoom(target, _, _):
             if case let .element(found) = target { return try await element(found, scroll: false).frame }
         case let .open(url):
-            try await page.navigate(to: url)
+            switch try await Navigation(from: page.location(), to: url) {
+            case .load: try await page.navigate(to: url)
+            case .reload: try await page.reload()
+            case .fragment: try await scroll(to: url)
+            }
         }
         return nil
+    }
+
+    /// Goes to another fragment of the page shown, as a link to it would, and waits for the scroll to settle: the
+    /// page stays, so there is no load to wait for.
+    private func scroll(to url: URL) async throws {
+        _ = try await page.numbers("(() => { location.assign(\(Self.literal(url.absoluteString))); return null })()")
+        let deadline = ContinuousClock.now + .seconds(15)
+        var last: [Double]?, still = 0
+        // Still for two polls in a row: a smooth scroll moves every frame until it is done.
+        while still < 2 {
+            if ContinuousClock.now > deadline { throw ReelError("the page did not finish scrolling to \(url) in 15 s") }
+            try await Task.sleep(for: Self.poll)
+            let now = try await page.numbers("[scrollX, scrollY]")
+            still = now == last ? still + 1 : 0
+            last = now
+        }
     }
 
     func currentFrame(of target: Target) async -> CGRect? {
