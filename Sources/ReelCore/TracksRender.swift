@@ -93,82 +93,46 @@ final class TracksCompositor: NSObject, AVVideoCompositing, @unchecked Sendable 
     }
 }
 
+/// A reel of tracks with every track rendered: what composing them on a canvas needs.
+struct RenderedTracks {
+    /// The director's take: what was said over the tracks, and when.
+    var director: Take
+    /// Each track's demo, losslessly, and where it starts on the director's clock.
+    var demos: [(url: URL, take: Take, offset: Int)]
+    /// The director's moves, each at the end of the step before it, as a caption is.
+    var moves: [(at: Double, move: Move, transition: Transition?)]
+    var frameRate: Int
+
+    /// The tracks laid out on the canvas of `shape`, the smallest that holds them as `Framing` would.
+    func layout(of tape: Tape, shape: Output.Shape, padding: Double) -> TrackLayout {
+        TrackLayout.make(
+            names: tape.tracks.map(\.name), sizes: demos.map { CGSize(width: $0.take.width, height: $0.take.height) },
+            scales: demos.map(\.take.scale), shape: shape, padding: padding, arrangement: tape.layout
+        )
+    }
+
+    func removeDemos() {
+        demos.forEach { try? FileManager.default.removeItem(at: $0.url) }
+    }
+}
+
 extension Renderer {
     /// A reel of tracks: each track rendered as its own reel renders it (its overlays, its cuts), then all of them
     /// drawn together on one canvas for each shape its Outputs take, lined up by when each started. That movie is
     /// then the director's take: narration, captions, the intro and outro go on it as on any take.
     static func renderTracks(tape: Tape, from location: TakeLocation, log: (String) -> Void) async throws {
-        let directorURL = Tracks.director(in: location)
-        guard let data = try? Data(contentsOf: directorURL),
-              let director = try? JSONDecoder().decode(Take.self, from: data)
-        else {
-            throw ReelError("this reel has no take yet: record it (reel record), or record and render with reel run")
-        }
-        // Each track's demo, losslessly, and where it starts on the director's clock.
-        var demos: [(url: URL, take: Take, offset: Int)] = []
-        defer { demos.forEach { try? FileManager.default.removeItem(at: $0.url) } }
-        for track in tape.tracks {
-            let own = Tracks.location(of: track, in: location)
-            let prepared: Prepared
-            do {
-                prepared = try await prepare(tape: track.tape, from: own, log: log)
-            } catch {
-                throw ReelError("\(track.name): \(error.localizedDescription)")
-            }
-            let url = location.directory.appending(path: "track-\(track.name).mov")
-            try await render(
-                own.movie, take: prepared.take, overlays: prepared.overlays, soundtrack: prepared.soundtrack,
-                cut: prepared.cut, to: Output(url: url, format: .mov), lossless: true
-            )
-            let offset = max(0, (prepared.take.startedAt ?? 0) - (director.startedAt ?? 0))
-            demos.append((url, prepared.take, offset))
-        }
-        let frameRate = demos.map(\.take.frameRate).max() ?? tape.frameRate
-        // The director's moves, each at the end of the step before it, as a caption is.
-        var directing = tape
-        directing.tracks = []
-        let moves = zip(tape.steps, Anchors.times(tape: directing, take: director)).compactMap { step, at in
-            if case let .move(move, transition) = step.command { (at, move, transition) } else { nil }
-        }
+        let rendered = try await renderTrackDemos(tape: tape, from: location, log: log)
+        defer { rendered.removeDemos() }
 
         // One composed take for each shape the Outputs take, each then rendered as any take is.
         let shapes = Dictionary(grouping: tape.outputs) { $0.shape ?? .aspect(16, 9) }
         for (shape, outputs) in shapes.sorted(by: { $0.key.description < $1.key.description }) {
-            let cut = TakeLocation(directory: location.directory.appending(
-                path: "cuts/\(shape.description.replacingOccurrences(of: ":", with: "x"))", directoryHint: .isDirectory
-            ))
-            try FileManager.default.createDirectory(at: cut.directory, withIntermediateDirectories: true)
-            // The narration was voiced into the reel's own folder.
-            let voices = cut.directory.appending(path: "voice")
-            if !FileManager.default.fileExists(atPath: voices.path) {
-                try? FileManager.default.createSymbolicLink(
-                    at: voices, withDestinationURL: location.directory.appending(path: "voice")
-                )
-            }
-            let layout = TrackLayout.make(
-                names: tape.tracks.map(\.name),
-                sizes: demos.map { CGSize(width: $0.take.width, height: $0.take.height) },
-                scales: demos.map(\.take.scale), shape: shape, padding: tape.padding, arrangement: tape.layout
+            let cut = try await composeTracks(
+                rendered, of: tape, from: location, shape: shape, padding: tape.padding,
+                background: tape.background ?? .standard
             )
-            let direction = Direction.make(
-                layout: layout, start: tape.layout, starts: demos.map { Double($0.offset) / 1000 }, moves: moves
-            )
-            let length = try await compose(
-                demos.map { ($0.url, $0.offset) }, direction: direction, background: tape.background ?? .standard,
-                frameRate: frameRate, atLeast: director.durationMs, to: cut.movie
-            )
-            var take = Take(
-                width: Int(layout.canvas.width), height: Int(layout.canvas.height),
-                scale: demos.map(\.take.scale).max() ?? 2, frameRate: frameRate,
-                audio: demos.contains(where: \.take.audio), durationMs: max(director.durationMs, length),
-                events: director.events
-            )
-            take.startedAt = director.startedAt
-            try cut.write(take)
             // The director's reel, its tracks already drawn: its Outputs of this shape, bare, on the canvas above.
-            var reel = tape
-            reel.tracks = []
-            reel.background = nil
+            var reel = directorReel(of: tape)
             reel.outputs = outputs.map { output in
                 var output = output
                 output.shape = nil
@@ -176,6 +140,92 @@ extension Renderer {
             }
             try await renderOnce(tape: reel, from: cut, log: log)
         }
+    }
+
+    /// Every track of a reel of tracks rendered as its own reel renders it, losslessly, next to the take, with the
+    /// director's take and moves.
+    static func renderTrackDemos(tape: Tape, from location: TakeLocation, log: (String) -> Void) async throws
+        -> RenderedTracks
+    {
+        let directorURL = Tracks.director(in: location)
+        guard let data = try? Data(contentsOf: directorURL),
+              let director = try? JSONDecoder().decode(Take.self, from: data)
+        else {
+            throw ReelError("this reel has no take yet: record it (reel record), or record and render with reel run")
+        }
+        var demos: [(url: URL, take: Take, offset: Int)] = []
+        do {
+            for track in tape.tracks {
+                let own = Tracks.location(of: track, in: location)
+                let prepared: Prepared
+                do {
+                    prepared = try await prepare(tape: track.tape, from: own, log: log)
+                } catch {
+                    throw ReelError("\(track.name): \(error.localizedDescription)")
+                }
+                let url = location.directory.appending(path: "track-\(track.name).mov")
+                try await render(
+                    own.movie, take: prepared.take, overlays: prepared.overlays, soundtrack: prepared.soundtrack,
+                    cut: prepared.cut, to: Output(url: url, format: .mov), lossless: true
+                )
+                let offset = max(0, (prepared.take.startedAt ?? 0) - (director.startedAt ?? 0))
+                demos.append((url, prepared.take, offset))
+            }
+        } catch {
+            demos.forEach { try? FileManager.default.removeItem(at: $0.url) }
+            throw error
+        }
+        let frameRate = demos.map(\.take.frameRate).max() ?? tape.frameRate
+        let moves = zip(tape.steps, Anchors.times(tape: directorReel(of: tape), take: director))
+            .compactMap { step, at in
+                if case let .move(move, transition) = step.command { (at, move, transition) } else { nil }
+            }
+        return RenderedTracks(director: director, demos: demos, moves: moves, frameRate: frameRate)
+    }
+
+    /// The tracks drawn together on the canvas of `shape`, into a take of their own under `cuts/` next to the
+    /// reel's: the director's events over a movie of every track where the director has it.
+    static func composeTracks(
+        _ rendered: RenderedTracks, of tape: Tape, from location: TakeLocation, shape: Output.Shape,
+        padding: Double, background: Background
+    ) async throws -> TakeLocation {
+        let (director, demos) = (rendered.director, rendered.demos)
+        let cut = TakeLocation(directory: location.directory.appending(
+            path: "cuts/\(shape.description.replacingOccurrences(of: ":", with: "x"))", directoryHint: .isDirectory
+        ))
+        try FileManager.default.createDirectory(at: cut.directory, withIntermediateDirectories: true)
+        // The narration was voiced into the reel's own folder.
+        let voices = cut.directory.appending(path: "voice")
+        if !FileManager.default.fileExists(atPath: voices.path) {
+            try? FileManager.default.createSymbolicLink(
+                at: voices, withDestinationURL: location.directory.appending(path: "voice")
+            )
+        }
+        let layout = rendered.layout(of: tape, shape: shape, padding: padding)
+        let direction = Direction.make(
+            layout: layout, start: tape.layout, starts: demos.map { Double($0.offset) / 1000 }, moves: rendered.moves
+        )
+        let length = try await compose(
+            demos.map { ($0.url, $0.offset) }, direction: direction, background: background,
+            frameRate: rendered.frameRate, atLeast: director.durationMs, to: cut.movie
+        )
+        var take = Take(
+            width: Int(layout.canvas.width), height: Int(layout.canvas.height),
+            scale: demos.map(\.take.scale).max() ?? 2, frameRate: rendered.frameRate,
+            audio: demos.contains(where: \.take.audio), durationMs: max(director.durationMs, length),
+            events: director.events
+        )
+        take.startedAt = director.startedAt
+        try cut.write(take)
+        return cut
+    }
+
+    /// The director's reel with its tracks drawn already: what renders a composed take, on no backdrop of its own.
+    static func directorReel(of tape: Tape) -> Tape {
+        var reel = tape
+        reel.tracks = []
+        reel.background = nil
+        return reel
     }
 
     /// Draws `demos`, each from its offset in milliseconds, on the layout's canvas, with their sound, for at least
