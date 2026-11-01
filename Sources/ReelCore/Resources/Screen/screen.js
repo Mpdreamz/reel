@@ -69,6 +69,7 @@
             'editorWhitespace.foreground': '#2a3b4e',
           },
         });
+        registerReel();
         active = makePane();
         panes = [active];
         document.fonts.load(`${o.fontSize}px 'JetBrains Mono'`).then(() =>
@@ -722,6 +723,35 @@
     }
     for (const word of come) pairs.push([null, word]);
     return pairs;
+  }
+
+  /// reel's own scripts, `.reel` and `.reelpreset`, coloured as a reader of them would want: what each line does,
+  /// what it names, what is quoted, how long, and what is said only for people.
+  function registerReel() {
+    monaco.languages.register({ id: 'reel', extensions: ['.reel', '.reelpreset'], aliases: ['reel'] });
+    monaco.languages.setMonarchTokensProvider('reel', {
+      tokenizer: {
+        root: [
+          [/^\s*#( .*)?$/, 'comment'],
+          [/^\s*[A-Z][A-Za-z]*(@[\w,.:-]+)?/, { cases: { '@default': 'keyword' } }],
+          { include: '@rest' },
+        ],
+        rest: [
+          [/\s#\s.*$/, 'comment'],
+          [/"([^"\\]|\\.)*"/, 'string'],
+          [/\bas\s+[A-Za-z][\w-]*\s*$/, 'annotation'],
+          [/#[\w.-]+/, 'type'],
+          [/\[[^\]]+\]/, 'annotation'],
+          [/\b\d+(\.\d+)?(ms|s|m|x|%|MB|KB|GB)?\b/, 'number'],
+          [/\/\/[^\s]*/, 'string'],
+          // A condition's ? and :, which stand alone; a : in a word (voicebox:Main) is part of it.
+          [/\s[?:](?=\s)/, 'keyword'],
+          [/\|/, 'keyword'],
+          [/[^\s"#\[|]+/, ''],
+          [/\s+/, ''],
+        ],
+      },
+    });
   }
 
   /// The language for a file name, from Monaco's own list of extensions.

@@ -31,7 +31,8 @@
 13. **Diffs.** `Diff <before> <after>`, `Diff <file> since <revision>`, `Go hunk <n>` (see "Code screens").
 14. **Morph.** `Morph <file>`: the file shown turns into the next, word by word (see "Code screens").
 15. **Reels together, phase 1.** Steps named `as <name>`; `Wait for <name> [to end]` across reels running at once,
-   over a channel (see "Reels together"). Next, in order: code screens recorded as timed logs; tracks (several
+   over a channel (see "Reels together"). Phase 2: code screens recorded as timed logs, reel scripts coloured. Next,
+   in order: tracks (several
    subjects in one reel, indented or `With x.reel as name`); `Follow`; `Attach`; layouts and `Spotlight`; the showcase.
 
 ## The reel
@@ -302,7 +303,11 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   its take's folder (or uses the reel's own) and sets it for its shell.
 - **Alone,** with no channel, a `Wait for` is skipped with a note, so every reel still records on its own. A wait on
   the reel's own step is refused at its line.
-- **Code screens** post their events as they draw, faster than real time, until they record as timed logs (next).
+- **Code screens** record in two passes, as terminals do: the steps play first, writing down each call to the page
+  and when, then the page is drawn from that. Alone, the steps play on the take's own clock at once (a code reel
+  records as fast as it draws); on a channel they keep real time, so what they say there lines up with the others.
+  `.reel` and `.reelpreset` files are a language of their own in the editor: commands, quoted text, durations,
+  `#identifiers`, `[markers]`, `as <name>`, conditions and comments each in their colour.
 
 ## Framing
 

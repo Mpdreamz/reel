@@ -10,7 +10,11 @@ public enum Recorder {
     static let settle: Duration = .milliseconds(500)
     static let firstFrameTimeout: Duration = .seconds(5)
 
-    public static func record(_ tape: Tape, into location: TakeLocation, log: (String) -> Void) async throws -> Take {
+    /// Records `tape` into `location`, on `channel` with any other reels running with it (`REEL_CHANNEL`, nil alone).
+    public static func record(
+        _ tape: Tape, into location: TakeLocation, channel: Channel? = Channel.fromEnvironment(),
+        log: (String) -> Void
+    ) async throws -> Take {
         guard !tape.launch.isSequence else {
             throw ReelError("a reel of scenes has no take of its own: Scenes.record records each scene")
         }
@@ -25,8 +29,10 @@ public enum Recorder {
             tape, into: location.directory, voices: tape.voice.synthesizer(for:), log: log
         )
         switch tape.launch.screen {
-        case .code: return try await recordScreen(tape, narration: narration, into: location, log: log)
-        case .terminal: return try await recordTerminal(tape, narration: narration, into: location, log: log)
+        case .code:
+            return try await recordScreen(tape, narration: narration, into: location, channel: channel, log: log)
+        case .terminal:
+            return try await recordTerminal(tape, narration: narration, into: location, channel: channel, log: log)
         case nil: break
         }
         let stage = if case let .web(url) = tape.launch {
@@ -93,7 +99,6 @@ public enum Recorder {
             defer { cursor.stop() }
             stage.web?.clock = { milliseconds(since: start) }
             stage.web?.startTrack()
-            let channel = Channel.fromEnvironment()
             let reel = location.reelName
             for step in tape.steps {
                 // Any other zoom (a point, the cursor, off) releases the lock.

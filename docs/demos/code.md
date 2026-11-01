@@ -33,7 +33,7 @@ nothing to install, no window on your screen, and no Screen Recording or Accessi
 colours it, in dozens of languages (Swift, TypeScript, JavaScript, Python, Rust, Go, Java, C#, Kotlin, shell, HTML,
 CSS, JSON, YAML, Markdown and more), picked from the file's extension.
 
-`Set Viewport` is the screen's size in points (1280x800 unless set), and `Set FontSize` its text (18 unless set).
+A `.reel` script is coloured too, so a reel can show a reel. `Set Viewport` is the screen's size in points (1280x800 unless set), and `Set FontSize` its text (18 unless set).
 
 ## Files and places
 
