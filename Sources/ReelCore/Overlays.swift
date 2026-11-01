@@ -82,6 +82,12 @@ public enum OverlayPlan {
 }
 
 public extension OverlayPlan {
+    /// Whether render draws the cursor over `take`: a take whose real cursor never moved (a web page's) keeps the
+    /// driver's path for it, and `Set Cursor off` leaves it out.
+    static func drawsCursor(tape: Tape, take: Take) -> Bool {
+        tape.cursor && take.drawnCursor == true && !(take.cursor ?? []).isEmpty
+    }
+
     /// The overlays in the output's time, and each ripple where its click shows under the zoom. One that falls in a
     /// stretch left out is dropped.
     static func mapped(_ overlays: [Overlay], through edit: Edit, zoom: ZoomPlan?) -> [Overlay] {

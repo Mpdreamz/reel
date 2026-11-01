@@ -95,6 +95,7 @@ sits next to the same things.
 | `Caption "<text>" [duration]`, `Caption off` | A caption from here until the next one, for `duration`, or until `Caption off`. |
 | `Set KeyBadges on\|off` | A badge for each `Key` step (`⌘S`, `↓ ×3`), default on. |
 | `Set ClickRipples on\|off` | A ripple where each click lands, default on. |
+| `Set Cursor on\|off` | The cursor in the video, default on: a web reel's drawn one (render time), an app reel's real one (recording time). |
 | `Set GifFrameRate <n>` | Frames a second in a GIF, 1–50, default 15. |
 | `Set GifWidth <pixels>` | A GIF's width, 100–4000, default 800, never wider than the video. |
 | `Set GifColors <n>` | Colours in a GIF, 2–256, default 256. Fewer make a smaller file; one palette serves every frame. |
@@ -218,7 +219,10 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   `dispatchKeyEvent`): hovers and wheel events included. Editing shortcuts are sent as the commands DevTools needs.
 - **Recording.** ScreenCaptureKit, as for an app, cropped to the page under the title bar, the browser's helper
   processes' sound kept. Neither takes the mouse or the keyboard, and neither needs Accessibility. The real cursor
-  is hidden; render draws an arrow along the driver's path, through edits and zooms.
+  is hidden; render draws an arrow along the driver's path, through edits and zooms, unless `Set Cursor off`
+  (`OverlayPlan.drawsCursor`). In an app reel `Set Cursor off` is `showsCursor = false` when capturing, so there it
+  is fixed when recording and cannot differ by profile; a code or terminal screen refuses it (its caret is not the
+  cursor).
 - `mise run live-web` records `reels/web.reel` against `reels/web/fixture.html` twice, in WebKit and with `Set
   Browser chromium`: the page logs what happened and the reel waits for each entry, so a step that did not work stops
   the take.

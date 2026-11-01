@@ -177,6 +177,30 @@ struct DrawnCursorTests {
         )
     }
 
+    @Test func setCursorOffLeavesItOutWithoutANewTake() async throws {
+        let writer = TakeWriterTests()
+        let dir = try writer.temporaryDirectory()
+        let location = TakeLocation(tape: dir.appending(path: "demo.reel"))
+        try FileManager.default.createDirectory(at: location.directory, withIntermediateDirectories: true)
+        try await writer.writeTake(to: location.movie, seconds: 1, audio: false, shade: 128)
+        var take = Take(
+            width: 320, height: 200, scale: 2, frameRate: 30, audio: false, durationMs: 1000,
+            events: [Take.Event(line: 3, command: "Sleep 1s", startMs: 0, endMs: 1000)]
+        )
+        take.cursor = [Take.Sample(ms: 0, frame: CGRect(x: 20, y: 20, width: 0, height: 0))]
+        take.drawnCursor = true
+        try location.write(take)
+        // The same take rendered twice, the cursor on and then off: only the reel changed.
+        for (setting, drawn) in [("on", true), ("off", false)] {
+            let tape = try Tape.parse(
+                "Open https://example.com\nOutput demo.mp4\nSet Cursor \(setting)\nSleep 1s", relativeTo: dir
+            )
+            try await Renderer.render(tape: tape, from: location, log: { _ in })
+            let shade = try await shades(dir.appending(path: "demo.mp4"), at: 0.5, [(x: 44, y: 56)])[0]
+            #expect(drawn ? shade < 60 : shade > 100, "Set Cursor \(setting): \(shade)")
+        }
+    }
+
     private func shades(_ url: URL, at time: Double, _ points: [(x: Int, y: Int)]) async throws -> [Int] {
         let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
         generator.requestedTimeToleranceBefore = .zero
