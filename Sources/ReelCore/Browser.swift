@@ -149,15 +149,38 @@ public final class Browser: @unchecked Sendable {
         throw ReelError("the page did not finish loading in \(Int(DevTools.timeout)) s")
     }
 
-    /// Resizes the window until the page itself is `viewport`: what shows of it is what is recorded.
+    /// Room the window has past the page, to its right and below it, in points: the window's rounded corners and its
+    /// edges are then outside the page, where they would show what is behind the window in the recording.
+    static let margin = 24.0
+
+    /// Sizes the page to `viewport`, with `margin` more window to its right and below it: the window is resized until
+    /// the page fills it at `viewport`, then grown, and the page held at `viewport`
+    /// (`Emulation.setDeviceMetricsOverride`,
+    /// which keeps it at the window's top left).
     private func size(to viewport: CGSize, target: String) async throws {
+        let id = try await fit(to: viewport, target: target)
+        try await page.send("Emulation.setDeviceMetricsOverride", [
+            "width": Int(viewport.width), "height": Int(viewport.height), "deviceScaleFactor": 0, "mobile": false,
+        ])
+        let bounds = try await browser.send("Browser.getWindowBounds", ["windowId": id])["bounds"] as? [String: Any]
+        guard let width = bounds?["width"] as? Double, let height = bounds?["height"] as? Double else {
+            throw ReelError("the browser gave no window size")
+        }
+        try await browser.send("Browser.setWindowBounds", [
+            "windowId": id,
+            "bounds": ["width": Int(width + Self.margin), "height": Int(height + Self.margin), "windowState": "normal"],
+        ])
+    }
+
+    /// Resizes the window until the page fills it at `viewport`; its id.
+    private func fit(to viewport: CGSize, target: String) async throws -> Int {
         let window = try await browser.send("Browser.getWindowForTarget", ["targetId": target])
         guard let id = window["windowId"] as? Int else { throw ReelError("the browser gave no window") }
         for _ in 0 ..< 4 {
             let inner = try await page.evaluate("[window.innerWidth, window.innerHeight]") as? [Double] ?? []
             guard inner.count == 2 else { break }
             let (dx, dy) = (viewport.width - inner[0], viewport.height - inner[1])
-            if abs(dx) < 1, abs(dy) < 1 { return }
+            if abs(dx) < 1, abs(dy) < 1 { return id }
             let bounds = try await browser.send("Browser.getWindowBounds", ["windowId": id])["bounds"] as? [String: Any]
             let width = (bounds?["width"] as? Double ?? viewport.width) + dx
             let height = (bounds?["height"] as? Double ?? viewport.height) + dy
@@ -173,7 +196,7 @@ public final class Browser: @unchecked Sendable {
         }
         // The last resize is checked too, not only those before it.
         let inner = try await page.evaluate("[window.innerWidth, window.innerHeight]") as? [Double] ?? []
-        if inner.count == 2, abs(viewport.width - inner[0]) < 1, abs(viewport.height - inner[1]) < 1 { return }
+        if inner.count == 2, abs(viewport.width - inner[0]) < 1, abs(viewport.height - inner[1]) < 1 { return id }
         throw ReelError(
             "the page is \(inner.map { String(Int($0)) }.joined(separator: "x")), not "
                 + "\(Int(viewport.width))x\(Int(viewport.height)): the screen may be too small, or a window manager "

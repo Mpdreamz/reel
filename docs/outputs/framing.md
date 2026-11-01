@@ -26,5 +26,9 @@ pixels on its longer side. An exact size fits the recording in, which is what a 
 
 An intro and an outro fill the whole canvas around the framed demo.
 
+Unframed, the output is the recording as it was captured. An app's window keeps its own rounded corners, with what
+was behind the window in them. A [web page](../demos/web-pages.md) is recorded with square corners, so unframed it is
+the page alone, edge to edge.
+
 A landscape app on a 9:16 canvas is mostly background. [Zoom](../demos/zoom-speed-and-trim.md) is what makes a
 vertical cut work.

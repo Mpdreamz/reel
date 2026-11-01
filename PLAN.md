@@ -216,8 +216,13 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   with a DevTools port (`--remote-debugging-port=0`, read from `DevToolsActivePort`), sized until the page is
   `Viewport`, quit and its profile removed when the take ends. Input is DevTools' (`Input.dispatchMouseEvent`,
   `dispatchKeyEvent`): hovers and wheel events included. Editing shortcuts are sent as the commands DevTools needs.
-- **Recording.** ScreenCaptureKit, as for an app, cropped to the page under the title bar, the browser's helper
-  processes' sound kept. Neither takes the mouse or the keyboard, and neither needs Accessibility. The real cursor
+- **Recording.** ScreenCaptureKit, as for an app, cropped to the page (`Recorder.pageCrop`), the browser's helper
+  processes' sound kept. The crop never takes in a window's rounded corners, which would show the desktop behind
+  them in an unframed output: WebKit's window is borderless (`PageWindow`, which says it can become key), so it is
+  the page; Chromium's is sized until the page fills it, then grown `Browser.margin` (24 points) right and below,
+  the page held at `Viewport` with `Emulation.setDeviceMetricsOverride`, which keeps it at the window's top left.
+  Chromium's window rim, half a point, still shows along the page's left edge. `scripts/check-web.swift` checks the
+  corners are the page's background. Neither takes the mouse or the keyboard, and neither needs Accessibility. The real cursor
   is hidden; render draws an arrow along the driver's path, through edits and zooms.
 - `mise run live-web` records `reels/web.reel` against `reels/web/fixture.html` twice, in WebKit and with `Set
   Browser chromium`: the page logs what happened and the reel waits for each entry, so a step that did not work stops

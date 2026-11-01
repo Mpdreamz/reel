@@ -22,8 +22,12 @@ goes to another page. `Set Viewport` is the page's size in points (1280x800 unle
 Every take starts in a fresh browser, with no cookies, storage or saved passwords, so a page records the same way each
 time: a site that asks for cookie consent asks every take. [Skip it](zoom-speed-and-trim.md) with `Hide` … `Show`.
 
-A web reel records the page alone, under the title bar, with the page's sound. It doesn't take your mouse or keyboard
-and needs no Accessibility: reel drives the page itself and draws the cursor into the video afterwards.
+A web reel records the page alone, with the page's sound. It doesn't take your mouse or keyboard and needs no
+Accessibility: reel drives the page itself and draws the cursor into the video afterwards.
+
+The recording is the page with square corners: no title bar, and none of the window's rounded corners with your
+desktop showing in them. WebKit's window has no frame at all. Chromium's window is a little larger than the page, so
+its corners are outside what is recorded; its thin edge can still show as a line along the page's left side.
 
 ## Which browser
 
