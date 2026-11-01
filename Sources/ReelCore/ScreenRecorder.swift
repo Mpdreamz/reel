@@ -5,6 +5,10 @@ extension Recorder {
     /// How long the code screen's own moves take, in its clock: a file coming up, the view scrolling to a place, a
     /// focus dimming the rest, a mark or callout appearing. The take waits for each, as it would watch an app's.
     static let screenTimings: (open: Int, go: Int, focus: Int, mark: Int, key: Int) = (300, 400, 350, 180, 120)
+    /// The same for splitting the screen, switching panes, a peek opening and a link drawing itself.
+    static let paneTimings: (split: Int, pane: Int, peek: Int, link: Int) = (450, 100, 320, 500)
+    /// The most lines a peek shows; it scrolls to its place in the file.
+    static let peekLines = 8
 
     /// A code screen: no app and no capture. The steps play on a clock of the take's own, and each frame is drawn when
     /// its time comes, so a take is the same every time and takes as long as drawing it does.
@@ -12,7 +16,9 @@ extension Recorder {
         _ tape: Tape, narration: Narration, into location: TakeLocation, log: (String) -> Void
     ) async throws -> Take {
         let viewport = tape.web.viewport
-        let screen = try await ScreenPage("screen.html", size: viewport, options: ["fontSize": tape.fontSize])
+        let screen = try await ScreenPage(
+            "screen.html", size: viewport, options: ["fontSize": tape.fontSize, "peekLines": peekLines]
+        )
         let film = try ScreenFilm(page: screen, size: viewport, into: location, frameRate: tape.frameRate)
         log("drawing the code screen, \(film.width)×\(film.height)")
         var now: Int {
@@ -41,9 +47,29 @@ extension Recorder {
                     try await advance(to: Int((resume * 1000).rounded()))
                 case let .reach(marker):
                     if let time = clock.time(of: marker) { try await advance(to: Int((time * 1000).rounded())) }
-                case let .code(file):
-                    try await screen.step("return await reelScreen.open(f)", ["f": screenFile(file)])
-                    try await advance(to: now + screenTimings.open)
+                case let .code(file, transition):
+                    try await screen.step(
+                        "return await reelScreen.open(f, t)", ["f": screenFile(file), "t": transition?.page ?? NSNull()]
+                    )
+                    try await advance(to: now + (transition.map { milliseconds($0.duration) } ?? screenTimings.open))
+                case let .split(file):
+                    try await screen.step("return await reelScreen.split(f)", ["f": file.map(screenFile) ?? NSNull()])
+                    try await advance(to: now + paneTimings.split)
+                case let .pane(side):
+                    try await screen.step("return reelScreen.pane(i)", ["i": side])
+                    try await advance(to: now + paneTimings.pane)
+                case let .peek(text, file):
+                    try await screen.step(
+                        "return await reelScreen.peek(t, f)",
+                        ["t": text ?? NSNull(), "f": file.map(screenFile) ?? NSNull()]
+                    )
+                    try await advance(to: now + paneTimings.peek)
+                case let .link(from, to, label):
+                    try await screen.step(
+                        "return reelScreen.link(a, b, l)",
+                        ["a": from ?? NSNull(), "b": to ?? NSNull(), "l": label ?? NSNull()]
+                    )
+                    try await advance(to: now + paneTimings.link)
                 case let .go(anchor):
                     try await screen.step("return reelScreen.go(a)", ["a": anchor.page])
                     try await advance(to: now + screenTimings.go)
@@ -208,5 +234,12 @@ final class ScreenFilm {
         // The caret is what `Zoom cursor` follows; nothing draws a pointer over it.
         take.cursor = caretTrack
         return take
+    }
+}
+
+extension SectionTransition {
+    /// As the page takes it: `{ kind: "slide-left", easing: "ease-out", ms: 600 }`.
+    var page: [String: Any] {
+        ["kind": kind.rawValue, "easing": easing.rawValue, "ms": Recorder.milliseconds(duration)]
     }
 }

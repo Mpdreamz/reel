@@ -1,0 +1,29 @@
+# reel's code demo, part two: moving between files. A protocol and one of its implementations side by side, linked,
+# and a definition peeked in place. `mise run demos relations` records it. The files are copies in demos/code.
+Import //demos/reel.reelpreset
+Screen code
+
+Output //docs/media/relations.mp4
+Output //docs/media/relations.gif
+Set Viewport 1100x620
+Set FontSize 18
+Intro@crossfade,ease-out,600ms square ? "reel" "Between files" : 2s
+Outro@fade,800ms square ? "Recorded with reel" "brew install --cask mpdreamz/tap/reel" : 2s
+
+Code code/Synthesizer.swift
+Say "A code walkthrough moves between files. Here's a protocol,"
+Code@slide-left,ease-in-out,600ms code/Voicebox.swift at "struct Voicebox"
+Say "and here's what implements it."
+Code@crossfade code/Synthesizer.swift
+Split code/Voicebox.swift at "struct Voicebox"
+Say "Side by side,"
+Link "protocol Synthesizer" -> "struct Voicebox: Synthesizer" "conforms to"
+Link "func speak" -> "func speak" "implements"
+Say "with the relations drawn between them, declared in the reel."
+Link off
+Go "profileID()"
+Peek "profileID()" code/Voicebox.swift at "func profileID"
+Say "And a definition can open right where it's used."
+Peek off
+Split off
+Sleep 1s

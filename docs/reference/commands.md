@@ -64,6 +64,11 @@ After `Screen code`. See [Code](../demos/code.md).
 | `Focus lines <a>-<b>`, `Focus off` | Dims every other line. |
 | `Mark "<text>" [n]`, `Mark off` | A box around the text, numbered `n`; boxes add up until `Mark off`. |
 | `Callout "<text>" "<label>"`, `Callout off` | A bubble saying the label beside the text's line. |
+| `Code@<transition> <file> …` | The file before moves out as this one comes in: any intro transition. |
+| `Split <file> […]`, `Split off` | A second pane beside the first, which steps then act on. |
+| `Pane left`, `Pane right` | Which pane steps act on. |
+| `Peek "<text>" <file> […]`, `Peek off` | Another file in a box under the line with the text. |
+| `Link "<a>" -> "<b>" ["<label>"]`, `Link off` | An arrow from one place to another, across the panes when split. |
 
 ## Terminals
 

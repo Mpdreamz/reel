@@ -327,7 +327,18 @@ public enum Command: Equatable, Sendable {
     /// `Open <url>` after the tape has started: goes to another page.
     case open(URL)
     /// `Code <file>`: opens a file in a code screen's editor.
-    case code(CodeFile)
+    case code(CodeFile, transition: SectionTransition?)
+    /// `Split <file>`: the file in a second pane beside the first, which it makes the active one; `Split off` (nil)
+    /// closes it.
+    case split(CodeFile?)
+    /// `Pane left` (0), `Pane right` (1): which pane the steps after act on.
+    case pane(Int)
+    /// `Peek "<text>" <file>`: the file in a box under the line with the text, as an editor peeks a definition;
+    /// `Peek off` (nil) closes it.
+    case peek(String?, file: CodeFile?)
+    /// `Link "<a>" -> "<b>" ["<label>"]`: an arrow from one place to another, across the panes when split; `Link off`
+    /// (nil) clears them all.
+    case link(String?, to: String?, label: String?)
     /// `Go line 40`, `Go "func play"`: the cursor moves there, the editor scrolling to show it.
     case go(CodeAnchor)
     /// `Focus lines 20-24`: those lines bright and the rest dimmed, until `Focus off` (nil).
@@ -822,7 +833,7 @@ public extension Tape {
             }
             // `Type@20ms`: a command may carry an option after `@`; only Type takes one.
             let (name, option) = first.quoted ? (first.text, nil) : split(first.text)
-            if option != nil, !["Type", "Say", "Zoom", "Intro", "Outro", "Output", "Include"].contains(name) {
+            if option != nil, !["Type", "Say", "Zoom", "Intro", "Outro", "Output", "Include", "Code"].contains(name) {
                 throw fail("\(name) takes no @option")
             }
             // The first line says what the tape records; everything after is read knowing it.
@@ -845,6 +856,28 @@ public extension Tape {
                             + " screen: start the reel with " + names.map { "Screen \($0)" }.joined(separator: " or ")
                     )
                 }
+            }
+
+            /// `<file> [lines <a>-<b>] [at line <n> | at "<text>"]`, after `command`.
+            func codeFile(_ words: ArraySlice<Token>, usage command: String) throws -> CodeFile {
+                let usage = "expected \(command) <file> [lines <a>-<b>] [at line <n> | at \"<text>\"]"
+                guard let path = words.first, !path.quoted else { throw fail(usage) }
+                var rest = words.dropFirst()
+                var range: ClosedRange<Int>?
+                var at: CodeAnchor?
+                while let word = rest.popFirst() {
+                    switch (word.quoted, word.text) {
+                    case (false, "lines"):
+                        guard let r = rest.popFirst().flatMap({ lineRange($0.text) }) else { throw fail(usage) }
+                        range = r
+                    case (false, "at"):
+                        guard let next = rest.popFirst() else { throw fail(usage) }
+                        at = try codeAnchor(next, rest: &rest, fail: fail)
+                    default: throw fail(usage)
+                    }
+                }
+                let url = try locate(path.text, from: directory, at: "line \(line)", fail: fail)
+                return CodeFile(url: url, lines: range, at: at)
             }
 
             switch name {
@@ -1000,24 +1033,50 @@ public extension Tape {
 
             case "Code":
                 try forScreen("Code", [.code])
-                let usage = "expected Code <file> [lines <a>-<b>] [at line <n> | at \"<text>\"]"
-                guard let path = args.first, !path.quoted else { throw fail(usage) }
-                var rest = args.dropFirst()
-                var range: ClosedRange<Int>?
-                var at: CodeAnchor?
-                while let word = rest.popFirst() {
-                    switch (word.quoted, word.text) {
-                    case (false, "lines"):
-                        guard let r = rest.popFirst().flatMap({ lineRange($0.text) }) else { throw fail(usage) }
-                        range = r
-                    case (false, "at"):
-                        guard let next = rest.popFirst() else { throw fail(usage) }
-                        at = try codeAnchor(next, rest: &rest, fail: fail)
-                    default: throw fail(usage)
-                    }
+                let file = try codeFile(args[...], usage: "Code[@<transition>]")
+                try step(.code(file, transition: option.map { try SectionTransition($0, fail: fail) }))
+
+            case "Split":
+                try forScreen("Split", [.code])
+                if words == ["off"] {
+                    step(.split(nil))
+                } else {
+                    try step(.split(codeFile(args[...], usage: "Split")))
                 }
-                let url = try locate(path.text, from: directory, at: "line \(line)", fail: fail)
-                step(.code(CodeFile(url: url, lines: range, at: at)))
+
+            case "Pane":
+                try forScreen("Pane", [.code])
+                guard words.count == 1, let side = ["left", "right"].firstIndex(of: words[0]) else {
+                    throw fail("expected Pane left or Pane right")
+                }
+                step(.pane(side))
+
+            case "Peek":
+                try forScreen("Peek", [.code])
+                if args.count == 1, !args[0].quoted, args[0].text == "off" {
+                    step(.peek(nil, file: nil))
+                } else {
+                    guard let first = args.first, first.quoted, !first.text.isEmpty else {
+                        throw fail(
+                            "expected Peek \"<text>\" <file> [lines <a>-<b>] [at line <n> | at \"<text>\"] or Peek off"
+                        )
+                    }
+                    try step(.peek(first.text, file: codeFile(args.dropFirst(), usage: "Peek \"<text>\"")))
+                }
+
+            case "Link":
+                try forScreen("Link", [.code])
+                if args.count == 1, !args[0].quoted, args[0].text == "off" {
+                    step(.link(nil, to: nil, label: nil))
+                } else {
+                    guard (3 ... 4).contains(args.count), args[0].quoted, !args[1].quoted, args[1].text == "->",
+                          args[2].quoted, args.dropFirst(3).allSatisfy(\.quoted), !args[0].text.isEmpty,
+                          !args[2].text.isEmpty
+                    else {
+                        throw fail("expected Link \"<text>\" -> \"<text>\" [\"<label>\"] or Link off")
+                    }
+                    step(.link(args[0].text, to: args[2].text, label: args.count == 4 ? args[3].text : nil))
+                }
 
             case "Go":
                 try forScreen("Go", [.code])
@@ -1225,7 +1284,7 @@ public extension Tape {
                 let known = [
                     "Output", "Set", "Launch", "Sleep", "Click", "Wait", "Type", "Key", "Scroll", "Caption", "Say",
                     "Zoom", "Speed", "Hide", "Show", "Intro", "Outro", "Open", "Screen", "Code", "Go", "Focus", "Mark",
-                    "Callout", "Include",
+                    "Callout", "Include", "Split", "Pane", "Peek", "Link",
                 ]
                 let hint = known.first { $0.lowercased() == name.lowercased() }.map { "; did you mean \($0)?" }
                 throw fail("unknown command '\(name)'" + (hint ?? "; expected one of \(known.joined(separator: ", "))"))

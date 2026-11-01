@@ -25,9 +25,10 @@
    from what it printed and when, with `Wait /regex/`, `Wait quiet`, `Wait exit`, `Set Redact`, Ghostty themes and
    window chrome (see "Terminal screens").
 11. **Scenes.** `Include[@<transition>] <scene.reel>`: other reels joined into one video, each recorded as its own,
-   on one canvas, with transitions between them and the sequence's intro and outro around them (see "Scenes"). Next:
-   a terminal width per profile (`Set Columns social ? 56 : 100`, one take per width), moving between files (`Peek`,
-   `Split`, `Link`), diffs, then morphing one snippet into the next.
+   on one canvas, with transitions between them and the sequence's intro and outro around them (see "Scenes"). Still
+   to come: a terminal width per profile (`Set Columns social ? 56 : 100`, one take per width).
+12. **Between files.** `Code@<transition>`, `Split` and `Pane`, `Peek`, `Link` on a code screen (see "Code screens").
+   Next: diffs, then morphing one snippet into the next, then picture-in-picture.
 
 ## The reel
 
@@ -71,6 +72,10 @@ sits next to the same things.
 | `Focus lines <a>-<b>`, `Focus off` | Dim every other line until `Focus off`. |
 | `Mark "<text>" [n]`, `Mark off` | A box around the first text, numbered `n`; boxes add up until `Mark off`. |
 | `Callout "<text>" "<label>"`, `Callout off` | A bubble saying the label beside the text's line, until the next callout or `Callout off`. |
+| `Code@<transition> <file> …` | The file before moves out as the next comes in, with any intro transition; without one the file fades up. |
+| `Split <file> […]`, `Split off`, `Pane left\|right` | A second pane, half the screen, which steps act on; `Pane` chooses which one does. |
+| `Peek "<text>" <file> […]`, `Peek off` | Another file, up to 8 lines, in a box under the line with the text. |
+| `Link "<a>" -> "<b>" ["<label>"]`, `Link off` | An arrow from one text to another, labelled, across the panes when split. |
 | `Sleep <duration>` | Wait. |
 | `Wait <element>` | Wait until the element shows. |
 | `Click <element or @x,y>` | Glide the cursor there and click. |
@@ -225,6 +230,12 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   cursor only while focused, which a page nobody sees never is. A callout sits past the end of its line where it fits,
   so it covers no code. `Focus`, `Mark` and `Callout` are recorded with the take (a code screen's take is cheap to
   draw again), and the caret's path is the take's cursor, so `Zoom cursor` follows the typing.
+- **Panes.** The page is one pane, or two after `Split`, each an editor with its own header, focus, marks and callout;
+  steps act on the active one. `Code@<transition>` copies the pane's content into a layer over it that moves out as the
+  new file comes in, so every intro transition works between files on reel's clock. `Peek` is a Monaco view zone (the
+  public API) holding a second, read-only editor; it grows open, and the view scrolls ahead of it to where its bottom
+  will be. `Link` is an SVG arrow over the panes, from the end of one text to the start of the other, drawing itself
+  in; its label sits over the line numbers of the pane it points into, clear of code.
 - **Keys.** `Type` and the keys an editor takes: return (keeping the line's indent), tab, space, backspace,
   forwarddelete, escape, the arrows, home, end, page up and down, with shift to select. Anything else is refused at
   its line.
