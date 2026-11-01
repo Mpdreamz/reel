@@ -265,6 +265,45 @@ struct SceneRenderingTests {
         #expect(square.width == square.height)
     }
 
+    /// The colour at `x`, `y` (shares of the width and height) of the movie's frame at `seconds`, 0 to 255.
+    private func colour(_ url: URL, at seconds: Double, x: Double, y: Double) async throws -> [Int] {
+        let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
+        generator.requestedTimeToleranceBefore = .zero
+        generator.requestedTimeToleranceAfter = .zero
+        let (image, _) = try await generator.image(at: CMTime(seconds: seconds, preferredTimescale: 600))
+        var pixel = [UInt8](repeating: 0, count: 4)
+        let context = try #require(CGContext(
+            data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        // The one pixel wanted lands on the context's only one; Core Graphics' y runs up.
+        let (width, height) = (Double(image.width), Double(image.height))
+        context.draw(image, in: CGRect(x: -x * width, y: -(1 - y) * height, width: width, height: height))
+        return pixel.prefix(3).map(Int.init)
+    }
+
+    @Test func joiningKeepsTheScenesColours() async throws {
+        let folder = try Folder()
+        let sting = URL(filePath: #filePath).deletingLastPathComponent().appending(
+            path: "../../design/motion/intro-reel-2s-16x9.mp4"
+        ).standardized
+        _ = try await render(folder, "colours.reel", """
+        Include a.reel
+        Include@cut b.reel
+        Include@cut a.reel
+        Output colours.mp4
+        Intro 1s
+        Set IntroBackground \(sting.path)
+        """)
+        // The editor's background, below the code, in the take and in the first scene of the joined movie: three
+        // passes (two joins, the intro) that each shifted it a little when Core Animation drew them.
+        let take = try await colour(
+            TakeLocation(tape: folder.url.appending(path: "a.reel")).movie, at: 0.5, x: 0.5, y: 0.8
+        )
+        let joined = try await colour(folder.url.appending(path: "colours.mp4"), at: 1.5, x: 0.5, y: 0.7)
+        #expect(zip(take, joined).allSatisfy { abs($0 - $1) <= 6 }, "the take's \(take), joined \(joined)")
+    }
+
     @Test func aSceneWithoutATakeSaysHowToGetOne() async throws {
         let folder = try Folder()
         let url = try folder.write("tour.reel", "Include a.reel\nOutput t.mp4")
