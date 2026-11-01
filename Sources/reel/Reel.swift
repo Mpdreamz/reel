@@ -240,6 +240,11 @@ private func describeSteps(of parsed: Tape) {
     } else if !waits.isEmpty {
         say("waits for another reel's \(waits.joined(separator: ", ")); skipped when this reel runs alone")
     }
+    let moves = parsed.steps.filter { if case .move = $0.command { true } else { false } }
+    if parsed.launch.isTogether {
+        let layout = parsed.layout?.description ?? parsed.tracks.map(\.name).joined(separator: " | ")
+        say("layout: \(layout)" + (moves.isEmpty ? "" : "; then \(moves.map(\.source).joined(separator: ", "))"))
+    }
     let captions = parsed.steps.filter(\.command.isCaption).count
     say(
         "\(parsed.actions.count) action\(parsed.actions.count == 1 ? "" : "s"), \(captions) caption\(captions == 1 ? "" : "s")"

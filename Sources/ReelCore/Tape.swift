@@ -75,6 +75,8 @@ public struct Tape: Equatable, Sendable {
     public var launch: LaunchTarget
     /// The commands after setup, in order. Recording starts before the first one.
     public var steps: [Step]
+    /// `Set Layout`: how a reel of tracks arranges them to start with; nil puts them side by side.
+    public var layout: Layout?
 
     public static let defaultFrameRate = 60
     public static let defaultTypingSpeed = Duration.milliseconds(50)
@@ -94,7 +96,7 @@ public struct Tape: Equatable, Sendable {
         guard !launch.isScreen else { return false }
         return size != nil || steps.contains {
             switch $0.command {
-            case .sleep, .caption, .say, .reach, .speed, .hide, .focus, .mark, .callout, .waitFor: false
+            case .sleep, .caption, .say, .reach, .speed, .hide, .focus, .mark, .callout, .waitFor, .move: false
             case let .zoom(target, _, _): target.isElement
             default: true
             }
@@ -403,11 +405,14 @@ public enum Command: Equatable, Sendable {
     case mark(String?, number: Int?)
     /// `Callout "text" "label"`: a bubble with the label at the first match of the text, until `Callout off` (nil).
     case callout(String?, label: String?)
+    /// The director's camera over a reel of tracks (`Layout`, `Split`, `Spotlight`, `Fullscreen`, `Pip`), easing to
+    /// it at render time.
+    case move(Move, transition: Transition?)
 
     /// Drawn or edited at render time only: recording skips it, so it can change without a new take.
     public var isRenderOnly: Bool {
         switch self {
-        case .caption, .speed, .hide: true
+        case .caption, .speed, .hide, .move: true
         case let .zoom(target, _, _): !target.isElement
         default: false
         }
@@ -489,7 +494,7 @@ public struct TapeError: Error, Equatable, CustomStringConvertible, LocalizedErr
 
 public extension Tape {
     /// Settings whose value is a list, which may have spaces in it: `Set Profiles github, social`.
-    static let listSettings: Set<String> = ["Profiles", "Formats", "Redact"]
+    static let listSettings: Set<String> = ["Profiles", "Formats", "Redact", "Layout"]
 
     /// The tape read again for `profile`: its settings applied over the tape's, its Outputs named for it.
     func with(profile: Profile?, format: Output.Format? = nil) throws -> Tape {
@@ -579,6 +584,7 @@ public extension Tape {
         var terminal = TerminalSettings()
         var scenes: [Scene] = []
         var tracks: [Track] = []
+        var layout: (arrangement: Layout, origin: String)?
         /// Every track's named steps, with their lines: names are unique across a reel's tracks and its own steps.
         var trackNames: [String: Int] = [:]
         var steps: [Step] = []
@@ -771,6 +777,13 @@ public extension Tape {
                 voice.appVolume = try percent("AppVolume", value, fail: fail)
             case "Background":
                 background = try Background(value, resolve: find, fail: fail)
+            case "Layout":
+                // A profile's settings reach its tracks too; the layout is the reel's.
+                if asTrack { return }
+                guard launch?.target.isTogether == true else {
+                    throw fail("Set Layout arranges the tracks of a reel that records several at once (… as <name>)")
+                }
+                layout = try (Layout.parse(value, fail: fail), origin)
             case "Padding":
                 guard value.hasSuffix("%"), let number = Double(value.dropLast()),
                       (0 ... 30).contains(number)
@@ -827,7 +840,7 @@ public extension Tape {
                         + "Formats, Profiles, GifFrameRate, GifWidth, GifColors, Voice, VoiceServer, VoiceSeed, "
                         + "VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, "
                         + "IntroBackground, OutroBackground, Browser, Viewport, FontSize, Columns, Rows, WorkingDirectory, Theme, "
-                        + "Redact, Title, Background or Padding"
+                        + "Redact, Title, Background, Padding or Layout"
                 )
             }
         }
@@ -894,12 +907,14 @@ public extension Tape {
                     args = try [setting] + Condition.choose(
                         Array(args.dropFirst()), profile: profile?.name, format: format, names: &names, fail: fail
                     )
-                case "Caption", "Intro", "Outro":
+                case "Caption", "Intro", "Outro", "Layout", "Spotlight", "Fullscreen", "Pip":
+                    args = try Condition.choose(args, profile: profile?.name, format: format, names: &names, fail: fail)
+                case "Split" where launch?.target.isTogether == true:
                     args = try Condition.choose(args, profile: profile?.name, format: format, names: &names, fail: fail)
                 default:
                     throw fail(
-                        "a condition (?) works in Set, Caption, Intro and Outro, which render decides; \(command) "
-                            + "happens when recording, the same for every profile"
+                        "a condition (?) works in Set, Caption, Intro, Outro and the director's moves, which render "
+                            + "decides; \(command) happens when recording, the same for every profile"
                     )
                 }
                 tested += names.map { ($0, "line \(line)") }
@@ -918,7 +933,11 @@ public extension Tape {
             // `Type@20ms`: a command may carry an option after `@`; only Type takes one.
             let (name, option) = first.quoted ? (first.text, nil) : split(first.text)
             if option != nil,
-               !["Type", "Say", "Zoom", "Intro", "Outro", "Output", "Include", "Code", "Diff", "Morph"].contains(name)
+               ![
+                   "Type", "Say", "Zoom", "Intro", "Outro", "Output", "Include", "Code", "Diff", "Morph", "Layout",
+                   "Split",
+                   "Spotlight", "Fullscreen", "Pip",
+               ].contains(name)
             {
                 throw fail("\(name) takes no @option")
             }
@@ -1244,6 +1263,70 @@ public extension Tape {
                 let file = try codeFile(args[...], usage: "Morph[@<easing>,<duration>]")
                 try step(.morph(file, motion: option.map { try Transition($0, fail: fail) }))
 
+            case "Split" where launch?.target.isTogether == true:
+                let transition = try option.map { try Transition($0, fail: fail) }
+                if words == ["off"] {
+                    step(.move(.split(nil), transition: transition))
+                } else {
+                    let shares = try words.map { word -> Double in
+                        guard word.hasSuffix("%"), let value = Double(word.dropLast()), value > 0, value < 100 else {
+                            throw fail("expected Split <share>% …, such as Split 40%, or Split off")
+                        }
+                        return value / 100
+                    }
+                    guard !shares.isEmpty
+                    else { throw fail("expected Split <share>% …, such as Split 40%, or Split off") }
+                    let total = shares.reduce(0, +)
+                    guard total <= 1.0001 else {
+                        throw fail("the shares add up to \(Layout.percent(total)); they make at most 100%")
+                    }
+                    step(.move(.split(shares), transition: transition))
+                }
+
+            case "Layout", "Spotlight", "Fullscreen", "Pip":
+                guard launch?.target.isTogether == true else {
+                    throw fail("\(name) directs the tracks of a reel that records several at once (… as <name>)")
+                }
+                let transition = try option.map { try Transition($0, fail: fail) }
+                let move: Move
+                switch name {
+                case "Layout":
+                    guard !args.isEmpty else { throw fail("expected Layout <arrangement>; \(Layout.usage)") }
+                    move = try .layout(Layout.parse(args.map(\.source).joined(separator: " "), fail: fail))
+                case "Spotlight", "Fullscreen":
+                    guard words.count == 1,
+                          !args[0].quoted else { throw fail("expected \(name) <track> or \(name) off") }
+                    let track = words[0] == "off" ? nil : words[0]
+                    move = name == "Spotlight" ? .spotlight(track) : .fullscreen(track)
+                default:
+                    let usage = "expected Pip <track> [over <track>] [top-left|top-right|bottom-left|bottom-right] "
+                        + "or Pip off"
+                    if words == ["off"] {
+                        move = .pip(nil)
+                        break
+                    }
+                    guard let first = words.first, !args.contains(where: \.quoted) else { throw fail(usage) }
+                    var pip = Pip(name: first, over: nil, corner: .bottomRight)
+                    var rest = words.dropFirst()
+                    if rest.first == "over" {
+                        rest.removeFirst()
+                        guard let over = rest.popFirst() else { throw fail(usage) }
+                        guard over != first
+                        else { throw fail("a picture-in-picture is over another track, not itself") }
+                        pip.over = over
+                    }
+                    if let corner = rest.popFirst() {
+                        guard let value = Pip.Corner(rawValue: corner) else {
+                            throw fail("'\(corner)' is not a corner; expected "
+                                + Pip.Corner.allCases.map(\.rawValue).joined(separator: ", "))
+                        }
+                        pip.corner = value
+                    }
+                    guard rest.isEmpty else { throw fail(usage) }
+                    move = .pip(pip)
+                }
+                step(.move(move, transition: transition))
+
             case "Split":
                 try forScreen("Split", [.code])
                 if words == ["off"] {
@@ -1501,6 +1584,7 @@ public extension Tape {
                     "Output", "Set", "Launch", "Sleep", "Click", "Wait", "Type", "Key", "Scroll", "Caption", "Say",
                     "Zoom", "Speed", "Hide", "Show", "Intro", "Outro", "Open", "Screen", "Code", "Go", "Focus", "Mark",
                     "Callout", "Include", "Split", "Pane", "Peek", "Link", "Diff", "Morph", "With", "Follow", "Attach",
+                    "Layout", "Spotlight", "Fullscreen", "Pip",
                 ]
                 let hint = known.first { $0.lowercased() == name.lowercased() }.map { "; did you mean \($0)?" }
                 throw fail("unknown command '\(name)'" + (hint ?? "; expected one of \(known.joined(separator: ", "))"))
@@ -1527,6 +1611,14 @@ public extension Tape {
             for step in steps {
                 switch step.command {
                 case .say, .caption, .sleep, .waitFor, .reach, .speed, .hide: continue
+                case let .move(move, _):
+                    for name in move.names where !tracks.contains(where: { $0.name == name }) {
+                        throw TapeError(line: step.line, message: Tape.noTrack(name, in: tracks))
+                    }
+                    if case let .layout(arrangement) = move, let twice = Tape.twice(arrangement) {
+                        throw TapeError(line: step.line, message: "\(twice) is in the layout twice")
+                    }
+                    continue
                 default:
                     let command = step.source.split(separator: " ").first.map(String.init) ?? "it"
                     throw TapeError(
@@ -1608,6 +1700,15 @@ public extension Tape {
             }
         }
 
+        if let layout {
+            for name in layout.arrangement.names where !tracks.contains(where: { $0.name == name }) {
+                throw TapeError(message: "\(layout.origin): \(Tape.noTrack(name, in: tracks))")
+            }
+            if let twice = Tape.twice(layout.arrangement) {
+                throw TapeError(message: "\(layout.origin): \(twice) is in the layout twice")
+            }
+        }
+
         return Tape(
             outputs: outputs,
             frameRate: frameRate ?? defaultFrameRate,
@@ -1656,7 +1757,8 @@ public extension Tape {
             background: background,
             padding: padding,
             launch: launch.target,
-            steps: steps
+            steps: steps,
+            layout: layout?.arrangement
         )
     }
 
@@ -1800,6 +1902,19 @@ struct Token {
     var quoted: Bool
     /// As written, quotes and all, for the timeline.
     var source: String
+}
+
+extension Tape {
+    /// The error for a move or a layout that names a track the reel has not.
+    static func noTrack(_ name: String, in tracks: [Track]) -> String {
+        "there is no track \(name); the tracks are " + tracks.map(\.name).joined(separator: ", ")
+    }
+
+    /// The first track an arrangement names more than once.
+    static func twice(_ arrangement: Layout) -> String? {
+        var seen = Set<String>()
+        return arrangement.names.first { !seen.insert($0).inserted }
+    }
 }
 
 /// Splits a line into tokens: whitespace separates, double quotes group (`\"` and `\\` escape inside them). `#`

@@ -34,7 +34,8 @@ Caption gif ? "Short" : "The long version, for the movie with sound"
 
 ## Where they work
 
-Conditions work where rendering decides: `Set`, `Caption`, `Intro` and `Outro`, in a reel, a preset or a profile. A
+Conditions work where rendering decides: `Set`, `Caption`, `Intro`, `Outro` and the
+[director's moves](../demos/together.md#directing-the-tracks), in a reel, a preset or a profile. A
 condition covers all of a command's values:
 
 ```

@@ -1,79 +1,35 @@
 import AVFoundation
 import CoreImage
 
-/// Where each track sits on the canvas: side by side when the canvas is wide, stacked when it is tall, each cell as
-/// big as its track needs at the shared height (or width), with room between them.
-struct TrackLayout: Equatable {
-    var canvas: CGSize
-    /// Pixels from the canvas's top left, in the tracks' order.
-    var cells: [CGRect]
-    var corners: [Double]
-
-    /// `sizes` are the tracks' recordings in pixels, `scales` their pixels a point.
-    static func make(sizes: [CGSize], scales: [Double], shape: Output.Shape, padding: Double) -> TrackLayout {
-        let wide = switch shape {
-        case let .aspect(w, h): w >= h
-        case let .size(w, h): w >= h
-        }
-        // Each track at the tallest one's height (side by side) or the widest one's width (stacked).
-        let side = wide ? sizes.map(\.height).max() ?? 1 : sizes.map(\.width).max() ?? 1
-        let scaled = sizes.map { size in
-            wide ? CGSize(width: size.width * side / size.height, height: side)
-                : CGSize(width: side, height: size.height * side / size.width)
-        }
-        let gap = side * 0.04
-        let gaps = gap * Double(max(0, sizes.count - 1))
-        let content = wide
-            ? CGSize(width: scaled.map(\.width).reduce(0, +) + gaps, height: side)
-            : CGSize(width: side, height: scaled.map(\.height).reduce(0, +) + gaps)
-        // Framed as one recording of that size would be: the same padding, shape and largest size.
-        let framing = Framing.make(
-            recording: content, scale: 1, shape: shape, padding: padding, background: .standard
-        )
-        let fit = framing.content.width / content.width
-        var cells: [CGRect] = []
-        var at = wide ? framing.content.minX : framing.content.minY
-        for size in scaled {
-            let cell = wide
-                ? CGRect(x: at, y: framing.content.minY, width: size.width * fit, height: framing.content.height)
-                : CGRect(x: framing.content.minX, y: at, width: framing.content.width, height: size.height * fit)
-            cells.append(cell.integral)
-            at += (wide ? cell.width : cell.height) + gap * fit
-        }
-        let corners = zip(sizes, zip(cells, scales)).map { size, cell in
-            Framing.windowCorner * cell.1 * cell.0.width / size.width
-        }
-        return TrackLayout(canvas: framing.canvas, cells: cells, corners: corners)
-    }
-}
-
-/// What the compositor draws for the whole movie: each track's picture in its cell, over the background.
+/// What the compositor draws for the whole movie: each track's picture where the director has it, over the
+/// background.
 final class TracksInstruction: NSObject, AVVideoCompositionInstructionProtocol, @unchecked Sendable {
     let timeRange: CMTimeRange
     let enablePostProcessing = false
     let containsTweening = true
     let requiredSourceTrackIDs: [NSValue]?
     let passthroughTrackID = kCMPersistentTrackID_Invalid
-    let pictures: [CMPersistentTrackID]
-    let layout: TrackLayout
+    /// Each track's picture, in the layout's order; nil for one with none.
+    let pictures: [CMPersistentTrackID?]
+    let direction: Direction
     let background: Background
     let image: CIImage?
 
     init(
-        timeRange: CMTimeRange, pictures: [CMPersistentTrackID], layout: TrackLayout, background: Background,
+        timeRange: CMTimeRange, pictures: [CMPersistentTrackID?], direction: Direction, background: Background,
         image: CIImage?
     ) {
         self.timeRange = timeRange
         self.pictures = pictures
-        self.layout = layout
+        self.direction = direction
         self.background = background
         self.image = image
-        requiredSourceTrackIDs = pictures.map { NSNumber(value: $0) }
+        requiredSourceTrackIDs = pictures.compactMap { $0.map { NSNumber(value: $0) } }
     }
 }
 
-/// Draws every track's frame as a window in its cell. A track that has not started yet is not drawn; one that has
-/// ended holds its last frame.
+/// Draws every track's frame as a window where the director has it at that moment, the ones on top last. A track
+/// that has not started yet is not drawn; one that has ended holds its last frame.
 final class TracksCompositor: NSObject, AVVideoCompositing, @unchecked Sendable {
     private static let context = CIContext(options: [.workingColorSpace: CGColorSpace(name: CGColorSpace.sRGB)!])
     private let lock = NSLock()
@@ -95,7 +51,7 @@ final class TracksCompositor: NSObject, AVVideoCompositing, @unchecked Sendable 
             request.finish(with: ReelError("the tracks could not be drawn"))
             return
         }
-        let layout = instruction.layout
+        let layout = instruction.direction.layout
         let canvas = CGRect(origin: .zero, size: layout.canvas)
         var image: CIImage = if let backdrop = instruction.image {
             FrameCompositor.fill(backdrop, into: canvas)
@@ -104,19 +60,33 @@ final class TracksCompositor: NSObject, AVVideoCompositing, @unchecked Sendable 
         } else {
             CIImage(color: .black).cropped(to: canvas)
         }
-        for (index, track) in instruction.pictures.enumerated() {
+        let placements = instruction.direction.placements(at: request.compositionTime.seconds)
+        let order = placements.indices.sorted { (placements[$0].z, $0) < (placements[$1].z, $1) }
+        for index in order {
+            guard let track = instruction.pictures[index] else { continue }
             let picture: CIImage? = lock.withLock {
                 if let frame = request.sourceFrame(byTrackID: track) {
                     last[track] = CIImage(cvPixelBuffer: frame)
                 }
                 return last[track]
             }
-            guard let picture else { continue }
-            let cell = layout.cells[index]
+            let placement = placements[index]
+            guard let picture, let frame = placement.frame, placement.alpha > 0.01, frame.width >= 2,
+                  frame.height >= 2
+            else { continue }
             // Core Image's y runs up from the bottom; the layout's from the top.
-            let slot = CGRect(x: cell.minX, y: layout.canvas.height - cell.maxY, width: cell.width, height: cell.height)
-            image = FrameCompositor.window(picture, in: slot, corner: layout.corners[index], canvas: canvas)
-                .composited(over: image)
+            let slot = CGRect(
+                x: frame.minX, y: layout.canvas.height - frame.maxY, width: frame.width, height: frame.height
+            )
+            var window = FrameCompositor.window(
+                picture, in: slot, corner: layout.corner(index, at: frame), canvas: canvas
+            )
+            if placement.alpha < 1 {
+                window = window.applyingFilter("CIColorMatrix", parameters: [
+                    "inputAVector": CIVector(x: 0, y: 0, z: 0, w: placement.alpha),
+                ])
+            }
+            image = window.composited(over: image)
         }
         Self.context.render(image, to: output, bounds: canvas, colorSpace: CGColorSpace(name: CGColorSpace.sRGB))
         request.finish(withComposedVideoFrame: output)
@@ -154,6 +124,12 @@ extension Renderer {
             demos.append((url, prepared.take, offset))
         }
         let frameRate = demos.map(\.take.frameRate).max() ?? tape.frameRate
+        // The director's moves, each at the end of the step before it, as a caption is.
+        var directing = tape
+        directing.tracks = []
+        let moves = zip(tape.steps, Anchors.times(tape: directing, take: director)).compactMap { step, at in
+            if case let .move(move, transition) = step.command { (at, move, transition) } else { nil }
+        }
 
         // One composed take for each shape the Outputs take, each then rendered as any take is.
         let shapes = Dictionary(grouping: tape.outputs) { $0.shape ?? .aspect(16, 9) }
@@ -170,11 +146,15 @@ extension Renderer {
                 )
             }
             let layout = TrackLayout.make(
+                names: tape.tracks.map(\.name),
                 sizes: demos.map { CGSize(width: $0.take.width, height: $0.take.height) },
-                scales: demos.map(\.take.scale), shape: shape, padding: tape.padding
+                scales: demos.map(\.take.scale), shape: shape, padding: tape.padding, arrangement: tape.layout
+            )
+            let direction = Direction.make(
+                layout: layout, start: tape.layout, starts: demos.map { Double($0.offset) / 1000 }, moves: moves
             )
             let length = try await compose(
-                demos.map { ($0.url, $0.offset) }, layout: layout, background: tape.background ?? .standard,
+                demos.map { ($0.url, $0.offset) }, direction: direction, background: tape.background ?? .standard,
                 frameRate: frameRate, atLeast: director.durationMs, to: cut.movie
             )
             var take = Take(
@@ -201,11 +181,11 @@ extension Renderer {
     /// Draws `demos`, each from its offset in milliseconds, on the layout's canvas, with their sound, for at least
     /// `atLeast` milliseconds (the director may talk on after the tracks are done); returns how long it runs.
     static func compose(
-        _ demos: [(url: URL, offset: Int)], layout: TrackLayout, background: Background, frameRate: Int,
+        _ demos: [(url: URL, offset: Int)], direction: Direction, background: Background, frameRate: Int,
         atLeast: Int, to url: URL
     ) async throws -> Int {
         let composition = AVMutableComposition()
-        var pictures: [CMPersistentTrackID] = []
+        var pictures: [CMPersistentTrackID?] = []
         for demo in demos {
             let asset = AVURLAsset(url: demo.url)
             let length = try await asset.load(.duration)
@@ -218,6 +198,8 @@ extension Renderer {
             {
                 try track.insertTimeRange(CMTimeRange(start: .zero, duration: length), of: video, at: at)
                 pictures.append(track.trackID)
+            } else {
+                pictures.append(nil)
             }
             for sound in try await asset.loadTracks(withMediaType: .audio) {
                 try composition.addMutableTrack(withMediaType: .audio, preferredTrackID: kCMPersistentTrackID_Invalid)?
@@ -248,10 +230,11 @@ extension Renderer {
         }
         let video = AVMutableVideoComposition()
         video.customVideoCompositorClass = TracksCompositor.self
-        video.renderSize = layout.canvas
+        video.renderSize = direction.layout.canvas
         video.frameDuration = CMTime(value: 1, timescale: CMTimeScale(frameRate))
         video.instructions = [TracksInstruction(
-            timeRange: CMTimeRange(start: .zero, duration: composition.duration), pictures: pictures, layout: layout,
+            timeRange: CMTimeRange(start: .zero, duration: composition.duration), pictures: pictures,
+            direction: direction,
             background: background, image: image
         )]
         guard let session = AVAssetExportSession(asset: composition, presetName: AVAssetExportPresetAppleProRes422LPCM)
