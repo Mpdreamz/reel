@@ -294,6 +294,9 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 - **Redaction** is drawn, not edited: the buffer keeps the real text, and every frame covers what a pattern matches
   on screen with dots, so a secret is covered from the first character that matches as it is typed. Editing the
   buffer instead leaked the rest of a typed secret, once its start no longer matched.
+- **Patterns are one word.** The tokenizer reads `/…/` as one token, from a word's first `/` to the next unescaped
+  `/` that ends a word, spaces, quotes and `#` kept as written; an `as` inside it is not a step's name. A word whose
+  next slash does not end it (`/tmp/a.mp4`, `//docs/x`) is a word as before.
 - **Size per profile** is not there yet: `Columns` is a recording setting, the same for every profile.
 
 ## Scenes
