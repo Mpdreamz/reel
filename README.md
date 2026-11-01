@@ -3,8 +3,9 @@
   <img alt="reel: write a reel, get the video" src="design/social/png/readme-banner-light-1280x320.png">
 </picture>
 
-Demo videos of Mac apps and web pages, from a script. Like [VHS](https://github.com/charmbracelet/vhs), but for
-windows instead of terminals, and with the app's sound.
+Demo videos from a script: Mac apps and web pages with their own sound, code walked through in an editor, and the
+command line, alone or recorded side by side. Like [VHS](https://github.com/charmbracelet/vhs), but not only for
+terminals.
 
 **[Documentation](https://mpdreamz.github.io/reel/getting-started/)** ·
 [Website](https://mpdreamz.github.io/reel/) ·
@@ -52,17 +53,61 @@ for GitHub, the website, and three social shapes, come from [one preset](demos/r
 Captions, zooms, speed-ups, cuts, title cards and every output setting are applied when rendering, so
 `reel render musicbox.reel` picks up a change without recording again.
 
+## Code and the command line
+
+```
+Screen code
+Output //docs/media/code.mp4
+
+Code code/SpeechClock.swift
+Go "public mutating func say"
+Focus lines 9-20
+Say "This is how reel keeps one narrated line from talking over the next."
+Mark "max(now, speechEnd)" 1
+Callout "max(now, speechEnd)" "when it's reached, or after the line before"
+```
+
+`Screen code` walks through source in an editor of reel's own, and `Screen terminal` runs a real shell in a terminal
+of reel's own. Neither needs anything installed or any permission, and a code screen gives the same take every time.
+[reel's tour](demos/tour.reel) joins its [code](demos/code.reel), [relations](demos/relations.reel) and
+[command line](demos/cli.reel) demos into one video.
+
+Several subjects can also be recorded at once, as tracks: a terminal running the tests beside the code they test,
+each waiting on the other's named steps, with a director narrating over both and moving the spotlight between them.
+
+```
+Screen code as code
+  Code Order.cs at "Cancel" as opened
+  Mark "public Order Cancel()"
+Screen terminal as term
+  Wait for opened
+  Type "dotnet test"
+  Key return
+  Wait /failed/ as failed
+  Mark "Idempotency"
+
+Output tests.mp4
+Set Layout code | term
+Say "One innocent edit. Let's run the tests."
+Wait for failed
+Spotlight term
+```
+
 ## What it does
 
 - **Drives apps and web pages:** clicks, typing, keys, scrolling and waiting, by label or accessibility identifier.
   Web pages in WebKit, built in, or Chromium.
 - **Walks through code:** `Screen code` shows source in an editor of reel's own, with a focus that dims the rest,
   numbered marks, callouts and typing; files side by side, linked, peeked and moved between with transitions; diffs,
-  word by word; and one version morphing into the next. Nothing to install and no permissions, and the same take every time.
-- **Joins scenes:** `Include` puts several reels into one video (an app, a page, code, a terminal), each with its
-  own narration and edits, with transitions between them.
+  word by word; and one version morphing into the next. Nothing to install and no permissions, and the same take
+  every time.
 - **Records the command line:** `Screen terminal` runs a real shell in a terminal of reel's own, waits on what it
   prints, covers secrets, and points at output. No permissions either.
+- **Records several at once:** tracks (an app, a page, code, a terminal) play at the same time and wait on each
+  other's named steps. A director lays them out side by side or stacked, and spotlights one, puts one in a corner or
+  gives one the whole frame. A code screen can follow another reel as it runs, marking each line as it plays.
+- **Joins scenes:** `Include` puts several reels into one video (an app, a page, code, a terminal, a reel of tracks),
+  each with its own narration and edits, with transitions between them.
 - **Narrates:** `Say` lines in an AI voice from [voicebox](https://github.com/jamiepine/voicebox) (local; clone your
   own or use a preset) or a macOS voice, clicks landing on a word, the app's sound ducked underneath, subtitles for
   muted feeds.
