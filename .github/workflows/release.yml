@@ -69,8 +69,11 @@ jobs:
 
       - uses: ./.github/actions/setup
 
+      # As CI tests: one at a time and with a limit. Run in parallel on a runner, the encoding tests stall (see ci.yml),
+      # and a release then waits until GitHub gives up on it.
       - name: Test
-        run: mise run test
+        timeout-minutes: 15
+        run: swift test --no-parallel
 
       - name: Release build
         env:
