@@ -1,6 +1,6 @@
 // Checks the take scripts/live-web.sh records of reels/web/fixture.html: the page's size, its sound (silent until
-// Click "Play", a 440 Hz tone after), the drawn cursor's path, and the rendered movie. That each step did what it
-// should, the reel itself waited for.
+// Click "Play", a 440 Hz tone after), the drawn cursor's path, its corners (the page's, not a window's), and the
+// rendered movie. That each step did what it should, the reel itself waited for.
 //
 // swift scripts/check-web.swift <take directory> <rendered movie>
 import AVFoundation
@@ -81,6 +81,27 @@ if let click = take.events.first(where: { $0.command == #"Click "Play""# }) {
     check(abs(hertz(after) - 440) < 10, String(format: "at 440 Hz (%.0f)", hertz(after)))
 } else {
     check(false, #"the take has Click "Play""#)
+}
+// The page alone: its corners are the page's background (#1e1f22), not a window's rounded corners with what is behind
+// the window in them. Two pixels in from each edge, past the thin rim a window draws along its edge.
+let generator = AVAssetImageGenerator(asset: AVURLAsset(url: dir.appending(path: "take.mov")))
+generator.requestedTimeToleranceBefore = .zero
+generator.requestedTimeToleranceAfter = .zero
+let (frame, _) = try await generator.image(at: CMTime(seconds: 1, preferredTimescale: 600))
+var pixels = [UInt8](repeating: 0, count: frame.width * frame.height * 4)
+let context = CGContext(
+    data: &pixels, width: frame.width, height: frame.height, bitsPerComponent: 8, bytesPerRow: frame.width * 4,
+    space: CGColorSpace(name: CGColorSpace.sRGB)!, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+)!
+context.draw(frame, in: CGRect(x: 0, y: 0, width: frame.width, height: frame.height))
+for (name, x, y) in [
+    ("top left", 2, 2), ("top right", frame.width - 3, 2), ("bottom left", 2, frame.height - 3),
+    ("bottom right", frame.width - 3, frame.height - 3),
+] {
+    let offset = (y * frame.width + x) * 4
+    let (r, g, b) = (Int(pixels[offset]), Int(pixels[offset + 1]), Int(pixels[offset + 2]))
+    let off = abs(r - 0x1E) + abs(g - 0x1F) + abs(b - 0x22)
+    check(off < 24, String(format: "the page's %@ corner is its background (#%02x%02x%02x)", name, r, g, b))
 }
 let movie = AVURLAsset(url: URL(fileURLWithPath: args[2]))
 check(try await movie.load(.duration).seconds > 3, "the movie was rendered")

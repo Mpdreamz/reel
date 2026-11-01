@@ -19,6 +19,9 @@ final class WebKitPage: Page {
         return configuration
     }
 
+    /// The page's window has no title bar and no frame (`PageWindow`).
+    nonisolated static let windowStyle: NSWindow.StyleMask = [.borderless]
+
     /// Opens `url` in a new window whose page is `viewport`, and waits for it to load.
     static func open(_ url: URL, viewport: CGSize) async throws -> WebKitPage {
         // reel is a command line tool: it becomes an app (with a Dock icon) for as long as its window is up.
@@ -26,8 +29,8 @@ final class WebKitPage: Page {
         app.setActivationPolicy(.regular)
         app.finishLaunching()
         let view = WKWebView(frame: CGRect(origin: .zero, size: viewport), configuration: configuration())
-        let window = NSWindow(
-            contentRect: CGRect(origin: .zero, size: viewport), styleMask: [.titled], backing: .buffered, defer: false
+        let window = PageWindow(
+            contentRect: CGRect(origin: .zero, size: viewport), styleMask: windowStyle, backing: .buffered, defer: false
         )
         window.title = url.lastPathComponent.isEmpty ? (url.host() ?? "reel") : url.lastPathComponent
         window.isReleasedWhenClosed = false
@@ -213,4 +216,17 @@ final class WebKitPage: Page {
         }
         return characters
     }()
+}
+
+/// The page's window: no title bar and no frame, so it has square corners and no edge, and what is recorded is the page
+/// alone. A titled window's rounded corners would show what is behind it in the recording. Borderless, a window does
+/// not become key unless it says it can, and the page's focus and caret need it to.
+private final class PageWindow: NSWindow {
+    override var canBecomeKey: Bool {
+        true
+    }
+
+    override var canBecomeMain: Bool {
+        true
+    }
 }

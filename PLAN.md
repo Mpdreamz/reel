@@ -222,8 +222,13 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   document at a new `#fragment` is `location.assign`, which loads nothing, so waiting for a load hung for 15 s;
   it waits for the scroll to be still instead. The very same address reloads (`reload()`, `Page.reload`), so a page's
   animations start over: navigating there would only scroll to the fragment again.
-- **Recording.** ScreenCaptureKit, as for an app, cropped to the page under the title bar, the browser's helper
-  processes' sound kept. Neither takes the mouse or the keyboard, and neither needs Accessibility. The real cursor
+- **Recording.** ScreenCaptureKit, as for an app, cropped to the page (`Recorder.pageCrop`), the browser's helper
+  processes' sound kept. The crop never takes in a window's rounded corners, which would show the desktop behind
+  them in an unframed output: WebKit's window is borderless (`PageWindow`, which says it can become key), so it is
+  the page; Chromium's is sized until the page fills it, then grown `Browser.margin` (24 points) right and below,
+  the page held at `Viewport` with `Emulation.setDeviceMetricsOverride`, which keeps it at the window's top left.
+  Chromium's window rim, half a point, still shows along the page's left edge. `scripts/check-web.swift` checks the
+  corners are the page's background. Neither takes the mouse or the keyboard, and neither needs Accessibility. The real cursor
   is hidden; render draws an arrow along the driver's path, through edits and zooms, unless `Set Cursor off`
   (`OverlayPlan.drawsCursor`). In an app reel `Set Cursor off` is `showsCursor = false` when capturing, so there it
   is fixed when recording and cannot differ by profile; a code or terminal screen refuses it (its caret is not the

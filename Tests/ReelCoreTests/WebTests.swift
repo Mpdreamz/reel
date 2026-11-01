@@ -307,6 +307,27 @@ struct WebKitConfigurationTests {
     }
 }
 
+/// Only the page is recorded: not a window's rounded corners, with what is behind the window in them, nor its edges.
+struct PageCropTests {
+    @Test func webKitsBorderlessWindowIsThePage() {
+        #expect(WebKitPage.windowStyle == [.borderless])
+        let viewport = CGSize(width: 1000, height: 700)
+        #expect(Recorder.pageCrop(window: viewport, viewport: viewport, below: 0)
+            == CGRect(origin: .zero, size: viewport))
+    }
+
+    @Test func chromiumsPageIsClearOfTheWindowsCorners() {
+        // The page at the window's top left under a 28 point title bar, the window grown past it to the right and
+        // below.
+        let viewport = CGSize(width: 1000, height: 700)
+        let window = CGSize(width: 1000 + Browser.margin, height: 28 + 700 + Browser.margin)
+        let crop = Recorder.pageCrop(window: window, viewport: viewport, below: Browser.margin)
+        #expect(crop == CGRect(x: 0, y: 28, width: 1000, height: 700))
+        // A window's corners are 12 to 16 points across, and more on newer macOS: the page's are well clear of them.
+        #expect(window.width - crop.maxX >= 20 && window.height - crop.maxY >= 20)
+    }
+}
+
 /// How reel starts Chromium.
 struct ChromiumArgumentsTests {
     @Test func aFreshProfileThatNeverAsksForTheKeychain() {

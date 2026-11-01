@@ -277,8 +277,15 @@ public enum Recorder {
         }
     }
 
+    /// Where a page of `viewport` is in its window, from the window's top left: at the left, `below` points above the
+    /// window's bottom edge, and so under any title bar. Only that is recorded, so neither the window's rounded corners
+    /// (and what is behind them) nor its edges are, once `below` clears them.
+    static func pageCrop(window: CGSize, viewport: CGSize, below: Double) -> CGRect {
+        CGRect(x: 0, y: window.height - below - viewport.height, width: viewport.width, height: viewport.height)
+    }
+
     /// A web page: in WebKit unless the tape chose a Chromium-based browser, which it then has to have. Only the page
-    /// is recorded, below the window's title bar.
+    /// is recorded: WebKit's window has no title bar, and Chromium's has room past the page.
     private static func webStage(_ tape: Tape, opening url: URL, log: (String) -> Void) async throws -> Stage {
         switch try tape.web.browser.resolve(locate: { Browser.locate()?.app }) {
         case .webkit: try await webKitStage(tape, opening: url, log: log)
@@ -295,9 +302,8 @@ public enum Recorder {
             let (window, display, content) = try await firstWindow(of: pid)
             let viewport = await page.viewport()
             let driver = WebDriver(page: page, tape: tape, viewport: viewport)
-            let crop = CGRect(
-                x: 0, y: window.frame.height - viewport.height, width: viewport.width, height: viewport.height
-            )
+            // The page fills its borderless window.
+            let crop = pageCrop(window: window.frame.size, viewport: viewport, below: 0)
             return Stage(
                 window: window, display: display, content: content, crop: crop, driver: driver, web: driver,
                 owns: { $0.processID == pid || $0.bundleIdentifier.hasPrefix("com.apple.WebKit") },
@@ -318,10 +324,7 @@ public enum Recorder {
             let (window, display, content) = try await firstWindow(of: browser.pid)
             let viewport = try await browser.viewport()
             let driver = WebDriver(page: browser, tape: tape, viewport: viewport)
-            // The page fills the window under its title bar.
-            let crop = CGRect(
-                x: 0, y: window.frame.height - viewport.height, width: viewport.width, height: viewport.height
-            )
+            let crop = pageCrop(window: window.frame.size, viewport: viewport, below: Browser.margin)
             let family = browser.bundleID
             return Stage(
                 window: window, display: display, content: content, crop: crop, driver: driver, web: driver,
