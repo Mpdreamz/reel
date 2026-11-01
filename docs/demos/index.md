@@ -28,6 +28,7 @@ render. That split decides what needs a new recording.
 | [Web pages](web-pages.md) | `Open` a page in WebKit or Chromium instead of launching an app. |
 | [Code](code.md) | Walk through source in an editor of reel's own, with focus, marks and callouts. |
 | [Terminal](terminal.md) | A real shell in a terminal of reel's own: commands, waits on their output, redaction. |
+| [Reels together](together.md) | Name steps, and have one reel wait for another's: a reel run in a terminal, recorded. |
 | [Scenes](scenes.md) | Join reels into one video: an app, a page, code and the command line, with transitions. |
 | [Narration](narration.md) | `Say` lines in a macOS or voicebox voice, timed to the clicks, with the app's sound ducked. |
 | [Captions, badges and ripples](overlays.md) | What is drawn over the recording. |

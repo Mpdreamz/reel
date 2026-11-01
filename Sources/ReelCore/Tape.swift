@@ -92,7 +92,7 @@ public struct Tape: Equatable, Sendable {
         guard !launch.isScreen else { return false }
         return size != nil || steps.contains {
             switch $0.command {
-            case .sleep, .caption, .say, .reach, .speed, .hide, .focus, .mark, .callout: false
+            case .sleep, .caption, .say, .reach, .speed, .hide, .focus, .mark, .callout, .waitFor: false
             case let .zoom(target, _, _): target.isElement
             default: true
             }
@@ -313,10 +313,15 @@ public struct Step: Equatable, Sendable {
     /// The line as written, for the take's timeline.
     public var source: String
     public var command: Command
+    /// `… as <name>`: what other reels running with this one wait for (`Wait for <name>`).
+    public var name: String?
 }
 
 public enum Command: Equatable, Sendable {
     case sleep(Duration)
+    /// `Wait for <name>`: until a step of that name, in another reel running with this one, starts (or, `to end`,
+    /// has ended). Skipped when this reel runs alone.
+    case waitFor(String, end: Bool)
     case click(Target)
     case wait(Target)
     /// `Wait /regex/`, `Wait quiet`, `Wait exit` on a terminal screen.
@@ -543,6 +548,8 @@ public extension Tape {
         var terminal = TerminalSettings()
         var scenes: [Scene] = []
         var steps: [Step] = []
+        /// Each step's name, with its line.
+        var named: [String: Int] = [:]
 
         /// One `Set`, from the tape or from its profile.
         func set(
@@ -818,6 +825,25 @@ public extension Tape {
             guard let first = tokens.first else { continue }
             let fail = { (message: String) in TapeError(line: line, message: message) }
             var args = Array(tokens.dropFirst())
+            // `… as <name>`: a name for the step, for other reels to wait for.
+            var stepName: String?
+            if args.count >= 2, !args[args.count - 2].quoted, args[args.count - 2].text == "as",
+               !args[args.count - 1].quoted
+            {
+                let name = args[args.count - 1].text
+                guard name.first?.isLetter == true,
+                      name.allSatisfy({ $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" })
+                else {
+                    throw fail("a step's name is letters, digits, - and _, starting with a letter, not '\(name)'")
+                }
+                if let earlier = named[name] { throw fail("line \(earlier) is already named \(name)") }
+                stepName = name
+                args.removeLast(2)
+            }
+            let stepsBefore = steps.count
+            defer {
+                if let stepName, steps.count > stepsBefore { named[stepName] = line }
+            }
             // A value that differs by profile: only what render decides may; what recording does is the same for all.
             if args.contains(where: { !$0.quoted && $0.text == "?" }) {
                 let command = first.quoted ? first.text : split(first.text).0
@@ -851,7 +877,9 @@ public extension Tape {
                 }
             }
             let step = { (command: Command) in
-                steps.append(Step(line: line, source: tokens.map(\.source).joined(separator: " "), command: command))
+                steps.append(Step(
+                    line: line, source: tokens.map(\.source).joined(separator: " "), command: command, name: stepName
+                ))
             }
             // `Type@20ms`: a command may carry an option after `@`; only Type takes one.
             let (name, option) = first.quoted ? (first.text, nil) : split(first.text)
@@ -1193,6 +1221,14 @@ public extension Tape {
                 else { throw fail("expected Click \"<label>\", Click #<identifier> or Click @x,y") }
                 try step(.click(target(args[0], fail: fail)))
 
+            case "Wait" where words.first == "for":
+                guard words.count == 2 || (words.count == 4 && words[2] == "to" && words[3] == "end"),
+                      !args[1].quoted
+                else {
+                    throw fail("expected Wait for <name> or Wait for <name> to end")
+                }
+                step(.waitFor(words[1], end: words.count == 4))
+
             case "Wait" where screen == .terminal && !(words.first?.hasPrefix("[") ?? false):
                 let usage = "expected Wait /<regex>/, Wait quiet [duration], Wait exit or Wait [marker]"
                 switch words.first {
@@ -1347,9 +1383,23 @@ public extension Tape {
                 let hint = known.first { $0.lowercased() == name.lowercased() }.map { "; did you mean \($0)?" }
                 throw fail("unknown command '\(name)'" + (hint ?? "; expected one of \(known.joined(separator: ", "))"))
             }
+            if let stepName, steps.count == stepsBefore {
+                throw fail(
+                    "as names a step, for other reels to wait for; \(name) is not a step, so it cannot be \(stepName)"
+                )
+            }
         }
 
         guard let launch else { throw TapeError(message: Tape.preface) }
+        // Its own steps run in order: by a Wait for one of them, it has passed, or it will never come.
+        for step in steps {
+            if case let .waitFor(name, _) = step.command, let own = named[name] {
+                throw TapeError(
+                    line: step.line,
+                    message: "\(name) is this reel's own step (line \(own)); Wait for waits for a step of another reel"
+                )
+            }
+        }
         guard !outputs.isEmpty else { throw TapeError(message: "the reel has no Output") }
         for (name, section, background, line) in [
             ("Intro", intro, introBackground ?? intro?.background, introLine),

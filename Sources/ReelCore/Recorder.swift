@@ -93,10 +93,13 @@ public enum Recorder {
             defer { cursor.stop() }
             stage.web?.clock = { milliseconds(since: start) }
             stage.web?.startTrack()
+            let channel = Channel.fromEnvironment()
+            let reel = location.reelName
             for step in tape.steps {
                 // Any other zoom (a point, the cursor, off) releases the lock.
                 if case let .zoom(target, _, _) = step.command, !target.isElement { focus = nil }
                 guard !step.command.isRenderOnly else { continue }
+                channel?.post(reel: reel, line: step.line, name: step.name, phase: .start)
                 var begin = milliseconds(since: start)
                 var landed: CGRect?
                 var clip: String?
@@ -110,6 +113,14 @@ public enum Recorder {
                     clip = line.key
                 case let .reach(marker):
                     if let time = clock.time(of: marker) { try await sleep(until: time, since: start) }
+                case let .waitFor(name, end):
+                    do {
+                        try await Channel.wait(
+                            channel, for: name, end: end, timeout: tape.waitTimeout, line: step.line, log: log
+                        )
+                    } catch let error as ReelError {
+                        throw ReelError("line \(step.line): \(error.description)")
+                    }
                 default:
                     landed = try await perform(step.command, with: driver)
                 }
@@ -121,6 +132,7 @@ public enum Recorder {
                     w: landed.flatMap { $0.isEmpty ? nil : Double($0.width) },
                     h: landed.flatMap { $0.isEmpty ? nil : Double($0.height) }, clip: clip
                 ))
+                channel?.post(reel: reel, line: step.line, name: step.name, phase: .end)
                 if let focus, let frame = await driver?.currentFrame(of: focus) {
                     focusTrack.append(Take.Sample(ms: milliseconds(since: start), frame: frame))
                 }

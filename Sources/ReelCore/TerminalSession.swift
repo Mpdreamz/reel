@@ -33,8 +33,9 @@ final class TerminalSession: @unchecked Sendable {
     private var partial: [UInt8] = []
     private var ended = false
 
-    /// Starts zsh in `folder`, `columns` by `rows`.
-    init(columns: Int, rows: Int, folder: URL) throws {
+    /// Starts zsh in `folder`, `columns` by `rows`, on `channel` (`REEL_CHANNEL`), so a reel run in it talks to this
+    /// one.
+    init(columns: Int, rows: Int, folder: URL, channel: URL? = nil) throws {
         home = FileManager.default.temporaryDirectory.appending(path: "reel-shell-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         try Self.zshrc.write(to: home.appending(path: ".zshrc"), atomically: true, encoding: .utf8)
@@ -43,12 +44,13 @@ final class TerminalSession: @unchecked Sendable {
         }
 
         let inherited = ProcessInfo.processInfo.environment
-        let environment = [
+        var environment = [
             "HOME": home.path, "ZDOTDIR": home.path, "TERM": "xterm-256color", "COLORTERM": "truecolor",
             "CLICOLOR": "1", "LANG": inherited["LANG"] ?? "en_US.UTF-8", "PATH": inherited["PATH"] ?? "/usr/bin:/bin",
             "USER": inherited["USER"] ?? "reel", "LOGNAME": inherited["USER"] ?? "reel", "SHELL": "/bin/zsh",
             "TMPDIR": inherited["TMPDIR"] ?? "/tmp", "PWD": folder.path,
         ]
+        if let channel { environment[Channel.variable] = channel.path }
         // Everything the child needs, made before forking: after it, the child may only exec.
         let words: [String] = ["zsh", "-d", "-i"]
         let arguments: [UnsafeMutablePointer<CChar>?] = words.map { strdup($0) } + [nil]

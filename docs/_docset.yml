@@ -31,6 +31,7 @@ toc:
       - file: code.md
       - file: terminal.md
       - file: scenes.md
+      - file: together.md
       - file: narration.md
       - file: overlays.md
       - file: zoom-speed-and-trim.md

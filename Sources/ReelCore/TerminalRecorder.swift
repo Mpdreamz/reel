@@ -14,7 +14,12 @@ extension Recorder {
     ) async throws -> Take {
         let settings = tape.terminal
         let folder = settings.workingDirectory ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
-        let session = try TerminalSession(columns: settings.columns, rows: settings.rows, folder: folder)
+        // On the reel's own channel, or one of its own: a reel run in the shell talks to this one either way.
+        let channel = try Channel.fromEnvironment() ?? Channel
+            .fresh(at: location.directory.appending(path: "channel.jsonl"))
+        let session = try TerminalSession(
+            columns: settings.columns, rows: settings.rows, folder: folder, channel: channel.url
+        )
         defer { session.close() }
         log("running zsh in \(folder.path), \(settings.columns)×\(settings.rows)")
         let deadline = ContinuousClock.now + promptTimeout
@@ -60,10 +65,13 @@ extension Recorder {
         for step in tape.steps where !step.command.isRenderOnly {
             var begin = session.now
             var clip: String?
+            channel.post(reel: location.reelName, line: step.line, name: step.name, phase: .start)
             do {
                 switch step.command {
                 case let .sleep(duration):
                     try await Task.sleep(for: duration)
+                case let .waitFor(name, end):
+                    try await channel.wait(for: name, end: end, timeout: tape.waitTimeout)
                 case let .say(_, over):
                     guard let line = narration.lines[step.line]
                     else { throw ReelError("line \(step.line) was not voiced") }
@@ -116,6 +124,7 @@ extension Recorder {
             events.append(Take.Event(
                 line: step.line, command: step.source, startMs: begin, endMs: session.now, clip: clip
             ))
+            channel.post(reel: location.reelName, line: step.line, name: step.name, phase: .end)
         }
         try await sleep(until: Int((clock.speechEnd * 1000).rounded()))
         let end = session.now

@@ -213,6 +213,16 @@ private func describeSteps(of parsed: Tape) {
     if parsed.audio, !parsed.outputs.contains(where: \.format.hasSound) {
         say("note: audio is on but every Output is a GIF, which has no sound")
     }
+    let named = parsed.steps.compactMap { step in step.name.map { "\($0) (line \(step.line))" } }
+    if !named.isEmpty {
+        say("named steps, for other reels to wait for: \(named.joined(separator: ", "))")
+    }
+    let waits = parsed.steps.compactMap { step -> String? in
+        if case let .waitFor(name, end) = step.command { name + (end ? " to end" : "") } else { nil }
+    }
+    if !waits.isEmpty {
+        say("waits for another reel's \(waits.joined(separator: ", ")); skipped when this reel runs alone")
+    }
     let captions = parsed.steps.filter(\.command.isCaption).count
     say(
         "\(parsed.actions.count) action\(parsed.actions.count == 1 ? "" : "s"), \(captions) caption\(captions == 1 ? "" : "s")"

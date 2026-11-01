@@ -29,8 +29,10 @@
    to come: a terminal width per profile (`Set Columns social ? 56 : 100`, one take per width).
 12. **Between files.** `Code@<transition>`, `Split` and `Pane`, `Peek`, `Link` on a code screen (see "Code screens").
 13. **Diffs.** `Diff <before> <after>`, `Diff <file> since <revision>`, `Go hunk <n>` (see "Code screens").
-14. **Morph.** `Morph <file>`: the file shown turns into the next, word by word (see "Code screens"). Next:
-   picture-in-picture and side by side across scenes.
+14. **Morph.** `Morph <file>`: the file shown turns into the next, word by word (see "Code screens").
+15. **Reels together, phase 1.** Steps named `as <name>`; `Wait for <name> [to end]` across reels running at once,
+   over a channel (see "Reels together"). Next, in order: code screens recorded as timed logs; tracks (several
+   subjects in one reel, indented or `With x.reel as name`); `Follow`; `Attach`; layouts and `Spotlight`; the showcase.
 
 ## The reel
 
@@ -288,6 +290,19 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   each following scene coming in as an untitled video outro of what came before (`Assembler`), with its sound and
   its transition, and the sequence's intro and outro go around the whole. Outputs are written as for any reel.
 - **Not yet:** scenes written inline in one file, and narration that carries across a cut.
+
+## Reels together
+
+- **Names.** A trailing `as <name>` names any step; names are unique in a reel, and `as` on a line that is not a step
+  is refused.
+- **The channel** is a file of JSON lines, `{reel, line, name, phase: start|end, at}`, `at` in milliseconds since
+  1970 so every process shares one clock. Every recorder appends a start and an end for each step it plays (one
+  `write` with `O_APPEND`, which stays whole) and polls the file for `Wait for`. An event from before the wait counts:
+  a step that has happened does not have to happen again. The path is `REEL_CHANNEL`; a terminal screen makes one in
+  its take's folder (or uses the reel's own) and sets it for its shell.
+- **Alone,** with no channel, a `Wait for` is skipped with a note, so every reel still records on its own. A wait on
+  the reel's own step is refused at its line.
+- **Code screens** post their events as they draw, faster than real time, until they record as timed logs (next).
 
 ## Framing
 
