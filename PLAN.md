@@ -376,7 +376,8 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   into keyframes for the titles, so a title moves (or is wiped) with its section. The intro and the outro are drawn
   over the demo: crossfades, zooms and wipes work on them and reveal the demo beneath; slides push both. A fade goes
   through black across the cut, half on either side; the others overlap the two sections for their length. Sounds
-  cross the same way (through silence for a fade).
+  cross the same way (through silence for a fade). The titles are drawn by Core Animation, which draws every frame
+  of the movie, so a section with no title or subtitle (a sting, or the next scene of a sequence) leaves it out.
 - **Render-time only**, like captions: a changed title, background or transition needs no new take.
 
 ## GIFs
