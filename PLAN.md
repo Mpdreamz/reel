@@ -286,12 +286,16 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 
 - **A reel of reels.** `Include` makes a reel a sequence: its scenes are other reels, each recorded into its own take
   next to its own reel (`Scenes.record`), and it has no steps and no recording settings of its own (a preset's pass
-  by). `reel record` records every scene; `reel render` needs each scene's take and names a missing one.
+  by). `reel record` records every scene; `reel render` needs each scene's take and names a missing one. A reel of
+  tracks is a scene too: it records with `Tracks.record`, and its take is the director's (`director.json`).
 - **Render.** Each scene's demo is rendered as its own reel renders it (overlays, narration, cuts, zooms), read for
   the sequence's profile when the scene knows that name. Every scene is framed on one canvas: the Output's shape,
   16:9 without one, at the largest size any scene needs, so they line up. Then they are joined one after the other,
   each following scene coming in as an untitled video outro of what came before (`Assembler`), with its sound and
-  its transition, and the sequence's intro and outro go around the whole. Outputs are written as for any reel.
+  its transition, and the sequence's intro and outro go around the whole. Outputs are written as for any reel. A
+  reel of tracks has its tracks rendered once (`renderTrackDemos`), then, for each canvas, composed straight onto it
+  (`composeTracks`, on the sequence's backdrop and padding) and its director's reel rendered over that, its intro and
+  outro left out, as `renderTracks` does for the reel on its own.
 - **Not yet:** scenes written inline in one file, and narration that carries across a cut.
 
 ## Reels together
