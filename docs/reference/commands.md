@@ -69,6 +69,8 @@ After `Screen code`. See [Code](../demos/code.md).
 | `Pane left`, `Pane right` | Which pane steps act on. |
 | `Peek "<text>" <file> […]`, `Peek off` | Another file in a box under the line with the text. |
 | `Link "<a>" -> "<b>" ["<label>"]`, `Link off` | An arrow from one place to another, across the panes when split. |
+| `Diff[@<transition>] <before> <after> [at …]`, `Diff <file> since <revision> [at …]` | Two versions as one, what changed marked. |
+| `Go hunk <n>`, `… at hunk <n>` | A diff's nth run of changes. |
 
 ## Terminals
 

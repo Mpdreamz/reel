@@ -203,9 +203,9 @@
       const model = ed.getModel();
       const count = model.getLineCount();
       if (range) {
-        const a = range[0] - pane.file.firstLine + 1;
-        const b = range[1] - pane.file.firstLine + 1;
-        if (a < 1 || b > count) return `lines ${range[0]}-${range[1]} are not all in ${pane.file.name}`;
+        const a = rowOf(pane.file, model, range[0]);
+        const b = rowOf(pane.file, model, range[1]);
+        if (a === null || b === null || b < a) return `lines ${range[0]}-${range[1]} are not all in ${pane.file.name}`;
         const outside = [];
         if (a > 1) outside.push(new monaco.Range(1, 1, a - 1, model.getLineMaxColumn(a - 1)));
         if (b < count) outside.push(new monaco.Range(b + 1, 1, count, model.getLineMaxColumn(count)));
@@ -282,7 +282,7 @@
       inner.updateOptions({ lineNumbers: (n) => String(n + f.firstLine - 1) });
       let at = 1;
       if (f.at) {
-        const found = placeIn(model, f.firstLine, f.name, f.at);
+        const found = placeIn(model, { firstLine: f.firstLine, name: f.name, diff: null }, f.at);
         if (typeof found === 'string') { inner.dispose(); model.dispose(); return found; }
         at = found.line;
         inner.deltaDecorations([], [{
@@ -503,8 +503,14 @@
     const model = monaco.editor.createModel(f.text, language.id);
     pane.ed.setModel(model);
     if (old) old.dispose();
-    pane.file = { firstLine: f.firstLine, language, name: f.name };
-    pane.ed.updateOptions({ lineNumbers: (n) => String(n + f.firstLine - 1) });
+    pane.file = { firstLine: f.firstLine, language, name: f.name, diff: f.diff ? diffOf(f.diff) : null };
+    if (f.diff) {
+      // Numbered as the new file numbers them; a removed line has none.
+      pane.ed.updateOptions({ lineNumbers: (n) => (f.diff.numbers[n - 1] === null ? '' : String(f.diff.numbers[n - 1])) });
+      pane.ed.deltaDecorations([], diffDecorations(f.diff));
+    } else {
+      pane.ed.updateOptions({ lineNumbers: (n) => String(n + f.firstLine - 1) });
+    }
     pane.focus = [];
     setDim(pane, 1);
     clearMarks(pane);
@@ -512,9 +518,14 @@
     tweens = tweens.filter((t) => !(t.pane === pane && ['dim', 'scroll', 'peek', 'move', 'fade'].includes(t.kind)));
     Object.assign(pane.content.style, { opacity: '', transform: '', clipPath: '' });
     pane.header.innerHTML = '';
-    pane.header.append(
-      el('span', 'dot'), el('span', 'name', f.name), el('span', 'path', f.directory), el('span', 'lang', language.label)
-    );
+    pane.header.append(el('span', 'dot'), el('span', 'name', f.name), el('span', 'path', f.directory));
+    if (f.diff) {
+      pane.header.append(
+        el('span', 'since', f.diff.label), el('span', 'stat added', '+' + f.diff.added),
+        el('span', 'stat removed', '\u2212' + f.diff.removed)
+      );
+    }
+    pane.header.append(el('span', 'lang', language.label));
     let at = { line: 1, column: 1 };
     if (f.at) {
       const found = place(pane, f.at);
@@ -598,18 +609,64 @@
     return null;
   }
 
-  /// Where `{ line }` or `{ text }` is in a pane's file, or an error message.
-  function place(pane, anchor) {
-    return placeIn(pane.ed.getModel(), pane.file.firstLine, pane.file.name, anchor);
+  /// A diff's lines by their number in the new file, and where its hunks start (1-based rows).
+  function diffOf(diff) {
+    const rows = new Map();
+    diff.numbers.forEach((n, index) => { if (n !== null) rows.set(n, index + 1); });
+    return { rows, hunks: diff.hunks.map((h) => h + 1) };
   }
 
-  function placeIn(model, firstLine, name, anchor) {
-    const count = model.getLineCount();
-    if (anchor.line !== undefined) {
-      const line = anchor.line - firstLine + 1;
-      if (line < 1 || line > count) {
-        return `line ${anchor.line} is not in ${name}, which shows lines ${firstLine}-${count + firstLine - 1}`;
+  /// Added and removed lines, each with its sign in the gutter, and the words that changed in an edited line.
+  function diffDecorations(diff) {
+    const decorations = [];
+    diff.kinds.forEach((kind, index) => {
+      if (kind === 'kept') return;
+      const line = index + 1;
+      decorations.push({
+        range: new monaco.Range(line, 1, line, 1),
+        options: {
+          isWholeLine: true, className: 'diff-' + kind, linesDecorationsClassName: 'diff-sign-' + kind,
+          inlineClassName: kind === 'removed' ? 'diff-removed-text' : undefined,
+        },
+      });
+      for (const [start, end] of diff.words[index]) {
+        decorations.push({
+          range: new monaco.Range(line, start + 1, line, end + 1), options: { inlineClassName: 'diff-word-' + kind },
+        });
       }
+    });
+    return decorations;
+  }
+
+  /// The model's row for a line as the file numbers it (a diff's, the new file's); null when it is not shown.
+  function rowOf(file, model, n) {
+    if (file.diff) return file.diff.rows.get(n) || null;
+    const line = n - file.firstLine + 1;
+    return line >= 1 && line <= model.getLineCount() ? line : null;
+  }
+
+  /// Where `{ line }`, `{ hunk }` or `{ text }` is in a pane's file, or an error message.
+  function place(pane, anchor) {
+    return placeIn(pane.ed.getModel(), pane.file, anchor);
+  }
+
+  function placeIn(model, file, anchor) {
+    const count = model.getLineCount();
+    const name = file.name;
+    let line = null;
+    if (anchor.hunk !== undefined) {
+      if (!file.diff) return `${name} is not a diff, so it has no hunk ${anchor.hunk}`;
+      const hunks = file.diff.hunks;
+      if (anchor.hunk > hunks.length) return `${name} has ${hunks.length} hunk${hunks.length === 1 ? '' : 's'}, not ${anchor.hunk}`;
+      line = hunks[anchor.hunk - 1];
+    } else if (anchor.line !== undefined) {
+      line = rowOf(file, model, anchor.line);
+      if (line === null) {
+        return file.diff ? `line ${anchor.line} is not in the new ${name}`
+          : `line ${anchor.line} is not in ${name}, which shows lines ${file.firstLine}-${count + file.firstLine - 1}`;
+      }
+    }
+    if (line !== null) {
       const content = model.getLineContent(line);
       return { line, column: content.length - content.trimStart().length + 1 };
     }

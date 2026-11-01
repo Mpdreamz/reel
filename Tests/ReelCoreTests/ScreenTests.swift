@@ -106,10 +106,14 @@ struct ScreenParsingTests {
         ),
         (
             "Screen code\nOutput a.mp4\nCode a.swift at func", 3,
-            "a place in the code is line <n> or some text to find, in quotes"
+            "a place in the code is line <n>, hunk <n> or some text to find, in quotes"
         ),
-        ("Screen code\nOutput a.mp4\nGo line", 3, "a place in the code is line <n> or some text to find, in quotes"),
-        ("Screen code\nOutput a.mp4\nGo \"a\" \"b\"", 3, "expected Go line <n> or Go \"<text>\""),
+        (
+            "Screen code\nOutput a.mp4\nGo line",
+            3,
+            "a place in the code is line <n>, hunk <n> or some text to find, in quotes"
+        ),
+        ("Screen code\nOutput a.mp4\nGo \"a\" \"b\"", 3, "expected Go line <n>, Go hunk <n> or Go \"<text>\""),
         ("Screen code\nOutput a.mp4\nFocus 3-4", 3, "expected Focus lines <a>-<b> or Focus off"),
         ("Screen code\nOutput a.mp4\nMark speed", 3, "expected Mark \"<text>\" [number] or Mark off"),
         ("Screen code\nOutput a.mp4\nMark \"speed\" 100", 3, "a mark's number is 1 to 99, not '100'"),

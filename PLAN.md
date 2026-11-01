@@ -28,7 +28,8 @@
    on one canvas, with transitions between them and the sequence's intro and outro around them (see "Scenes"). Still
    to come: a terminal width per profile (`Set Columns social ? 56 : 100`, one take per width).
 12. **Between files.** `Code@<transition>`, `Split` and `Pane`, `Peek`, `Link` on a code screen (see "Code screens").
-   Next: diffs, then morphing one snippet into the next, then picture-in-picture.
+13. **Diffs.** `Diff <before> <after>`, `Diff <file> since <revision>`, `Go hunk <n>` (see "Code screens"). Next:
+   morphing one snippet into the next, then picture-in-picture.
 
 ## The reel
 
@@ -76,6 +77,8 @@ sits next to the same things.
 | `Split <file> […]`, `Split off`, `Pane left\|right` | A second pane, half the screen, which steps act on; `Pane` chooses which one does. |
 | `Peek "<text>" <file> […]`, `Peek off` | Another file, up to 8 lines, in a box under the line with the text. |
 | `Link "<a>" -> "<b>" ["<label>"]`, `Link off` | An arrow from one text to another, labelled, across the panes when split. |
+| `Diff[@<transition>] <before> <after> [at …]`, `Diff <file> since <revision> [at …]` | Two versions of a file as one: kept, added and removed lines, changed words marked. |
+| `Go hunk <n>`, `… at hunk <n>` | The first change of a diff's nth run of changes. |
 | `Sleep <duration>` | Wait. |
 | `Wait <element>` | Wait until the element shows. |
 | `Click <element or @x,y>` | Glide the cursor there and click. |
@@ -236,6 +239,11 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   public API) holding a second, read-only editor; it grows open, and the view scrolls ahead of it to where its bottom
   will be. `Link` is an SVG arrow over the panes, from the end of one text to the start of the other, drawing itself
   in; its label sits over the line numbers of the pane it points into, clear of code.
+- **Diffs.** reel works them out itself (`CodeDiff`): the lines by Swift's `difference(from:)`, written out as a unified
+  diff (removals before additions where they meet), then, where a removed and an added line in one place share at
+  least 40% of their words, the words that changed. Monaco's own diff editor computes in a worker, which a page nobody
+  sees does not run. The page shows the result in an ordinary pane with decorations; `Go line`, `Focus` and the line
+  numbers use the new file's numbering. `since <revision>` reads the older version with `git show` when recording.
 - **Keys.** `Type` and the keys an editor takes: return (keeping the line's indent), tab, space, backspace,
   forwarddelete, escape, the arrows, home, end, page up and down, with shift to select. Anything else is refused at
   its line.

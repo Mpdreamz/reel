@@ -28,6 +28,21 @@ html, body { margin: 0; height: 100%; background: var(--bg); overflow: hidden; }
 .header .path { color: var(--mut); font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .header .lang { margin-left: auto; color: var(--mut); font-weight: 400; text-transform: lowercase; }
 .header:empty { display: none; }
+.header .since { color: var(--mut); font-weight: 400; white-space: nowrap; }
+.header .stat { font-family: 'JetBrains Mono', monospace; font-size: 14px; }
+.header .stat.added { color: #7FD1C0; }
+.header .stat.removed { color: #F29E84; }
+/* A diff: added and removed lines, their signs, and the words that changed. */
+.diff-added { background: rgba(127, 209, 192, 0.11); }
+.diff-removed { background: rgba(242, 158, 132, 0.11); }
+.diff-removed-text { opacity: 0.7; }
+.diff-word-added { background: rgba(127, 209, 192, 0.32); border-radius: 3px; }
+.diff-word-removed { background: rgba(242, 158, 132, 0.34); border-radius: 3px; text-decoration: line-through;
+  text-decoration-color: rgba(242, 158, 132, 0.8); }
+.diff-sign-added::before, .diff-sign-removed::before { display: block; width: 100%; text-align: center;
+  font-family: 'JetBrains Mono', monospace; font-weight: 500; }
+.diff-sign-added::before { content: '+'; color: #7FD1C0; }
+.diff-sign-removed::before { content: '\2212'; color: #F29E84; }
 .code { position: absolute; left: 0; right: 0; top: var(--header); bottom: 0; }
 .overlay { position: absolute; left: 0; right: 0; top: var(--header); bottom: 0; pointer-events: none; overflow: hidden; }
 /* Peek: another file in a box under a line. */
