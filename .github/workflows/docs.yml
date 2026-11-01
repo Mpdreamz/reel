@@ -27,13 +27,16 @@ jobs:
       - uses: actions/checkout@v5
 
       # Served at mpdreamz.github.io/reel: scripts/docs.sh checks this prefix against the landing page's <base href>.
+      # The design-system layout is what docs/reel-docs.css themes.
       - name: Build documentation
         uses: elastic/docs-builder@main
+        env:
+          FEATURE_NAVIGATION_PREVIEW: true
         with:
           prefix: reel
 
-      - name: Use the landing page
-        run: scripts/docs-landing.sh .artifacts/docs/html
+      - name: Theme and landing page
+        run: scripts/docs-finish.sh .artifacts/docs/html reel
 
       - name: Setup Pages
         uses: actions/configure-pages@v6.0.0
