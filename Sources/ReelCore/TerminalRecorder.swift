@@ -10,13 +10,12 @@ extension Recorder {
     /// when it printed it; then the take is drawn from that, a frame at a time on the take's own clock, as a code
     /// screen is. Nothing is captured from the screen, and no permission is needed.
     static func recordTerminal(
-        _ tape: Tape, narration: Narration, into location: TakeLocation, log: (String) -> Void
+        _ tape: Tape, narration: Narration, into location: TakeLocation, channel: Channel?, log: (String) -> Void
     ) async throws -> Take {
         let settings = tape.terminal
         let folder = settings.workingDirectory ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         // On the reel's own channel, or one of its own: a reel run in the shell talks to this one either way.
-        let channel = try Channel.fromEnvironment() ?? Channel
-            .fresh(at: location.directory.appending(path: "channel.jsonl"))
+        let channel = try channel ?? Channel.fresh(at: location.directory.appending(path: "channel.jsonl"))
         let session = try TerminalSession(
             columns: settings.columns, rows: settings.rows, folder: folder, channel: channel.url
         )

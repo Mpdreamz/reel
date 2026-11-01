@@ -12,32 +12,40 @@ extension Recorder {
     /// The most lines a peek shows; it scrolls to its place in the file.
     static let peekLines = 8
 
-    /// A code screen: no app and no capture. The steps play on a clock of the take's own, and each frame is drawn when
-    /// its time comes, so a take is the same every time and takes as long as drawing it does.
+    /// A page call a code screen's step makes, and when: what the drawing pass replays.
+    struct CodeCall {
+        var ms: Int
+        var line: Int
+        var body: String
+        var arguments: [String: Any]
+    }
+
+    /// A code screen: no app and no capture, in two passes, as a terminal is. The steps play first, writing down each
+    /// call to the page and when; then the page is drawn from that, a frame at a time, so a take is the same every
+    /// time. Alone, the steps play on the take's own clock, at once. On a channel, with other reels, they keep real
+    /// time, so what they say there lines up with what the others do.
     static func recordScreen(
-        _ tape: Tape, narration: Narration, into location: TakeLocation, log: (String) -> Void
+        _ tape: Tape, narration: Narration, into location: TakeLocation, channel: Channel?, log: (String) -> Void
     ) async throws -> Take {
-        let viewport = tape.web.viewport
-        let screen = try await ScreenPage(
-            "screen.html", size: viewport, options: ["fontSize": tape.fontSize, "peekLines": peekLines]
-        )
-        let film = try ScreenFilm(page: screen, size: viewport, into: location, frameRate: tape.frameRate)
-        log("drawing the code screen, \(film.width)×\(film.height)")
+        let clock = TakeClock(real: channel != nil)
         var now: Int {
-            film.now
+            clock.now
         }
         func advance(to time: Int) async throws {
-            try await film.advance(to: time)
+            try await clock.wait(until: time)
         }
 
         var events: [Take.Event] = []
-        var clock = SpeechClock()
-        try await advance(to: 0)
-        let channel = Channel.fromEnvironment()
+        var calls: [CodeCall] = []
+        var speech = SpeechClock()
         for step in tape.steps where !step.command.isRenderOnly {
             var begin = now
             var clip: String?
             channel?.post(reel: location.reelName, line: step.line, name: step.name, phase: .start)
+            // Throws only as its arguments do: reading a file can.
+            func call(_ body: String, _ arguments: [String: Any]) throws {
+                calls.append(CodeCall(ms: now, line: step.line, body: body, arguments: arguments))
+            }
             do {
                 switch step.command {
                 case let .sleep(duration):
@@ -52,19 +60,19 @@ extension Recorder {
                 case let .say(_, over):
                     guard let line = narration.lines[step.line]
                     else { throw ReelError("line \(step.line) was not voiced") }
-                    let (spoken, resume) = clock.say(line, now: Double(now) / 1000, over: over)
+                    let (spoken, resume) = speech.say(line, now: Double(now) / 1000, over: over)
                     begin = Int((spoken * 1000).rounded())
                     clip = line.key
                     try await advance(to: Int((resume * 1000).rounded()))
                 case let .reach(marker):
-                    if let time = clock.time(of: marker) { try await advance(to: Int((time * 1000).rounded())) }
+                    if let time = speech.time(of: marker) { try await advance(to: Int((time * 1000).rounded())) }
                 case let .code(file, transition):
-                    try await screen.step(
+                    try call(
                         "return await reelScreen.open(f, t)", ["f": screenFile(file), "t": transition?.page ?? NSNull()]
                     )
                     try await advance(to: now + (transition.map { milliseconds($0.duration) } ?? screenTimings.open))
                 case let .diff(source, transition):
-                    try await screen.step(
+                    try call(
                         "return await reelScreen.open(f, t)",
                         ["f": screenDiff(source), "t": transition?.page ?? NSNull()]
                     )
@@ -72,57 +80,57 @@ extension Recorder {
                 case let .morph(file, motion):
                     let (easing, seconds) = (motion ?? Transition(easing: nil, duration: nil)).over(morphMotion)
                     let ms = Int((seconds * 1000).rounded())
-                    try await screen.step(
+                    try call(
                         "return await reelScreen.morph(f, m)",
                         ["f": screenFile(file), "m": ["easing": easing.rawValue, "ms": ms]]
                     )
                     try await advance(to: now + ms)
                 case let .split(file):
-                    try await screen.step("return await reelScreen.split(f)", ["f": file.map(screenFile) ?? NSNull()])
+                    try call("return await reelScreen.split(f)", ["f": file.map(screenFile) ?? NSNull()])
                     try await advance(to: now + paneTimings.split)
                 case let .pane(side):
-                    try await screen.step("return reelScreen.pane(i)", ["i": side])
+                    try call("return reelScreen.pane(i)", ["i": side])
                     try await advance(to: now + paneTimings.pane)
                 case let .peek(text, file):
-                    try await screen.step(
+                    try call(
                         "return await reelScreen.peek(t, f)",
                         ["t": text ?? NSNull(), "f": file.map(screenFile) ?? NSNull()]
                     )
                     try await advance(to: now + paneTimings.peek)
                 case let .link(from, to, label):
-                    try await screen.step(
+                    try call(
                         "return reelScreen.link(a, b, l)",
                         ["a": from ?? NSNull(), "b": to ?? NSNull(), "l": label ?? NSNull()]
                     )
                     try await advance(to: now + paneTimings.link)
                 case let .go(anchor):
-                    try await screen.step("return reelScreen.go(a)", ["a": anchor.page])
+                    try call("return reelScreen.go(a)", ["a": anchor.page])
                     try await advance(to: now + screenTimings.go)
                 case let .type(text, pause):
                     let gap = milliseconds(pause ?? tape.typingSpeed)
                     for character in text {
-                        try await screen.step("return reelScreen.type(t)", ["t": String(character)])
+                        try call("return reelScreen.type(t)", ["t": String(character)])
                         try await advance(to: now + gap)
                     }
                 case let .key(combo, count):
                     for _ in 0 ..< count {
-                        try await screen.step(
+                        try call(
                             "return reelScreen.key(k, s)", ["k": combo.key, "s": combo.modifiers.contains(.shift)]
                         )
                         try await advance(to: now + screenTimings.key)
                     }
                 case let .focus(range):
-                    try await screen.step(
+                    try call(
                         "return reelScreen.focus(r)", ["r": range.map { [$0.lowerBound, $0.upperBound] } ?? NSNull()]
                     )
                     try await advance(to: now + screenTimings.focus)
                 case let .mark(text, number):
-                    try await screen.step(
+                    try call(
                         "return reelScreen.mark(t, n)", ["t": text ?? NSNull(), "n": number ?? NSNull()]
                     )
                     try await advance(to: now + screenTimings.mark)
                 case let .callout(text, label):
-                    try await screen.step(
+                    try call(
                         "return reelScreen.callout(t, l)", ["t": text ?? NSNull(), "l": label ?? NSNull()]
                     )
                     try await advance(to: now + screenTimings.mark)
@@ -137,10 +145,37 @@ extension Recorder {
             channel?.post(reel: location.reelName, line: step.line, name: step.name, phase: .end)
         }
         // The take runs until the last line has been said.
-        try await advance(to: Int((clock.speechEnd * 1000).rounded()))
-        let take = try await film.finish(events: events, log: log)
+        try await advance(to: Int((speech.speechEnd * 1000).rounded()))
+        let take = try await drawCode(calls, until: now, events: events, tape: tape, into: location, log: log)
         try location.write(take)
         return take
+    }
+
+    /// The second pass: the page, each call made at its time, a frame drawn whenever one is due. A call the page
+    /// refuses (text that is not in the file) stops it, naming its line.
+    static func drawCode(
+        _ calls: [CodeCall], until end: Int, events: [Take.Event], tape: Tape, into location: TakeLocation,
+        log: (String) -> Void
+    ) async throws -> Take {
+        let viewport = tape.web.viewport
+        let screen = try await ScreenPage(
+            "screen.html", size: viewport, options: ["fontSize": tape.fontSize, "peekLines": peekLines]
+        )
+        let film = try ScreenFilm(page: screen, size: viewport, into: location, frameRate: tape.frameRate)
+        log("drawing the code screen, \(film.width)×\(film.height)")
+        try await film.advance(to: 0)
+        for call in calls {
+            try await film.advance(to: call.ms)
+            // Made on this pass, read only by the page: nothing else holds them.
+            nonisolated(unsafe) let arguments = call.arguments
+            do {
+                try await screen.step(call.body, arguments)
+            } catch let error as ReelError {
+                throw ReelError("line \(call.line): \(error.description)")
+            }
+        }
+        try await film.advance(to: end)
+        return try await film.finish(events: events, log: log)
     }
 
     /// What the page needs to show a file: its text (only `lines a-b` of it when given), what to call it, and where.
@@ -334,5 +369,25 @@ extension SectionTransition {
     /// As the page takes it: `{ kind: "slide-left", easing: "ease-out", ms: 600 }`.
     var page: [String: Any] {
         ["kind": kind.rawValue, "easing": easing.rawValue, "ms": Recorder.milliseconds(duration)]
+    }
+}
+
+/// A take's clock, in milliseconds. Its own (`real` false), which moves on as far as it is told at once, or real time,
+/// which it waits for.
+final class TakeClock {
+    let real: Bool
+    private let start = ContinuousClock.now
+    private(set) var now = 0
+
+    init(real: Bool) {
+        self.real = real
+    }
+
+    func wait(until time: Int) async throws {
+        if real {
+            let due = start + .milliseconds(time)
+            if due > ContinuousClock.now { try await Task.sleep(until: due) }
+        }
+        now = max(now, time)
     }
 }
