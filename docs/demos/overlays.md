@@ -32,3 +32,15 @@ its click shows.
 
 An app reel records the real cursor. A web reel draws an arrow along the path reel moved it, through cuts,
 speed-ups and zooms.
+
+```
+Set Cursor off
+```
+
+`Set Cursor off` leaves the cursor out, for a page where none should show, such as an animated title page. In a web
+reel it is drawn at render time, so it changes without a new recording, and a profile or a
+[condition](../outputs/conditions.md) can set it. In an app reel the real cursor is part of the recording: the
+setting takes effect at the next recording, and is the same for every profile. Clicks still land, and their ripples
+still show unless `Set ClickRipples off`; `Zoom cursor` still follows the hidden cursor.
+
+Code and terminal screens have no cursor to hide. Their caret is part of the screen, and stays.

@@ -24,14 +24,16 @@ struct FollowTests {
         }
     }
 
-    private func play(_ script: String, channel: Channel?, notes: inout [String]) async throws -> Recorder.Played {
+    private func play(
+        _ script: String, channel: Channel?, startedAt: Int = Channel.now, notes: inout [String]
+    ) async throws -> Recorder.Played {
         let tape = try Tape.parse(script, relativeTo: folder)
         let narration = try await Narration.prepare(
             tape, into: folder, voices: tape.voice.synthesizer(for:), log: { _ in }
         )
         var heard: [String] = []
         let played = try await Recorder.playCode(
-            tape, narration: narration, reel: "script.reel", channel: channel, startedAt: Channel.now,
+            tape, narration: narration, reel: "script.reel", channel: channel, startedAt: startedAt,
             log: { heard.append($0) }
         )
         notes = heard
@@ -50,6 +52,7 @@ struct FollowTests {
             channel.post(reel: "demo.reel", line: 4, name: "second", phase: .start)
         }
         var notes: [String] = []
+        let started = Channel.now
         let played = try await play("""
         Screen code
         Output a.mp4
@@ -57,13 +60,20 @@ struct FollowTests {
         Follow
         Sleep 1s
         Follow off
-        """, channel: channel, notes: &notes)
+        """, channel: channel, startedAt: started, notes: &notes)
         let follows = played.calls.filter { $0.body.contains("follow") }
         #expect(follows.map { $0.arguments["l"] as? Int } == [2, 3, 4, nil])
-        // Line 2 had started before the Follow: it shows from then (300ms after the file opened, in real time a little
-        // later), the rest when they started.
-        #expect((300 ..< 400).contains(follows[0].ms), "\(follows[0].ms)")
-        #expect((400 ... 600).contains(follows[1].ms), "\(follows[1].ms)")
+        // Line 2 had started before the Follow: it shows from the Follow, which ran after the file's 300ms opening (in
+        // real time a little later, how much depends on the machine). Lines 3 and 4 show when they started on the
+        // channel, never before the Follow. Measured against the channel's own times, so a slow machine can't fail it.
+        let at = { (line: Int) in
+            try #require(channel.events.first { $0.reel == "demo.reel" && $0.line == line }).at - started
+        }
+        let (line2, line3, line4) = try (at(2), at(3), at(4))
+        #expect(follows[0].ms >= 300, "\(follows[0].ms)")
+        #expect(follows[0].ms > line2)
+        #expect(follows[1].ms == max(follows[0].ms, line3))
+        #expect(follows[2].ms == max(follows[0].ms, line4))
         #expect(follows[2].ms > follows[1].ms + 200)
         #expect(follows.allSatisfy { $0.arguments["p"] as? Int == 0 })
     }
@@ -75,6 +85,24 @@ struct FollowTests {
         )
         #expect(!played.calls.contains { $0.body.contains("follow") })
         #expect(notes == ["line 4: skipped Follow: no reel runs with this one (REEL_CHANNEL is not set)"])
+    }
+
+    @Test func aWaitForLastsAsLongAsTheWait() async throws {
+        let channel = try Channel.fresh(at: folder.appending(path: "channel.jsonl"))
+        // Another reel takes its step 600ms in. The code screen's clock is real time on a channel: the wait, begun at
+        // 200ms, ends when the step is heard, not as far again after.
+        Task {
+            try await Task.sleep(for: .milliseconds(600))
+            channel.post(reel: "demo.reel", line: 3, name: "planted", phase: .start)
+        }
+        var notes: [String] = []
+        let played = try await play(
+            "Screen code\nOutput a.mp4\nSleep 200ms\nWait for planted\nSleep 100ms", channel: channel, notes: &notes
+        )
+        let wait = try #require(played.events.first { $0.command == "Wait for planted" })
+        #expect((150 ..< 300).contains(wait.startMs), "\(wait.startMs)")
+        #expect((600 ..< 800).contains(wait.endMs), "\(wait.endMs)")
+        #expect((wait.endMs + 100 ..< wait.endMs + 200).contains(played.end), "\(played.end)")
     }
 
     @Test @MainActor func thePageMarksTheLine() async throws {

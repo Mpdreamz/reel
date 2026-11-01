@@ -143,7 +143,7 @@ struct TapeTests {
         (
             "Launch x\nSet Speed 2",
             2,
-            "unknown setting 'Speed'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, KeyBadges, ClickRipples, Quality, Codec, VideoWidth, VideoFrameRate, MaxSize, MaxLength, Shape, Formats, Profiles, GifFrameRate, GifWidth, GifColors, Voice, VoiceServer, VoiceSeed, VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, IntroBackground, OutroBackground, Browser, Viewport, FontSize, Columns, Rows, WorkingDirectory, Theme, Redact, Title, Background, Padding or Layout"
+            "unknown setting 'Speed'; expected FrameRate, Audio, Size, TypingSpeed, WaitTimeout, KeyBadges, ClickRipples, Cursor, Quality, Codec, VideoWidth, VideoFrameRate, MaxSize, MaxLength, Shape, Formats, Profiles, GifFrameRate, GifWidth, GifColors, Voice, VoiceServer, VoiceSeed, VoiceLanguage, Ducking, VoiceVolume, AppVolume, Subtitles, ZoomEasing, ZoomDuration, IntroBackground, OutroBackground, Browser, Viewport, FontSize, Columns, Rows, WorkingDirectory, Theme, Redact, Title, Background, Padding or Layout"
         ),
         ("Launch x\nSet Audio", 2, "expected Set <setting> <value>"),
         (

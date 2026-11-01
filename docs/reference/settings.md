@@ -36,6 +36,7 @@ with `reel render`, and profiles and [conditions](../outputs/conditions.md) can 
 |---|---|---|
 | `KeyBadges` | `on`, `off` | on |
 | `ClickRipples` | `on`, `off` | on |
+| `Cursor` | `on`, `off`: the cursor in the video. Fixed when recording in an app reel, where the real cursor is recorded | on |
 | `Subtitles` | `on`, `off`: each `Say` as a caption | off |
 | `Ducking` | The app's sound under the voice, 0% to 100% | 25% |
 | `VoiceVolume` | 0% to 100% | 100% |
