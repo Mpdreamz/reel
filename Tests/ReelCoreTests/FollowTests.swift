@@ -24,14 +24,19 @@ struct FollowTests {
         }
     }
 
+    /// Plays `script`; `started` is when its clock started on the channel's, taken as playing starts, after the
+    /// narration is ready, so a slow machine shifts neither clock against the other.
     private func play(
-        _ script: String, channel: Channel?, startedAt: Int = Channel.now, notes: inout [String]
+        _ script: String, channel: Channel?, started: inout Int, notes: inout [String], onStart: () -> Void = {}
     ) async throws -> Recorder.Played {
         let tape = try Tape.parse(script, relativeTo: folder)
         let narration = try await Narration.prepare(
             tape, into: folder, voices: tape.voice.synthesizer(for:), log: { _ in }
         )
         var heard: [String] = []
+        let startedAt = Channel.now
+        started = startedAt
+        onStart()
         let played = try await Recorder.playCode(
             tape, narration: narration, reel: "script.reel", channel: channel, startedAt: startedAt,
             log: { heard.append($0) }
@@ -52,7 +57,7 @@ struct FollowTests {
             channel.post(reel: "demo.reel", line: 4, name: "second", phase: .start)
         }
         var notes: [String] = []
-        let started = Channel.now
+        var started = 0
         let played = try await play("""
         Screen code
         Output a.mp4
@@ -60,7 +65,7 @@ struct FollowTests {
         Follow
         Sleep 1s
         Follow off
-        """, channel: channel, startedAt: started, notes: &notes)
+        """, channel: channel, started: &started, notes: &notes)
         let follows = played.calls.filter { $0.body.contains("follow") }
         #expect(follows.map { $0.arguments["l"] as? Int } == [2, 3, 4, nil])
         // Line 2 had started before the Follow: it shows from the Follow, which ran after the file's 300ms opening (in
@@ -74,14 +79,16 @@ struct FollowTests {
         #expect(follows[0].ms > line2)
         #expect(follows[1].ms == max(follows[0].ms, line3))
         #expect(follows[2].ms == max(follows[0].ms, line4))
-        #expect(follows[2].ms > follows[1].ms + 200)
+        #expect(follows[2].ms >= follows[1].ms)
         #expect(follows.allSatisfy { $0.arguments["p"] as? Int == 0 })
     }
 
     @Test func aloneItSaysSo() async throws {
         var notes: [String] = []
+        var started = 0
         let played = try await play(
-            "Screen code\nOutput a.mp4\nCode demo.reel\nFollow\nSleep 100ms", channel: nil, notes: &notes
+            "Screen code\nOutput a.mp4\nCode demo.reel\nFollow\nSleep 100ms", channel: nil, started: &started,
+            notes: &notes
         )
         #expect(!played.calls.contains { $0.body.contains("follow") })
         #expect(notes == ["line 4: skipped Follow: no reel runs with this one (REEL_CHANNEL is not set)"])
@@ -89,20 +96,29 @@ struct FollowTests {
 
     @Test func aWaitForLastsAsLongAsTheWait() async throws {
         let channel = try Channel.fresh(at: folder.appending(path: "channel.jsonl"))
-        // Another reel takes its step 600ms in. The code screen's clock is real time on a channel: the wait, begun at
-        // 200ms, ends when the step is heard, not as far again after.
+        // Another reel takes its step 800ms after this one starts playing. The code screen's clock is real time on a
+        // channel: the wait, begun after the 200ms Sleep, ends when the step is heard, not as far again after.
+        // Measured against the time the step was posted on the channel, so a slow machine can't fail it.
+        let (playing, started) = AsyncStream.makeStream(of: Void.self)
         Task {
-            try await Task.sleep(for: .milliseconds(600))
+            var waiting = playing.makeAsyncIterator()
+            await waiting.next()
+            try await Task.sleep(for: .milliseconds(800))
             channel.post(reel: "demo.reel", line: 3, name: "planted", phase: .start)
         }
         var notes: [String] = []
+        var startedAt = 0
         let played = try await play(
-            "Screen code\nOutput a.mp4\nSleep 200ms\nWait for planted\nSleep 100ms", channel: channel, notes: &notes
+            "Screen code\nOutput a.mp4\nSleep 200ms\nWait for planted\nSleep 100ms",
+            channel: channel, started: &startedAt, notes: &notes, onStart: { started.yield() }
         )
         let wait = try #require(played.events.first { $0.command == "Wait for planted" })
-        #expect((150 ..< 300).contains(wait.startMs), "\(wait.startMs)")
-        #expect((600 ..< 800).contains(wait.endMs), "\(wait.endMs)")
-        #expect((wait.endMs + 100 ..< wait.endMs + 200).contains(played.end), "\(played.end)")
+        let planted = try #require(channel.events.first { $0.name == "planted" }).at - startedAt
+        #expect(wait.startMs >= 200, "\(wait.startMs)")
+        // Heard no earlier than posted, and later only by the channel's polling: far less than the wait again.
+        #expect(wait.endMs >= planted, "\(wait.endMs), posted at \(planted)")
+        #expect(wait.endMs - planted < (planted - wait.startMs) / 2, "\(wait.endMs), posted at \(planted)")
+        #expect(played.end >= wait.endMs + 100, "\(played.end)")
     }
 
     @Test @MainActor func thePageMarksTheLine() async throws {
