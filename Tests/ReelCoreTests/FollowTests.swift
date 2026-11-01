@@ -24,14 +24,16 @@ struct FollowTests {
         }
     }
 
-    private func play(_ script: String, channel: Channel?, notes: inout [String]) async throws -> Recorder.Played {
+    private func play(
+        _ script: String, channel: Channel?, startedAt: Int = Channel.now, notes: inout [String]
+    ) async throws -> Recorder.Played {
         let tape = try Tape.parse(script, relativeTo: folder)
         let narration = try await Narration.prepare(
             tape, into: folder, voices: tape.voice.synthesizer(for:), log: { _ in }
         )
         var heard: [String] = []
         let played = try await Recorder.playCode(
-            tape, narration: narration, reel: "script.reel", channel: channel, startedAt: Channel.now,
+            tape, narration: narration, reel: "script.reel", channel: channel, startedAt: startedAt,
             log: { heard.append($0) }
         )
         notes = heard
@@ -50,6 +52,7 @@ struct FollowTests {
             channel.post(reel: "demo.reel", line: 4, name: "second", phase: .start)
         }
         var notes: [String] = []
+        let started = Channel.now
         let played = try await play("""
         Screen code
         Output a.mp4
@@ -57,14 +60,19 @@ struct FollowTests {
         Follow
         Sleep 1s
         Follow off
-        """, channel: channel, notes: &notes)
+        """, channel: channel, startedAt: started, notes: &notes)
         let follows = played.calls.filter { $0.body.contains("follow") }
         #expect(follows.map { $0.arguments["l"] as? Int } == [2, 3, 4, nil])
-        // Line 2 had started before the Follow: it shows from then (300ms after the file opened, in real time a little
-        // later, how much later depends on the machine), and in any case before line 3 started; the rest when they
-        // started (450ms in, real time), never before.
-        #expect((300 ..< 450).contains(follows[0].ms), "\(follows[0].ms)")
-        #expect((450 ..< 800).contains(follows[1].ms), "\(follows[1].ms)")
+        // Line 2 had started before the Follow: it shows from the Follow, which ran after the file's 300ms opening (in
+        // real time a little later, how much depends on the machine). Lines 3 and 4 show when they started on the
+        // channel, never before the Follow. Measured against the channel's own times, so a slow machine can't fail it.
+        let at = { (line: Int) in
+            try #require(channel.events.first { $0.reel == "demo.reel" && $0.line == line }).at - started
+        }
+        #expect(follows[0].ms >= 300, "\(follows[0].ms)")
+        #expect(follows[0].ms > (try at(2)))
+        #expect(follows[1].ms == max(follows[0].ms, try at(3)))
+        #expect(follows[2].ms == max(follows[0].ms, try at(4)))
         #expect(follows[2].ms > follows[1].ms + 200)
         #expect(follows.allSatisfy { $0.arguments["p"] as? Int == 0 })
     }
