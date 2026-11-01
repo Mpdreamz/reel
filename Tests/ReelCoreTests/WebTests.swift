@@ -34,6 +34,10 @@ struct WebParsingTests {
         // A web tape needs no Accessibility: input goes to the page.
         #expect(parsed.launch.isWeb)
         #expect(try tape("Open file:///tmp/a.html\nOutput a.mp4").web == WebSettings())
+        // A page beside the reel, at a fragment.
+        #expect(try tape("Open site/a.html#end\nOutput a.mp4\nOpen site/a.html#top").steps.map(\.command) == [
+            .open(URL(string: "file:///tmp/demos/site/a.html#top")!),
+        ])
     }
 
     @Test(arguments: [
@@ -71,6 +75,29 @@ struct WebParsingTests {
 }
 
 struct WebDriverTests {
+    @Test(arguments: [
+        ("https://example.com/#morph", "https://example.com/#questions", Navigation.fragment),
+        ("https://example.com/", "https://example.com/#questions", .fragment),
+        ("https://example.com/", "https://Example.com#questions", .fragment),
+        ("file:///tmp/a.html", "file:///tmp/a.html#end", .fragment),
+        ("https://example.com/#morph", "https://example.com/#morph", .reload),
+        ("https://example.com/", "https://example.com", .reload),
+        ("https://example.com/a?x=1", "https://example.com/a?x=1", .reload),
+        ("https://example.com/#morph", "https://example.com/", .load),
+        ("https://example.com/a", "https://example.com/b#x", .load),
+        ("https://example.com/a?x=1", "https://example.com/a?x=2#x", .load),
+        ("https://example.com/a", "https://example.com/a?#x", .load),
+        ("http://example.com/", "https://example.com/#x", .load),
+        ("https://example.com:8443/", "https://example.com/#x", .load),
+    ])
+    func whatAnOpenDoes(from current: String, to target: String, expected: Navigation) {
+        #expect(Navigation(from: URL(string: current), to: URL(string: target)!) == expected)
+    }
+
+    @Test func anOpenOfAPageNotYetShownLoads() {
+        #expect(Navigation(from: nil, to: URL(string: "https://example.com/#a")!) == .load)
+    }
+
     @Test func textBecomesASafeJavaScriptString() {
         #expect(WebDriver.literal("Sign in") == #""Sign in""#)
         #expect(WebDriver.literal(#"say "hi"\ </script>"#) == #""say \"hi\"\\ <\/script>""#)
@@ -175,6 +202,30 @@ struct DrawnCursorTests {
             try await shades(output.url, at: 0.5, [(x: 46, y: 54)])[0] > 100,
             "a native take's cursor is in the video"
         )
+    }
+
+    @Test func setCursorOffLeavesItOutWithoutANewTake() async throws {
+        let writer = TakeWriterTests()
+        let dir = try writer.temporaryDirectory()
+        let location = TakeLocation(tape: dir.appending(path: "demo.reel"))
+        try FileManager.default.createDirectory(at: location.directory, withIntermediateDirectories: true)
+        try await writer.writeTake(to: location.movie, seconds: 1, audio: false, shade: 128)
+        var take = Take(
+            width: 320, height: 200, scale: 2, frameRate: 30, audio: false, durationMs: 1000,
+            events: [Take.Event(line: 3, command: "Sleep 1s", startMs: 0, endMs: 1000)]
+        )
+        take.cursor = [Take.Sample(ms: 0, frame: CGRect(x: 20, y: 20, width: 0, height: 0))]
+        take.drawnCursor = true
+        try location.write(take)
+        // The same take rendered twice, the cursor on and then off: only the reel changed.
+        for (setting, drawn) in [("on", true), ("off", false)] {
+            let tape = try Tape.parse(
+                "Open https://example.com\nOutput demo.mp4\nSet Cursor \(setting)\nSleep 1s", relativeTo: dir
+            )
+            try await Renderer.render(tape: tape, from: location, log: { _ in })
+            let shade = try await shades(dir.appending(path: "demo.mp4"), at: 0.5, [(x: 44, y: 56)])[0]
+            #expect(drawn ? shade < 60 : shade > 100, "Set Cursor \(setting): \(shade)")
+        }
     }
 
     private func shades(_ url: URL, at time: Double, _ points: [(x: Int, y: Int)]) async throws -> [Int] {

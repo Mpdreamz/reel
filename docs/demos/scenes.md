@@ -17,16 +17,21 @@ Intro "Musicbox" "From the app to the code"
 Outro "Recorded with reel"
 ```
 
-A reel can record one thing: an app, a web page, a [code screen](code.md) or a [terminal](terminal.md). To show
-more than one in a video, write each as a reel of its own, a **scene**, and join them with `Include`. Each scene keeps
-everything its own reel has: its narration, captions, badges, zooms, speed-ups and cuts.
+A reel records an app, a web page, a [code screen](code.md), a [terminal](terminal.md), or
+[several of them at once](together.md). To show them one after the other in a video, write each as a reel of its own,
+a **scene**, and join them with `Include`. Each scene keeps everything its own reel has: its narration, captions,
+badges, zooms, speed-ups and cuts.
 
 | Command | |
 |---|---|
 | `Include <scene.reel>` | The first scene, and what makes this reel a sequence of them. After any `Import` lines. |
 | `Include@<transition> <scene.reel>` | The next scene, moving in from the one before: `crossfade` (the default, 600ms), `fade`, `slide-left` and the other slides, `zoom`, the wipes, or `cut`; with an easing and a duration, as an [intro](intro-and-outro.md) takes them. |
 
-A scene can be included more than once. It can't join scenes itself: a scene is a reel that records one thing.
+A scene can be included more than once. It can't join scenes itself.
+
+A [reel of tracks](together.md) is a scene like any other. It records all its tracks at once, as it does on its own.
+In the sequence, its tracks are drawn together on the sequence's canvas and backdrop, laid out and moved as its
+director says, with the director's narration and captions over them.
 
 ## Recording and rendering
 

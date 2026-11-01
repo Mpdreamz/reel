@@ -77,6 +77,24 @@ struct FollowTests {
         #expect(notes == ["line 4: skipped Follow: no reel runs with this one (REEL_CHANNEL is not set)"])
     }
 
+    @Test func aWaitForLastsAsLongAsTheWait() async throws {
+        let channel = try Channel.fresh(at: folder.appending(path: "channel.jsonl"))
+        // Another reel takes its step 600ms in. The code screen's clock is real time on a channel: the wait, begun at
+        // 200ms, ends when the step is heard, not as far again after.
+        Task {
+            try await Task.sleep(for: .milliseconds(600))
+            channel.post(reel: "demo.reel", line: 3, name: "planted", phase: .start)
+        }
+        var notes: [String] = []
+        let played = try await play(
+            "Screen code\nOutput a.mp4\nSleep 200ms\nWait for planted\nSleep 100ms", channel: channel, notes: &notes
+        )
+        let wait = try #require(played.events.first { $0.command == "Wait for planted" })
+        #expect((150 ..< 300).contains(wait.startMs), "\(wait.startMs)")
+        #expect((600 ..< 800).contains(wait.endMs), "\(wait.endMs)")
+        #expect((wait.endMs + 100 ..< wait.endMs + 200).contains(played.end), "\(played.end)")
+    }
+
     @Test @MainActor func thePageMarksTheLine() async throws {
         let page = try await ScreenPage(
             "screen.html", size: CGSize(width: 800, height: 400), options: ["fontSize": 16, "peekLines": 8]
