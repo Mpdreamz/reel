@@ -26,6 +26,8 @@ public enum Tracks {
         var names = Set(tape.steps.compactMap(\.name))
         for track in tape.tracks {
             names.formUnion(track.tape.steps.compactMap(\.name))
+            // An attached app's track says its own name when the app shows.
+            if case .attach = track.tape.launch { names.insert(track.name) }
         }
         channel.expect(names)
         // Voiced before anything starts: a voice that cannot be reached fails here, not halfway through.
@@ -38,14 +40,20 @@ public enum Tracks {
             channel.join(track.name)
         }
         channel.join("director")
+        // Attached apps record until everything else has played: the other tracks and the director.
+        let stop = Stop()
+        let playing = Countdown(tape.tracks.count(where: { !$0.isAttached }) + 1) { stop.fire() }
         try await withThrowingTaskGroup(of: Void.self) { group in
             for track in tape.tracks {
                 group.addTask {
-                    defer { channel.leave(track.name) }
+                    defer {
+                        channel.leave(track.name)
+                        if !track.isAttached { playing.done() }
+                    }
                     do {
                         _ = try await Recorder.record(
                             track.tape, into: Self.location(of: track, in: location), channel: channel,
-                            as: track.name, log: { log("\(track.name): \($0)") }
+                            as: track.name, until: stop, log: { log("\(track.name): \($0)") }
                         )
                     } catch {
                         throw ReelError("\(track.name): \(error.localizedDescription)")
@@ -53,7 +61,10 @@ public enum Tracks {
                 }
             }
             group.addTask {
-                defer { channel.leave("director") }
+                defer {
+                    channel.leave("director")
+                    playing.done()
+                }
                 let take = try await direct(
                     tape, narration: narration, channel: channel, startedAt: startedAt, reel: location.reelName,
                     log: log
@@ -126,5 +137,32 @@ public enum Tracks {
         )
         take.startedAt = startedAt
         return take
+    }
+}
+
+extension Track {
+    /// An `Attach` track: one recording an app something else opens.
+    var isAttached: Bool {
+        if case .attach = tape.launch { true } else { false }
+    }
+}
+
+/// Calls `then` once `count` things are done.
+final class Countdown: @unchecked Sendable {
+    private let lock = NSLock()
+    private var left: Int
+    private let then: @Sendable () -> Void
+
+    init(_ count: Int, then: @escaping @Sendable () -> Void) {
+        left = count
+        self.then = then
+    }
+
+    func done() {
+        let fire = lock.withLock {
+            left -= 1
+            return left == 0
+        }
+        if fire { then() }
     }
 }
