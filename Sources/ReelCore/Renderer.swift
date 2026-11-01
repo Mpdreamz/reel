@@ -38,7 +38,9 @@ public enum Renderer {
 
     /// The take in `location`, read for `tape`: what rendering it needs.
     static func prepare(tape: Tape, from location: TakeLocation, log: (String) -> Void) async throws -> Prepared {
-        let take = try location.read()
+        var take = try location.read()
+        // Drawn only as the tape reads now: `Set Cursor` changes without a new take.
+        take.drawnCursor = OverlayPlan.drawsCursor(tape: tape, take: take) ? true : nil
         var overlays = try OverlayPlan.make(tape: tape, take: take)
         // Only what the take was recorded with: voiced again, a line may come out a different length.
         let narration = try await Narration.prepare(

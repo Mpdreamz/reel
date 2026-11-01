@@ -10,7 +10,7 @@ description: "Every command a reel can hold."
 |---|---|
 | `Import <path>` | A [preset](../outputs/presets.md) to read first. Only on the first lines, before `Launch`, `Open`, `Screen` or `Include`. |
 | `Launch <bundle id or .app path>` | The app to record: a bundle id, or a path with a slash (`./Name.app`). reel waits for its first window. |
-| `Open <url>` | A web page to record instead: `https://…`, `http://…`, `file://…` or an `.html` path. Later in the reel, goes to another page. |
+| `Open <url>` | A web page to record instead: `https://…`, `http://…`, `file://…` or an `.html` path, `#fragment` allowed. Later in the reel, goes to another page: a new fragment of the same page only scrolls, the same address reloads. |
 | `Screen code` | A [code screen](../demos/code.md) to record instead: an editor of reel's own. |
 | `Attach <bundle id or .app path> as <name>` | In a reel of tracks: an app something else opens, recorded from when its window shows. See [Reels together](../demos/together.md). |
 | `Layout <arrangement>`, `Split <share>% …`, `Spotlight <track>`, `Fullscreen <track>`, `Pip <track> [over <track>] [corner]` | In a reel of tracks, the director's moves over them, each with `off` and `@<easing>,<duration>`. See [Directing the tracks](../demos/together.md#directing-the-tracks). |

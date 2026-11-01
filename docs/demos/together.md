@@ -88,6 +88,8 @@ In render, each track is rendered as its own reel would be (its overlays and zoo
 together for each shape the Outputs take: side by side in a wide cut, stacked in a tall one, each as a window on the
 backdrop. The director's narration and captions go over the whole, then the intro and outro.
 
+A reel of tracks can also be a [scene](scenes.md) in a sequence. Its tracks are then drawn on the sequence's canvas.
+
 ## Directing the tracks
 
 ```

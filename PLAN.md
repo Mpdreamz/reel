@@ -63,7 +63,7 @@ sits next to the same things.
 | `Set TypingSpeed <duration>` | The pause after each typed character, default 50ms. |
 | `Set WaitTimeout <duration>` | How long `Wait` and `Click` look for an element, default 10s. |
 | `Launch <bundle id or .app path>` | The app to record: a bundle id, or a path with a slash (`./Name.app` beside the reel). Reel waits for its first window. |
-| `Open <url>` | A web page to record instead of an app: `https://…`, `file://…` or an `.html` path. Later in the reel, goes to another page. |
+| `Open <url>` | A web page to record instead of an app: `https://…`, `file://…` or an `.html` path, `#fragment` allowed. Later in the reel, goes to another page; a new fragment of the same page only scrolls, the same address reloads. |
 | `Set Browser webkit\|chromium\|<app>` | WebKit, built in, is the default. `chromium` is any Chromium-based browser reel finds; an `.app` is that one. A chosen browser that cannot be had refuses the take; it never falls back. |
 | `Set Viewport <w>x<h>` | The page's size in points, default 1280x800; a code screen's size too. |
 | `Screen code` | A code screen to record instead of an app or a page: reel's own editor. See "Code screens". |
@@ -95,6 +95,7 @@ sits next to the same things.
 | `Caption "<text>" [duration]`, `Caption off` | A caption from here until the next one, for `duration`, or until `Caption off`. |
 | `Set KeyBadges on\|off` | A badge for each `Key` step (`⌘S`, `↓ ×3`), default on. |
 | `Set ClickRipples on\|off` | A ripple where each click lands, default on. |
+| `Set Cursor on\|off` | The cursor in the video, default on: a web reel's drawn one (render time), an app reel's real one (recording time). |
 | `Set GifFrameRate <n>` | Frames a second in a GIF, 1–50, default 15. |
 | `Set GifWidth <pixels>` | A GIF's width, 100–4000, default 800, never wider than the video. |
 | `Set GifColors <n>` | Colours in a GIF, 2–256, default 256. Fewer make a smaller file; one palette serves every frame. |
@@ -216,12 +217,20 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   with a DevTools port (`--remote-debugging-port=0`, read from `DevToolsActivePort`), sized until the page is
   `Viewport`, quit and its profile removed when the take ends. Input is DevTools' (`Input.dispatchMouseEvent`,
   `dispatchKeyEvent`): hovers and wheel events included. Editing shortcuts are sent as the commands DevTools needs.
+- **Open, later.** The driver asks the page where it is (`location.href`) and compares, as a browser does: another
+  document loads, and waits for a new document (a flag set on the old one is gone) that is complete. The same
+  document at a new `#fragment` is `location.assign`, which loads nothing, so waiting for a load hung for 15 s;
+  it waits for the scroll to be still instead. The very same address reloads (`reload()`, `Page.reload`), so a page's
+  animations start over: navigating there would only scroll to the fragment again.
 - **Recording.** ScreenCaptureKit, as for an app, cropped to the page under the title bar, the browser's helper
   processes' sound kept. Neither takes the mouse or the keyboard, and neither needs Accessibility. The real cursor
-  is hidden; render draws an arrow along the driver's path, through edits and zooms.
+  is hidden; render draws an arrow along the driver's path, through edits and zooms, unless `Set Cursor off`
+  (`OverlayPlan.drawsCursor`). In an app reel `Set Cursor off` is `showsCursor = false` when capturing, so there it
+  is fixed when recording and cannot differ by profile; a code or terminal screen refuses it (its caret is not the
+  cursor).
 - `mise run live-web` records `reels/web.reel` against `reels/web/fixture.html` twice, in WebKit and with `Set
-  Browser chromium`: the page logs what happened and the reel waits for each entry, so a step that did not work stops
-  the take.
+  Browser chromium`: the page logs what happened (a `hashchange`, a reload) and the reel waits for each entry, so a
+  step that did not work stops the take.
 
 ## Code screens
 
@@ -286,12 +295,16 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 
 - **A reel of reels.** `Include` makes a reel a sequence: its scenes are other reels, each recorded into its own take
   next to its own reel (`Scenes.record`), and it has no steps and no recording settings of its own (a preset's pass
-  by). `reel record` records every scene; `reel render` needs each scene's take and names a missing one.
+  by). `reel record` records every scene; `reel render` needs each scene's take and names a missing one. A reel of
+  tracks is a scene too: it records with `Tracks.record`, and its take is the director's (`director.json`).
 - **Render.** Each scene's demo is rendered as its own reel renders it (overlays, narration, cuts, zooms), read for
   the sequence's profile when the scene knows that name. Every scene is framed on one canvas: the Output's shape,
   16:9 without one, at the largest size any scene needs, so they line up. Then they are joined one after the other,
   each following scene coming in as an untitled video outro of what came before (`Assembler`), with its sound and
-  its transition, and the sequence's intro and outro go around the whole. Outputs are written as for any reel.
+  its transition, and the sequence's intro and outro go around the whole. Outputs are written as for any reel. A
+  reel of tracks has its tracks rendered once (`renderTrackDemos`), then, for each canvas, composed straight onto it
+  (`composeTracks`, on the sequence's backdrop and padding) and its director's reel rendered over that, its intro and
+  outro left out, as `renderTracks` does for the reel on its own.
 - **Not yet:** scenes written inline in one file, and narration that carries across a cut.
 
 ## Reels together
@@ -365,7 +378,8 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   into keyframes for the titles, so a title moves (or is wiped) with its section. The intro and the outro are drawn
   over the demo: crossfades, zooms and wipes work on them and reveal the demo beneath; slides push both. A fade goes
   through black across the cut, half on either side; the others overlap the two sections for their length. Sounds
-  cross the same way (through silence for a fade).
+  cross the same way (through silence for a fade). The titles are drawn by Core Animation, which draws every frame
+  of the movie, so a section with no title or subtitle (a sting, or the next scene of a sequence) leaves it out.
 - **Render-time only**, like captions: a changed title, background or transition needs no new take.
 
 ## GIFs

@@ -92,12 +92,12 @@ extension Recorder {
                 case let .sleep(duration):
                     try await advance(to: now + milliseconds(duration))
                 case let .waitFor(name, end):
-                    // The other reel keeps real time: the take's clock moves on by as long as the wait took.
-                    let started = ContinuousClock.now
+                    // On a channel the take's clock is real time, which moved on while it waited: hold it there.
+                    // Adding the wait again would count it twice. Alone, the wait is skipped and takes no time.
                     try await Channel.wait(
                         channel, for: name, end: end, timeout: tape.waitTimeout, line: step.line, as: runner, log: log
                     )
-                    try await advance(to: now + milliseconds(ContinuousClock.now - started))
+                    try await advance(to: now)
                 case let .say(_, over):
                     guard let line = narration.lines[step.line]
                     else { throw ReelError("line \(step.line) was not voiced") }
