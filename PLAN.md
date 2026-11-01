@@ -236,7 +236,8 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   command, which is how `Wait exit` knows the prompt is back. Only `PATH`, `LANG` and a few basics come from the
   environment reel runs in. The commands are real, so a reel shows what is installed.
 - **Two passes.** The shell runs in real time and every read is kept with its time (a character split across two
-  reads waits for the rest); waits poll what was printed since the last input, without escape sequences. Then the
+  reads waits for the rest); waits poll what was printed since the last input, without escape sequences, and after a
+  return only what follows the command line: a command typed quickly can still be echoing when return is pressed. Then the
   terminal is drawn from that, as a code screen is: xterm.js (`scripts/vendor-xterm.sh` pins it) in a page nobody
   sees, fed each piece at its time, a frame snapshotted when its time comes. Drawing the same output twice gives the
   same frames; the shell's timing differs between takes, as an app's does.

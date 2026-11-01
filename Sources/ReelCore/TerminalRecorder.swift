@@ -32,8 +32,9 @@ extension Recorder {
         // Where the output a wait looks at starts: what was printed after the last thing typed or pressed, so a wait
         // for /done/ after `echo done` and return finds the command's output, not the command.
         var since = session.mark
+        var afterReturn = false
         func output() -> String {
-            session.text(since: since)
+            Self.waitedOn(session.text(since: since), afterReturn: afterReturn)
         }
         func sleep(until ms: Int) async throws {
             let wait = ms - session.now
@@ -74,6 +75,7 @@ extension Recorder {
                     if let time = clock.time(of: marker) { try await sleep(until: Int((time * 1000).rounded())) }
                 case let .type(text, pause):
                     since = session.mark
+                    afterReturn = false
                     for character in text {
                         try session.write(String(character))
                         try await Task.sleep(for: pause ?? tape.typingSpeed)
@@ -83,6 +85,7 @@ extension Recorder {
                         throw ReelError("a terminal screen takes no key \(combo.description)")
                     }
                     since = session.mark
+                    afterReturn = bytes == "\r"
                     for _ in 0 ..< count {
                         try session.write(bytes)
                         try await Task.sleep(for: terminalKeyGap)
@@ -124,6 +127,15 @@ extension Recorder {
         )
         try location.write(take)
         return take
+    }
+
+    /// What a wait looks at of what was printed since the last input. After a return, that starts past the end of the
+    /// command line: the shell echoes what is typed as it reads it, and a command typed quickly can still be echoing
+    /// when return is pressed, so `echo done` would otherwise count as the `done` a wait is for.
+    static func waitedOn(_ printed: String, afterReturn: Bool) -> String {
+        guard afterReturn else { return printed }
+        guard let end = printed.firstIndex(of: "\n") else { return "" }
+        return String(printed[printed.index(after: end)...])
     }
 
     /// The second pass: the terminal drawn from what the shell printed and when, and the marks and callouts at their

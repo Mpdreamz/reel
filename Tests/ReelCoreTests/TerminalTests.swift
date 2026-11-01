@@ -141,6 +141,15 @@ struct TerminalParsingTests {
         #expect(TerminalSession.plain(printed) == "term Build complete\n")
     }
 
+    @Test func aWaitAfterReturnLooksPastTheCommandLine() {
+        // The end of `echo ok-done` still being echoed when return was pressed, then the newline, then the output.
+        let late = "-done\nok-done\nreel ❯ "
+        #expect(Recorder.waitedOn(late, afterReturn: true) == "ok-done\nreel ❯ ")
+        #expect(Recorder.waitedOn("-done", afterReturn: true) == "")
+        // After typing, without a return, what was echoed is all there is.
+        #expect(Recorder.waitedOn("ok-done", afterReturn: false) == "ok-done")
+    }
+
     @Test func ghosttyThemesBecomeXtermThemes() throws {
         let theme = TerminalTheme.parse("""
         # a theme
