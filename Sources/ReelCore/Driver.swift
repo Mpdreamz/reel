@@ -101,7 +101,7 @@ final class Driver: Driving {
             break
         case .open:
             throw ReelError("Open goes to a web page; this reel launched an app")
-        case .code, .go, .focus, .mark, .callout, .expect, .split, .pane, .peek, .link, .diff:
+        case .code, .go, .focus, .mark, .callout, .expect, .split, .pane, .peek, .link, .diff, .morph:
             throw ReelError("a screen's steps are not for an app")
         case let .zoom(target, _, _):
             if case let .element(element) = target { return try await frame(of: element) }

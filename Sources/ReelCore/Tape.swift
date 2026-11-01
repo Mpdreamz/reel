@@ -347,6 +347,9 @@ public enum Command: Equatable, Sendable {
     case code(CodeFile, transition: SectionTransition?)
     /// `Diff <before> <after>`, `Diff <file> since <revision>`: two versions of a file as one, what changed marked.
     case diff(DiffSource, transition: SectionTransition?)
+    /// `Morph <file>`: the file shown turns into this one, the words they share moving to their new places, the rest
+    /// fading out and in. `motion` is its easing and length, nil for the default.
+    case morph(CodeFile, motion: Transition?)
     /// `Split <file>`: the file in a second pane beside the first, which it makes the active one; `Split off` (nil)
     /// closes it.
     case split(CodeFile?)
@@ -852,8 +855,8 @@ public extension Tape {
             }
             // `Type@20ms`: a command may carry an option after `@`; only Type takes one.
             let (name, option) = first.quoted ? (first.text, nil) : split(first.text)
-            if option != nil, !["Type", "Say", "Zoom", "Intro", "Outro", "Output", "Include", "Code", "Diff"]
-                .contains(name)
+            if option != nil,
+               !["Type", "Say", "Zoom", "Intro", "Outro", "Output", "Include", "Code", "Diff", "Morph"].contains(name)
             {
                 throw fail("\(name) takes no @option")
             }
@@ -1085,6 +1088,11 @@ public extension Tape {
                     DiffSource(before: before, after: after, at: at),
                     transition: option.map { try SectionTransition($0, fail: fail) }
                 ))
+
+            case "Morph":
+                try forScreen("Morph", [.code])
+                let file = try codeFile(args[...], usage: "Morph[@<easing>,<duration>]")
+                try step(.morph(file, motion: option.map { try Transition($0, fail: fail) }))
 
             case "Split":
                 try forScreen("Split", [.code])
@@ -1334,7 +1342,7 @@ public extension Tape {
                 let known = [
                     "Output", "Set", "Launch", "Sleep", "Click", "Wait", "Type", "Key", "Scroll", "Caption", "Say",
                     "Zoom", "Speed", "Hide", "Show", "Intro", "Outro", "Open", "Screen", "Code", "Go", "Focus", "Mark",
-                    "Callout", "Include", "Split", "Pane", "Peek", "Link", "Diff",
+                    "Callout", "Include", "Split", "Pane", "Peek", "Link", "Diff", "Morph",
                 ]
                 let hint = known.first { $0.lowercased() == name.lowercased() }.map { "; did you mean \($0)?" }
                 throw fail("unknown command '\(name)'" + (hint ?? "; expected one of \(known.joined(separator: ", "))"))

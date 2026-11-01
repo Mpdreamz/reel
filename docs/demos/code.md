@@ -88,6 +88,19 @@ now. reel works the diff out itself, line by line and then word by word, so it's
 a demo that stays the same as the repository moves on; a revision reads the version from git at the moment of
 recording.
 
+## Morph
+
+```
+Code code/SpeechClock-before.swift
+Morph@ease-in-out,1400ms code/SpeechClock.swift
+```
+
+`Morph <file> [lines <a>-<b>] [at …]` turns the file shown into this one: every word they share moves from where it
+was to where it is now, what's gone fades out and what's new fades in. Lines that read the same move as one, even when
+they've moved past others; the words of an edited line find their places within it. `Morph@<easing>,<duration>`
+says how it moves, 900ms and `ease-in-out` unless given. It works on what's on screen, so it reads best when both
+versions fit, or when `at` puts the part that changed in view.
+
 Relations are declared in the reel: reel colours code but doesn't understand it, so it can't find what implements
 what on its own. The texts are anchors, matched exactly, as `Mark` matches them.
 

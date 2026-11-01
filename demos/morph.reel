@@ -1,0 +1,20 @@
+# reel's morph demo: the clock before a change turns into the clock after it, each word moving to where it is now.
+# demos/code has both versions. `mise run demos morph` records it.
+Import //demos/reel.reelpreset
+Screen code
+
+Output //docs/media/morph.mp4
+Output //docs/media/morph.gif
+Set Viewport 1100x620
+Set FontSize 18
+Set Subtitles social|feed|square ? on : off
+Intro@crossfade,ease-out,600ms square ? "reel" "Before and after" : 2s
+Outro@fade,800ms square ? "Recorded with reel" "brew install --cask mpdreamz/tap/reel" : 2s
+
+Code code/SpeechClock-before.swift
+Say "Here's the clock before the change."
+Morph@ease-in-out,1400ms code/SpeechClock.swift
+Say "And here it is after. Every word that stayed moves to where it is now; what's new fades in."
+Mark "markers" 1
+Callout "func time(of marker: String)" "new"
+Sleep 1.5s

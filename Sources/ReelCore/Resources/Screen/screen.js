@@ -104,6 +104,57 @@
       return null;
     },
 
+    /// Turns the active pane's file into `f`: the words both show move from where they were to where they are now,
+    /// the rest fade out and in, over `motion` (`{ easing, ms }`). Resolves to an error message, or null.
+    async morph(f, motion) {
+      const pane = active;
+      if (!pane.file) return screen.open(f, null);
+      const before = words(pane);
+      const problem = await show(pane, f);
+      if (problem) return problem;
+      // Laid out now, so where every word lands can be measured before anything moves.
+      pane.ed.render(true);
+      const after = words(pane);
+      const layer = el('div', 'morph');
+      pane.root.appendChild(layer);
+      pane.root.classList.add('morphing');
+      const pieces = [];
+      const put = (word, at, kind) => {
+        const node = el('span', 'word', word.text);
+        Object.assign(node.style, { left: at.x + 'px', top: at.y + 'px', color: word.color }, word.font);
+        layer.appendChild(node);
+        // Its text where the editor's would be: corrected once for how a span sets text against how Monaco does.
+        const shown = textBox(node);
+        const piece = { node, kind, dx: at.x - shown.x, dy: at.y - shown.y };
+        pieces.push(piece);
+        return piece;
+      };
+      for (const [from, to] of match(before, after)) {
+        if (from && to) Object.assign(put(to, from, 'move'), { from, to, colour: [from.color, to.color] });
+        else if (from) Object.assign(put(from, from, 'out'), { from, to: from });
+        else Object.assign(put(to, to, 'in'), { from: to, to });
+      }
+      // The new file's line numbers come in as its words settle.
+      const margin = pane.code.querySelector('.margin');
+      tween('morph', motion.ms, 0, 1, (p) => {
+        if (margin) margin.style.opacity = String(Math.max(0, 2 * p - 1));
+        for (const piece of pieces) {
+          const x = piece.from.x + (piece.to.x - piece.from.x) * p;
+          const y = piece.from.y + (piece.to.y - piece.from.y) * p;
+          piece.node.style.left = x + piece.dx + 'px';
+          piece.node.style.top = y + piece.dy + 'px';
+          if (piece.kind === 'out') piece.node.style.opacity = String(Math.max(0, 1 - 2 * p));
+          if (piece.kind === 'in') piece.node.style.opacity = String(Math.max(0, 2 * p - 1));
+          if (piece.colour) piece.node.style.color = p < 0.5 ? piece.colour[0] : piece.colour[1];
+        }
+      }, () => {
+        layer.remove();
+        pane.root.classList.remove('morphing');
+        if (margin) margin.style.opacity = '';
+      }, motion.easing, pane);
+      return null;
+    },
+
     /// Opens a second pane beside the first with `f`, and makes it the active one; null closes it again.
     async split(f) {
       if (f === null) {
@@ -376,7 +427,7 @@
   };
 
   // Every step marks the next frame as changed.
-  for (const name of ['open', 'split', 'pane', 'go', 'type', 'key', 'focus', 'mark', 'callout', 'peek', 'link']) {
+  for (const name of ['open', 'morph', 'split', 'pane', 'go', 'type', 'key', 'focus', 'mark', 'callout', 'peek', 'link']) {
     const step = screen[name];
     screen[name] = function () { dirty = true; return step.apply(screen, arguments); };
   }
@@ -576,6 +627,101 @@
         default: content.opacity = p;
       }
     }, reset, transition.easing, pane);
+  }
+
+  /// Every word a pane shows, where it is (points from the pane's top left) and how it is drawn, in reading order.
+  function words(pane) {
+    const out = [];
+    const origin = pane.root.getBoundingClientRect();
+    const lines = [...pane.code.querySelectorAll('.view-lines .view-line')]
+      .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+    for (const line of lines) {
+      for (const span of line.querySelectorAll('span[class*="mtk"]')) {
+        const node = span.firstChild;
+        if (!node || node.nodeType !== Node.TEXT_NODE) continue;
+        const style = getComputedStyle(span);
+        // Each part on its own: the `font` shorthand would turn the font's ligatures back on (`->` as an arrow).
+        const font = {
+          fontStyle: style.fontStyle, fontWeight: style.fontWeight, fontSize: style.fontSize, fontFamily: style.fontFamily,
+        };
+        for (const m of node.textContent.matchAll(/\S+/g)) {
+          const range = document.createRange();
+          range.setStart(node, m.index);
+          range.setEnd(node, m.index + m[0].length);
+          const box = range.getBoundingClientRect();
+          if (!box.width) continue;
+          out.push({ text: m[0], x: box.left - origin.left, y: box.top - origin.top, color: style.color, font });
+        }
+      }
+    }
+    return out;
+  }
+
+  /// Where a span's text is drawn, in the same terms as `words`.
+  function textBox(node) {
+    const origin = node.parentNode.parentNode.getBoundingClientRect();
+    const range = document.createRange();
+    range.selectNodeContents(node);
+    const box = range.getBoundingClientRect();
+    return { x: box.left - origin.left, y: box.top - origin.top };
+  }
+
+  /// Pairs the words before with the words after. Lines first: a line that reads the same on both sides moves as one,
+  /// in order (the longest such run). Then, among the lines left, words: in order, then any word left with the
+  /// nearest of the same text, so a word that moved within an edited line still travels. Unpaired words come back
+  /// alone: gone (`[from, null]`) or new (`[null, to]`).
+  function match(before, after) {
+    const lines = (all) => {
+      const out = [];
+      for (const word of all) {
+        const last = out[out.length - 1];
+        if (last && Math.abs(last.y - word.y) < 2) last.words.push(word);
+        else out.push({ y: word.y, words: [word] });
+      }
+      out.forEach((line) => { line.text = line.words.map((w) => w.text).join(' '); });
+      return out;
+    };
+    const pairs = [];
+    const [kept, gone, come] = lcs(lines(before), lines(after), (line) => line.text);
+    for (const [a, b] of kept) a.words.forEach((word, k) => pairs.push([word, b.words[k]]));
+    return pairs.concat(matchWords(gone.flatMap((l) => l.words), come.flatMap((l) => l.words)));
+  }
+
+  /// The longest run of `before` and `after` in order whose keys are the same: the pairs, and what is left of each.
+  function lcs(before, after, key) {
+    const n = before.length, m = after.length;
+    const table = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+    for (let i = n - 1; i >= 0; i--) {
+      for (let j = m - 1; j >= 0; j--) {
+        table[i][j] = key(before[i]) === key(after[j])
+          ? table[i + 1][j + 1] + 1 : Math.max(table[i + 1][j], table[i][j + 1]);
+      }
+    }
+    const pairs = [], gone = [], come = [];
+    let i = 0, j = 0;
+    while (i < n && j < m) {
+      if (key(before[i]) === key(after[j])) pairs.push([before[i++], after[j++]]);
+      else if (table[i + 1][j] >= table[i][j + 1]) gone.push(before[i++]);
+      else come.push(after[j++]);
+    }
+    while (i < n) gone.push(before[i++]);
+    while (j < m) come.push(after[j++]);
+    return [pairs, gone, come];
+  }
+
+  function matchWords(before, after) {
+    const [pairs, gone, come] = lcs(before, after, (word) => word.text);
+    for (const word of gone) {
+      let best = -1, distance = Infinity;
+      come.forEach((other, k) => {
+        if (other.text !== word.text) return;
+        const d = Math.hypot(other.x - word.x, other.y - word.y);
+        if (d < distance) { distance = d; best = k; }
+      });
+      pairs.push([word, best >= 0 ? come.splice(best, 1)[0] : null]);
+    }
+    for (const word of come) pairs.push([null, word]);
+    return pairs;
   }
 
   /// The language for a file name, from Monaco's own list of extensions.
