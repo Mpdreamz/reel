@@ -10,7 +10,8 @@ extension Recorder {
     /// when it printed it; then the take is drawn from that, a frame at a time on the take's own clock, as a code
     /// screen is. Nothing is captured from the screen, and no permission is needed.
     static func recordTerminal(
-        _ tape: Tape, narration: Narration, into location: TakeLocation, channel: Channel?, log: (String) -> Void
+        _ tape: Tape, narration: Narration, into location: TakeLocation, channel: Channel?, as runner: String? = nil,
+        log: (String) -> Void
     ) async throws -> Take {
         let settings = tape.terminal
         let folder = settings.workingDirectory ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
@@ -28,6 +29,7 @@ extension Recorder {
             try await Task.sleep(for: .milliseconds(20))
         }
         session.startClock()
+        let startedAt = Channel.now
 
         var events: [Take.Event] = []
         /// What the drawing pass does besides printing: marks and callouts, at their times.
@@ -70,7 +72,7 @@ extension Recorder {
                 case let .sleep(duration):
                     try await Task.sleep(for: duration)
                 case let .waitFor(name, end):
-                    try await channel.wait(for: name, end: end, timeout: tape.waitTimeout)
+                    try await channel.wait(for: name, end: end, timeout: tape.waitTimeout, as: runner)
                 case let .say(_, over):
                     guard let line = narration.lines[step.line]
                     else { throw ReelError("line \(step.line) was not voiced") }
@@ -130,9 +132,10 @@ extension Recorder {
         let output = session.output
         session.close()
 
-        let take = try await drawTerminal(
+        var take = try await drawTerminal(
             output, pointers: drawn, until: end, events: events, tape: tape, folder: folder, into: location, log: log
         )
+        take.startedAt = startedAt
         try location.write(take)
         return take
     }

@@ -23,6 +23,8 @@ public struct Take: Codable, Equatable, Sendable {
     public var focus: [Sample]?
     /// The cursor is drawn at render time from `cursor` (a web page: the real one never moved).
     public var drawnCursor: Bool?
+    /// The wall clock at the take's first frame, in milliseconds since 1970: how takes recorded at once line up.
+    public var startedAt: Int?
 
     /// A position at a moment: a point (zero size) or a frame, in points from the window's top left.
     public struct Sample: Codable, Equatable, Sendable {
@@ -92,6 +94,10 @@ public struct Take: Codable, Equatable, Sendable {
 /// Where a tape's take lives: `.reel/<tape name>/` next to the tape.
 public struct TakeLocation: Sendable {
     public var directory: URL
+
+    public init(directory: URL) {
+        self.directory = directory
+    }
 
     public init(tape: URL) {
         let name = tape.deletingPathExtension().lastPathComponent

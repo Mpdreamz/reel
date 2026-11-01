@@ -11,6 +11,12 @@ public final class Channel: @unchecked Sendable {
     static let poll: Duration = .milliseconds(20)
 
     public let url: URL
+    private let lock = NSLock()
+    /// For tracks recorded in this process: the names their steps have, who is still playing, and what each waits
+    /// for. When every one of them waits for a step only they could take, nothing will ever come.
+    private var local: Set<String> = []
+    private var playing: Set<String> = []
+    private var waiting: [String: String] = [:]
 
     public struct Event: Codable, Equatable, Sendable {
         public enum Phase: String, Codable, Sendable {
@@ -63,12 +69,45 @@ public final class Channel: @unchecked Sendable {
         return text.split(separator: "\n").compactMap { try? decoder.decode(Event.self, from: Data($0.utf8)) }
     }
 
+    /// Tracks recorded in this process: `names` are what their steps are called.
+    func expect(_ names: Set<String>) {
+        lock.withLock { local.formUnion(names) }
+    }
+
+    /// `runner`, a track of this process, plays until it `leave`s.
+    func join(_ runner: String) {
+        _ = lock.withLock { playing.insert(runner) }
+    }
+
+    func leave(_ runner: String) {
+        lock.withLock {
+            playing.remove(runner)
+            waiting[runner] = nil
+        }
+    }
+
+    /// Who waits for what, when every track still playing waits for a step another of them would take: nil while
+    /// any of them is doing something, or waits for a step that could come from outside.
+    private func deadlock() -> String? {
+        lock.withLock {
+            guard !playing.isEmpty, playing.allSatisfy({ waiting[$0] != nil }),
+                  waiting.values.allSatisfy(local.contains)
+            else { return nil }
+            return playing.sorted().map { "\($0) waits for \(waiting[$0]!)" }.joined(separator: "; ")
+        }
+    }
+
     /// Until a step named `name` has started (or ended), as long as `timeout`. Steps said before the wait count: a
-    /// step that has already happened does not have to happen again.
-    func wait(for name: String, end: Bool, timeout: Duration) async throws {
+    /// step that has already happened does not have to happen again. A track of this process waits as `runner`.
+    func wait(for name: String, end: Bool, timeout: Duration, as runner: String? = nil) async throws {
         let phase: Event.Phase = end ? .end : .start
         let deadline = ContinuousClock.now + timeout
+        if let runner { lock.withLock { waiting[runner] = name } }
+        defer { if let runner { lock.withLock { waiting[runner] = nil } } }
         while !events.contains(where: { $0.name == name && $0.phase == phase }) {
+            if let stuck = deadlock() {
+                throw ReelError("no track can go on: \(stuck)")
+            }
             if ContinuousClock.now > deadline {
                 let last = events.last.map {
                     "the last it heard was \($0.reel) line \($0.line)\($0.name.map { " (\($0))" } ?? "") \($0.phase == .start ? "starting" : "ending")"
@@ -83,12 +122,18 @@ public final class Channel: @unchecked Sendable {
 
     /// What a recorder does with `Wait for`: wait on the channel, or say it was skipped when the reel runs alone.
     static func wait(
-        _ channel: Channel?, for name: String, end: Bool, timeout: Duration, line: Int, log: (String) -> Void
+        _ channel: Channel?, for name: String, end: Bool, timeout: Duration, line: Int, as runner: String? = nil,
+        log: (String) -> Void
     ) async throws {
         guard let channel else {
             log("line \(line): skipped Wait for \(name): no other reel runs with this one (\(variable) is not set)")
             return
         }
-        try await channel.wait(for: name, end: end, timeout: timeout)
+        try await channel.wait(for: name, end: end, timeout: timeout, as: runner)
+    }
+
+    /// The wall clock now, in milliseconds since 1970: what `Event.at` and `Take.startedAt` are in.
+    static var now: Int {
+        Int((Date().timeIntervalSince1970 * 1000).rounded())
     }
 }

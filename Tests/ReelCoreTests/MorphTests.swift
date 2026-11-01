@@ -126,7 +126,7 @@ struct MorphDrawingTests {
             ))
             try await frames.append(movieFrames(AVURLAsset(url: location.movie)))
         }
-        #expect(takes[0] == takes[1])
+        #expect(takes[0].sameMoments(takes[1]))
         #expect(takes[0].events.map(\.endMs) == [300, 800, 1700])
         #expect(frames[0].count == frames[1].count && frames[0].count > 20)
         for (index, (a, b)) in zip(frames[0], frames[1]).enumerated() {

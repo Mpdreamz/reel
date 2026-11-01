@@ -38,7 +38,7 @@ struct CodeLogTests {
         #expect(take.events.map(\.endMs) == [300, 700])
         // Alone, the same take, as fast as it can draw.
         let alone = try await record(script, channel: nil)
-        #expect(alone == take)
+        #expect(alone.sameMoments(take))
     }
 
     @Test @MainActor func reelScriptsAreColoured() async throws {

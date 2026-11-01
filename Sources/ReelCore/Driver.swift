@@ -89,6 +89,19 @@ final class Driver: Driving {
     /// Performs one step. Returns, for the timeline, where a click landed (an empty rect) or what a zoom framed, in
     /// points from the window's top left.
     func perform(_ command: Command) async throws -> CGRect? {
+        // Tracks recorded at once take turns with the mouse and keyboard: one step at a time is all a person has.
+        await InputTurns.shared.take()
+        do {
+            let result = try await performing(command)
+            await InputTurns.shared.give()
+            return result
+        } catch {
+            await InputTurns.shared.give()
+            throw error
+        }
+    }
+
+    private func performing(_ command: Command) async throws -> CGRect? {
         switch command {
         case .sleep, .wait, .caption, .say, .reach, .zoom, .speed, .hide, .open: break
         default: try await ensureInFront()
@@ -266,4 +279,23 @@ final class Driver: Driving {
 
 private func distance(_ a: CGRect, _ b: CGRect) -> CGFloat {
     abs(a.minX - b.minX) + abs(a.minY - b.minY) + abs(a.width - b.width) + abs(a.height - b.height)
+}
+
+/// The real mouse and keyboard, which one step at a time may use.
+actor InputTurns {
+    static let shared = InputTurns()
+    private var busy = false
+    private var queue: [CheckedContinuation<Void, Never>] = []
+
+    func take() async {
+        guard busy else {
+            busy = true
+            return
+        }
+        await withCheckedContinuation { queue.append($0) }
+    }
+
+    func give() {
+        if queue.isEmpty { busy = false } else { queue.removeFirst().resume() }
+    }
 }

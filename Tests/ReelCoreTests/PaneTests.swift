@@ -225,7 +225,7 @@ struct PaneDrawingTests {
             let take = try await Recorder.record(Tape.parse(script, relativeTo: folder), into: location, log: { _ in })
             try await takes.append((take, movieFrames(AVURLAsset(url: location.movie))))
         }
-        #expect(takes[0].0 == takes[1].0)
+        #expect(takes[0].0.sameMoments(takes[1].0))
         #expect(takes[0].1.count == takes[1].1.count)
         #expect(takes[0].1.count > 30, "a frame for each moment something moved")
         for (index, (a, b)) in zip(takes[0].1, takes[1].1).enumerated() {

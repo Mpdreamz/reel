@@ -30,10 +30,11 @@
 12. **Between files.** `Code@<transition>`, `Split` and `Pane`, `Peek`, `Link` on a code screen (see "Code screens").
 13. **Diffs.** `Diff <before> <after>`, `Diff <file> since <revision>`, `Go hunk <n>` (see "Code screens").
 14. **Morph.** `Morph <file>`: the file shown turns into the next, word by word (see "Code screens").
-15. **Reels together, phase 1.** Steps named `as <name>`; `Wait for <name> [to end]` across reels running at once,
-   over a channel (see "Reels together"). Phase 2: code screens recorded as timed logs, reel scripts coloured. Next,
-   in order: tracks (several
-   subjects in one reel, indented or `With x.reel as name`); `Follow`; `Attach`; layouts and `Spotlight`; the showcase.
+15. **Reels together.** Phase 1: steps named `as <name>`; `Wait for <name> [to end]` across reels running at once,
+   over a channel (see "Reels together"). Phase 2: code screens recorded as timed logs, reel scripts coloured.
+   Phase 3: tracks, several subjects recorded at once in one reel (indented or `With x.reel as name`) and drawn
+   together. Next, in order: `Follow`; `Attach`; the director's moves (`Layout`, `Split`, `Spotlight`, `Fullscreen`,
+   `Pip`); the showcase.
 
 ## The reel
 
@@ -303,6 +304,20 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   its take's folder (or uses the reel's own) and sets it for its shell.
 - **Alone,** with no channel, a `Wait for` is skipped with a note, so every reel still records on its own. A wait on
   the reel's own step is refused at its line.
+- **Tracks.** A `Launch`, `Open` or `Screen` line ending `as <name>`, with its indented lines, is a track: it is
+  parsed as a reel of its own from the same text with every other line blank (its imports kept), so its errors name
+  the file's lines. `With x.reel as name` reads one from a file. The unindented steps are the director's; a step that
+  acts on a subject there is refused with where it belongs. Names are unique across the tracks and the director.
+- **Recording tracks** (`Tracks.record`): every track and the director in one task group on one channel, the first
+  to fail cancelling the rest. Each track records as its own reel does, into `.reel/<reel>/tracks/<name>/`, with
+  `Take.startedAt`, the wall clock at its first frame. The channel knows which names the reel's own tracks take and
+  who is waiting for what, so a deadlock among them stops at once; a wait for a name no track has may be answered from
+  outside and waits its timeout. App steps take turns with the real mouse and keyboard (`InputTurns`).
+- **Rendering tracks:** each track's demo is rendered as its reel would render it, then a compositor
+  (`TracksCompositor`) draws them all on one canvas per Output shape, each from its offset (`startedAt` against the
+  director's), as windows on the backdrop: side by side when wide, stacked when tall (`TrackLayout`), a track that has
+  ended holding its last frame, the movie running as long as the director does. That movie is the director's take,
+  rendered as any take: narration, captions, intro and outro. A background video is drawn as its first frame for now.
 - **Code screens** record in two passes, as terminals do: the steps play first, writing down each call to the page
   and when, then the page is drawn from that. Alone, the steps play on the take's own clock at once (a code reel
   records as fast as it draws); on a channel they keep real time, so what they say there lines up with the others.

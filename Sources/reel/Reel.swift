@@ -62,6 +62,8 @@ struct Run: AsyncParsableCommand {
         let location = TakeLocation(tape: tape.url)
         if parsed.launch.isSequence {
             try await Scenes.record(parsed, log: say)
+        } else if parsed.launch.isTogether {
+            try await Tracks.record(parsed, into: location, log: say)
         } else {
             _ = try await Recorder.record(parsed, into: location, log: say)
         }
@@ -79,6 +81,10 @@ struct Record: AsyncParsableCommand {
         let parsed = try tape.load()
         if parsed.launch.isSequence {
             try await Scenes.record(parsed, log: say)
+            return
+        }
+        if parsed.launch.isTogether {
+            try await Tracks.record(parsed, into: location, log: say)
             return
         }
         let take = try await Recorder.record(parsed, into: location, log: say)
@@ -118,6 +124,14 @@ struct Check: AsyncParsableCommand {
                 "run zsh in \(parsed.terminal.workingDirectory?.path ?? ".") at \(parsed.terminal.columns)x\(parsed.terminal.rows), "
                     + "text at \(parsed.fontSize) points"
             )
+        case .together:
+            say("record \(parsed.tracks.count) tracks at once:")
+            for track in parsed.tracks {
+                let names = track.tape.steps.compactMap(\.name)
+                say("  \(track.name): \(track.tape.launch.summary)" +
+                    (track.file.map { " (\($0.lastPathComponent))" } ?? "")
+                    + (names.isEmpty ? "" : ", naming \(names.joined(separator: ", "))"))
+            }
         case .sequence:
             let scenes = try Scenes.load(parsed)
             say("join \(scenes.count) scene\(scenes.count == 1 ? "" : "s"):")
@@ -133,7 +147,7 @@ struct Check: AsyncParsableCommand {
         }
         if parsed.launch.isScreen {
             say("draw at \(parsed.frameRate) fps")
-        } else if !parsed.launch.isSequence {
+        } else if !parsed.launch.isSequence, !parsed.launch.isTogether {
             say("capture at \(parsed.frameRate) fps, audio \(parsed.audio ? "on" : "off")")
         }
         // A sequence's scenes record at their own rates, with their own sound and narration.
@@ -220,7 +234,9 @@ private func describeSteps(of parsed: Tape) {
     let waits = parsed.steps.compactMap { step -> String? in
         if case let .waitFor(name, end) = step.command { name + (end ? " to end" : "") } else { nil }
     }
-    if !waits.isEmpty {
+    if !waits.isEmpty, parsed.launch.isTogether {
+        say("the director waits for \(waits.joined(separator: ", "))")
+    } else if !waits.isEmpty {
         say("waits for another reel's \(waits.joined(separator: ", ")); skipped when this reel runs alone")
     }
     let captions = parsed.steps.filter(\.command.isCaption).count

@@ -13,10 +13,13 @@ public enum Recorder {
     /// Records `tape` into `location`, on `channel` with any other reels running with it (`REEL_CHANNEL`, nil alone).
     public static func record(
         _ tape: Tape, into location: TakeLocation, channel: Channel? = Channel.fromEnvironment(),
-        log: (String) -> Void
+        as runner: String? = nil, log: (String) -> Void
     ) async throws -> Take {
         guard !tape.launch.isSequence else {
             throw ReelError("a reel of scenes has no take of its own: Scenes.record records each scene")
+        }
+        guard !tape.launch.isTogether else {
+            throw ReelError("a reel of tracks records them all at once: Tracks.record")
         }
         if tape.drivesTheApp, !tape.launch.isWeb, !AXIsProcessTrusted() {
             throw ReelError(
@@ -30,9 +33,13 @@ public enum Recorder {
         )
         switch tape.launch.screen {
         case .code:
-            return try await recordScreen(tape, narration: narration, into: location, channel: channel, log: log)
+            return try await recordScreen(
+                tape, narration: narration, into: location, channel: channel, as: runner, log: log
+            )
         case .terminal:
-            return try await recordTerminal(tape, narration: narration, into: location, channel: channel, log: log)
+            return try await recordTerminal(
+                tape, narration: narration, into: location, channel: channel, as: runner, log: log
+            )
         case nil: break
         }
         let stage = if case let .web(url) = tape.launch {
@@ -89,6 +96,7 @@ public enum Recorder {
         let start: CMTime
         do {
             start = try await firstFrame(of: writer, sink: sink)
+            let startedAt = Channel.now - milliseconds(since: start)
             var events: [Take.Event] = []
             var clock = SpeechClock()
             // The element a zoom is locked on: its frame is read again after every step, so render can follow it.
@@ -121,7 +129,8 @@ public enum Recorder {
                 case let .waitFor(name, end):
                     do {
                         try await Channel.wait(
-                            channel, for: name, end: end, timeout: tape.waitTimeout, line: step.line, log: log
+                            channel, for: name, end: end, timeout: tape.waitTimeout, line: step.line, as: runner,
+                            log: log
                         )
                     } catch let error as ReelError {
                         throw ReelError("line \(step.line): \(error.description)")
@@ -156,6 +165,7 @@ public enum Recorder {
             take.cursor = stage.web?.track ?? cursor.stop()
             take.drawnCursor = stage.web != nil ? true : nil
             take.focus = focusTrack
+            take.startedAt = startedAt
             try location.write(take)
             return take
         } catch {
@@ -326,6 +336,8 @@ public enum Recorder {
             preconditionFailure("a code screen is drawn, not launched")
         case .sequence:
             preconditionFailure("a reel of scenes records each scene's reel")
+        case .together:
+            preconditionFailure("a reel of tracks records each track")
         }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
