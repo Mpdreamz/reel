@@ -82,6 +82,29 @@ together for each shape the Outputs take: side by side in a wide cut, stacked in
 backdrop. The director's narration and captions go over the whole, then the intro and outro. Moving between
 arrangements, a spotlight, fullscreen and picture-in-picture come next.
 
+## Following a reel as it runs
+
+```
+Screen terminal as term
+  Type "reel musicbox.reel"
+  Key return as run
+  Wait /wrote .*gif/ as done
+
+Screen code as script
+  Code musicbox.reel
+  Follow
+  Wait for done to end
+```
+
+`Follow` in a code screen marks the line of the reel it shows that is running right now, wherever it runs on the
+channel (here, in the terminal track): a bar across the line and a `▶` by its number, the view easing to keep it in
+sight, moving on as each step starts. A line that ran before `Follow` shows from that moment. `Follow off` stops; so
+does giving the pane another file, or the track ending, so a track that should follow to the end waits for it, as
+above.
+
+`Wait for done` would not do there: `done` is the name of a `Wait`, which starts the moment its waiting does. A track
+that waits for another to finish waits for its last step `to end`.
+
 ## How reels hear each other
 
 Reels running together share a channel: a file every reel appends to as each step starts and ends, and reads for

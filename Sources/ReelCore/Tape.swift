@@ -376,6 +376,9 @@ public enum Command: Equatable, Sendable {
     /// `Morph <file>`: the file shown turns into this one, the words they share moving to their new places, the rest
     /// fading out and in. `motion` is its easing and length, nil for the default.
     case morph(CodeFile, motion: Transition?)
+    /// `Follow`: the pane highlights each line of the reel it shows as that reel runs, somewhere on the channel (a
+    /// terminal track running it); `Follow off` (false) stops.
+    case follow(Bool)
     /// `Split <file>`: the file in a second pane beside the first, which it makes the active one; `Split off` (nil)
     /// closes it.
     case split(CodeFile?)
@@ -1211,6 +1214,11 @@ public extension Tape {
                     transition: option.map { try SectionTransition($0, fail: fail) }
                 ))
 
+            case "Follow":
+                try forScreen("Follow", [.code])
+                guard words.isEmpty || words == ["off"] else { throw fail("expected Follow or Follow off") }
+                step(.follow(words.isEmpty))
+
             case "Morph":
                 try forScreen("Morph", [.code])
                 let file = try codeFile(args[...], usage: "Morph[@<easing>,<duration>]")
@@ -1472,7 +1480,7 @@ public extension Tape {
                 let known = [
                     "Output", "Set", "Launch", "Sleep", "Click", "Wait", "Type", "Key", "Scroll", "Caption", "Say",
                     "Zoom", "Speed", "Hide", "Show", "Intro", "Outro", "Open", "Screen", "Code", "Go", "Focus", "Mark",
-                    "Callout", "Include", "Split", "Pane", "Peek", "Link", "Diff", "Morph", "With",
+                    "Callout", "Include", "Split", "Pane", "Peek", "Link", "Diff", "Morph", "With", "Follow",
                 ]
                 let hint = known.first { $0.lowercased() == name.lowercased() }.map { "; did you mean \($0)?" }
                 throw fail("unknown command '\(name)'" + (hint ?? "; expected one of \(known.joined(separator: ", "))"))

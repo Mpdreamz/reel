@@ -33,7 +33,8 @@
 15. **Reels together.** Phase 1: steps named `as <name>`; `Wait for <name> [to end]` across reels running at once,
    over a channel (see "Reels together"). Phase 2: code screens recorded as timed logs, reel scripts coloured.
    Phase 3: tracks, several subjects recorded at once in one reel (indented or `With x.reel as name`) and drawn
-   together. Next, in order: `Follow`; `Attach`; the director's moves (`Layout`, `Split`, `Spotlight`, `Fullscreen`,
+   together. Phase 4: `Follow`, a code screen marking the line of the reel it shows as that reel runs. Next, in
+   order: `Attach`; the director's moves (`Layout`, `Split`, `Spotlight`, `Fullscreen`,
    `Pip`); the showcase.
 
 ## The reel
@@ -318,6 +319,10 @@ breadth first across the app's windows, so sheets and popovers count, and must b
   director's), as windows on the backdrop: side by side when wide, stacked when tall (`TrackLayout`), a track that has
   ended holding its last frame, the movie running as long as the director does. That movie is the director's take,
   rendered as any take: narration, captions, intro and outro. A background video is drawn as its first frame for now.
+- **Follow.** A watcher reads the channel while the track plays on, and for each step of the reel the pane shows
+  (by file name) that starts, adds a call to the log that highlights its line, timed by the event's own wall clock
+  against the take's start; a step that started before `Follow` shows from it. The log is shared with the watcher
+  (`CallLog`) and drawn in time order. Another file in that pane, `Follow off`, or the track's end stops it.
 - **Code screens** record in two passes, as terminals do: the steps play first, writing down each call to the page
   and when, then the page is drawn from that. Alone, the steps play on the take's own clock at once (a code reel
   records as fast as it draws); on a channel they keep real time, so what they say there lines up with the others.
