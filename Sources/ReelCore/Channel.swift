@@ -16,7 +16,7 @@ public final class Channel: @unchecked Sendable {
     /// for. When every one of them waits for a step only they could take, nothing will ever come.
     private var local: Set<String> = []
     private var playing: Set<String> = []
-    private var waiting: [String: String] = [:]
+    private var waiting: [String: (name: String, phase: Event.Phase)] = [:]
 
     public struct Event: Codable, Equatable, Sendable {
         public enum Phase: String, Codable, Sendable {
@@ -94,11 +94,13 @@ public final class Channel: @unchecked Sendable {
     /// Who waits for what, when every track still playing waits for a step another of them would take: nil while
     /// any of them is doing something, or waits for a step that could come from outside.
     private func deadlock() -> String? {
-        lock.withLock {
+        // A track whose step has been said only hasn't polled since: it goes on at its next look, so it is not stuck.
+        let said = Set(events.compactMap { event in event.name.map { "\($0) \(event.phase)" } })
+        return lock.withLock {
             guard !playing.isEmpty, playing.allSatisfy({ waiting[$0] != nil }),
-                  waiting.values.allSatisfy(local.contains)
+                  waiting.values.allSatisfy({ local.contains($0.name) && !said.contains("\($0.name) \($0.phase)") })
             else { return nil }
-            return playing.sorted().map { "\($0) waits for \(waiting[$0]!)" }.joined(separator: "; ")
+            return playing.sorted().map { "\($0) waits for \(waiting[$0]!.name)" }.joined(separator: "; ")
         }
     }
 
@@ -107,7 +109,7 @@ public final class Channel: @unchecked Sendable {
     func wait(for name: String, end: Bool, timeout: Duration, as runner: String? = nil) async throws {
         let phase: Event.Phase = end ? .end : .start
         let deadline = ContinuousClock.now + timeout
-        if let runner { lock.withLock { waiting[runner] = name } }
+        if let runner { lock.withLock { waiting[runner] = (name, phase) } }
         defer { if let runner { lock.withLock { waiting[runner] = nil } } }
         while !events.contains(where: { $0.name == name && $0.phase == phase }) {
             if let stuck = deadlock() {

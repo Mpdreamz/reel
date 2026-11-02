@@ -194,6 +194,32 @@ struct TogetherTests {
         #expect(ContinuousClock.now - started < .seconds(2), "caught at once, not after the timeout")
     }
 
+    @Test func aStepAlreadySaidIsNoDeadlock() async throws {
+        let channel = try Channel.fresh(
+            at: FileManager.default.temporaryDirectory.appending(path: "reel-said-\(UUID().uuidString).jsonl")
+        )
+        channel.expect(["a-done", "b-done"])
+        channel.join("a")
+        channel.join("b")
+        // b says what a waits for, then waits at once, before a has looked again: a is not stuck, it goes on and
+        // leaves. Only then is b alone, waiting for a step no track will take.
+        let error = await #expect(throws: ReelError.self) {
+            try await withThrowingTaskGroup(of: Void.self) { group in
+                group.addTask {
+                    try await channel.wait(for: "b-done", end: false, timeout: .seconds(10), as: "a")
+                    channel.leave("a")
+                }
+                group.addTask {
+                    try await Task.sleep(for: .milliseconds(100))
+                    channel.post(reel: "b.reel", line: 1, name: "b-done", phase: .start)
+                    try await channel.wait(for: "a-done", end: false, timeout: .seconds(10), as: "b")
+                }
+                try await group.waitForAll()
+            }
+        }
+        #expect(error?.description == "no track can go on: b waits for a-done")
+    }
+
     @Test func aWaitForAnotherProcessIsNoDeadlock() async throws {
         let channel = try Channel.fresh(
             at: FileManager.default.temporaryDirectory.appending(path: "reel-outside-\(UUID().uuidString).jsonl")
