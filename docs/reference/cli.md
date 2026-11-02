@@ -26,6 +26,19 @@ reel doctor
 `--profile` renders only some profiles: repeat it, or separate names with commas (`--profile github,social`). A reel
 that lists its profiles (`Set Profiles`) renders only from among them.
 
+Rendering says what it is doing as it goes, a line before each pass, then where it wrote each output:
+
+```
+profile web
+rendering the take
+framing it at 16:10
+adding the intro and outro
+encoding musicbox-web.mp4
+wrote docs/media/musicbox-web.mp4 (12.2 MB, H.264 1920x1256, 30 fps, quality 60)
+drawing musicbox-web.gif
+wrote docs/media/musicbox-web.gif (412 frames of 1500 sampled, 9.9 MB)
+```
+
 Warnings, such as a relative path that leads out of the git repository, go to standard error. Exit status is
 non-zero on any error, with the line it was on.
 
