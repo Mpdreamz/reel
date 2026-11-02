@@ -300,7 +300,7 @@ extension Renderer {
         else { throw ReelError("cannot draw the tracks together") }
         session.videoComposition = video
         try? FileManager.default.removeItem(at: url)
-        try await session.export(to: url, as: .mov)
+        try await session.exportReporting(to: url, as: .mov, pass: .tracks)
         return Int((composition.duration.seconds * 1000).rounded())
     }
 

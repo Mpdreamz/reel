@@ -94,6 +94,15 @@ public enum Recorder {
 
         log("recording \(window.owningApplication?.applicationName ?? "app"), \(width)×\(height)")
         try await stream.startCapture()
+        let recorded = window.frame.offsetBy(dx: stage.crop.minX, dy: stage.crop.minY)
+        Events.emit(.recording(
+            phase: .start,
+            window: RunEvent.Rect(
+                x: recorded.minX, y: recorded.minY, width: stage.crop.width, height: stage.crop.height
+            ),
+            excluded: others.map(\.processID)
+        ))
+        defer { Events.emit(.recording(phase: .end, window: nil, excluded: [])) }
         let start: CMTime
         do {
             start = try await firstFrame(of: writer, sink: sink)
@@ -113,11 +122,13 @@ public enum Recorder {
             stage.web?.clock = { milliseconds(since: start) }
             stage.web?.startTrack()
             let reel = location.reelName
+            let steps = StepCount(tape)
             for step in tape.steps {
                 // Any other zoom (a point, the cursor, off) releases the lock.
                 if case let .zoom(target, _, _) = step.command, !target.isElement { focus = nil }
                 guard !step.command.isRenderOnly else { continue }
                 channel?.post(reel: reel, line: step.line, name: step.name, phase: .start)
+                steps.start(step)
                 var begin = milliseconds(since: start)
                 var landed: CGRect?
                 var clip: String?
@@ -161,6 +172,7 @@ public enum Recorder {
                     nil
                 }
                 channel?.post(reel: reel, line: step.line, name: step.name, phase: .end, click: click)
+                steps.end(step)
                 if let focus, let frame = await driver?.currentFrame(of: focus) {
                     focusTrack.append(Take.Sample(ms: milliseconds(since: start), frame: frame))
                 }

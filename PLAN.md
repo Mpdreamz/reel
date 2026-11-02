@@ -496,6 +496,21 @@ picture, it drops to 30 frames a second, then narrows. At most four encodes; the
 it reached and what to lower, and leaves no file. A GIF over its size is drawn again with fewer colours (128, then
 64), then fewer frames (10 a second), then narrower, all at once when it is far over; at most six writes.
 
+## Progress events
+
+- **What a run says.** `run`, `record` and `render` say what they do as `RunEvent`s (`Sources/ReelEvents`), JSON
+  lines: started (the reel, the command, its scenes, profiles and Outputs), scene, step start and end (the how-manieth
+  of the steps that record), recording start (the part of the screen recorded and the pids kept out of it) and end,
+  pass (`draw`, `render`, `frame`, `join`, `tracks`, `encode`, `gif`, with its profile, Output, scene, attempt and
+  fraction), wrote, note (each printed line), failed, ended. They go to `~/Library/Application Support/reel/runs/<pid>.jsonl`
+  and, with `--events`, a file or standard error. A dead run's file goes once it is a day old.
+- **Where they come from.** The sink and what an event is about (the track, the profile, the Output, the scene) are
+  task-local (`Events`), so the recorders and the renderer say it where it happens. Export sessions are read ten times
+  a second, an encode by the time of the last frame it appended, a GIF by the frames it sampled, a screen by the
+  take's clock; a pass never goes back and is said at most ten times a second, always at 0 and 1.
+- **Not the channel.** Nothing reads them back, and `REEL_CHANNEL` is untouched, so a `Wait for` does as it did. They
+  are for watching a run: the companion app (to come) shows them.
+
 ## How a take is captured
 
 - The filter is the window's display without every other running app (`excludingApplications:`), cropped to the

@@ -29,6 +29,9 @@ extension Recorder {
         log: (String) -> Void
     ) async throws -> Take {
         let startedAt = Channel.now
+        // Drawn by reel itself, nowhere on the screen: there is no window to point at, and nothing to keep out.
+        Events.emit(.recording(phase: .start, window: nil, excluded: []))
+        defer { Events.emit(.recording(phase: .end, window: nil, excluded: [])) }
         let played = try await playCode(
             tape, narration: narration, reel: location.reelName, channel: channel, startedAt: startedAt, as: runner,
             log: log
@@ -74,10 +77,12 @@ extension Recorder {
             following = nil
         }
         defer { stopFollowing() }
+        let steps = StepCount(tape)
         for step in tape.steps where !step.command.isRenderOnly {
             var begin = now
             var clip: String?
             channel?.post(reel: reel, line: step.line, name: step.name, phase: .start)
+            steps.start(step)
             // Throws only as its arguments do: reading a file can.
             func call(_ body: String, _ arguments: [String: Any]) throws {
                 calls.append(CodeCall(ms: now, line: step.line, body: body, arguments: arguments))
@@ -219,6 +224,7 @@ extension Recorder {
             }
             events.append(Take.Event(line: step.line, command: step.source, startMs: begin, endMs: now, clip: clip))
             channel?.post(reel: reel, line: step.line, name: step.name, phase: .end)
+            steps.end(step)
         }
         // The take runs until the last line has been said.
         try await advance(to: Int((speech.speechEnd * 1000).rounded()))
@@ -259,19 +265,22 @@ extension Recorder {
         )
         let film = try ScreenFilm(page: screen, size: viewport, into: location, frameRate: tape.frameRate)
         log("drawing the code screen, \(film.width)×\(film.height)")
-        try await film.advance(to: 0)
-        for call in calls {
-            try await film.advance(to: call.ms)
-            // Made on this pass, read only by the page: nothing else holds them.
-            nonisolated(unsafe) let arguments = call.arguments
-            do {
-                try await screen.step(call.body, arguments)
-            } catch let error as ReelError {
-                throw ReelError("line \(call.line): \(error.description)")
+        film.end = end
+        return try await Events.pass(.draw) {
+            try await film.advance(to: 0)
+            for call in calls {
+                try await film.advance(to: call.ms)
+                // Made on this pass, read only by the page: nothing else holds them.
+                nonisolated(unsafe) let arguments = call.arguments
+                do {
+                    try await screen.step(call.body, arguments)
+                } catch let error as ReelError {
+                    throw ReelError("line \(call.line): \(error.description)")
+                }
             }
+            try await film.advance(to: end)
+            return try await film.finish(events: events, log: log)
         }
-        try await film.advance(to: end)
-        return try await film.finish(events: events, log: log)
     }
 
     /// What the page needs to show a file: its text (only `lines a-b` of it when given), what to call it, and where.
@@ -405,6 +414,8 @@ final class ScreenFilm {
     let frameRate: Int
     /// The take's clock, in milliseconds.
     private(set) var now = 0
+    /// When the take ends, for saying how far drawing it is.
+    var end: Int?
     private var shown = 0
     private var frameCount = 0
     /// Where the caret was: what `Zoom cursor` follows.
@@ -445,6 +456,7 @@ final class ScreenFilm {
             }
             frameCount += 1
         }
+        if let end, end > 0 { Events.report(Double(now) / Double(end)) }
     }
 
     /// Ends the movie at the clock's time, and the take that goes with it.

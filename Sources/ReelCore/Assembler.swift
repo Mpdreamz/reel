@@ -281,7 +281,7 @@ public enum Assembler {
             at: output.url.deletingLastPathComponent(), withIntermediateDirectories: true
         )
         try? FileManager.default.removeItem(at: output.url)
-        try await session.export(to: output.url, as: output.format == .mp4 ? .mp4 : .mov)
+        try await session.exportReporting(to: output.url, as: output.format == .mp4 ? .mp4 : .mov, pass: .join)
         return arrangement
     }
 

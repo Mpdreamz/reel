@@ -51,10 +51,12 @@ public enum Tracks {
                         if !track.isAttached { playing.done() }
                     }
                     do {
-                        _ = try await Recorder.record(
-                            track.tape, into: Self.location(of: track, in: location), channel: channel,
-                            as: track.name, until: stop, log: { log("\(track.name): \($0)") }
-                        )
+                        _ = try await Events.$track.withValue(track.name) {
+                            try await Recorder.record(
+                                track.tape, into: Self.location(of: track, in: location), channel: channel,
+                                as: track.name, until: stop, log: { log("\(track.name): \($0)") }
+                            )
+                        }
                     } catch {
                         throw ReelError("\(track.name): \(error.localizedDescription)")
                     }
@@ -97,8 +99,10 @@ public enum Tracks {
         }
         var events: [Take.Event] = []
         var speech = SpeechClock()
+        let steps = StepCount(tape)
         for step in tape.steps where !step.command.isRenderOnly {
             channel.post(reel: reel, line: step.line, name: step.name, phase: .start)
+            steps.start(step)
             var begin = now()
             var clip: String?
             do {
@@ -124,6 +128,7 @@ public enum Tracks {
             }
             events.append(Take.Event(line: step.line, command: step.source, startMs: begin, endMs: now(), clip: clip))
             channel.post(reel: reel, line: step.line, name: step.name, phase: .end)
+            steps.end(step)
         }
         try await sleep(until: Int((speech.speechEnd * 1000).rounded()))
         var take = Take(

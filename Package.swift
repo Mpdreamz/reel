@@ -7,7 +7,9 @@ let package = Package(
     products: [.executable(name: "reel", targets: ["reel"])],
     dependencies: [.package(url: "https://github.com/apple/swift-argument-parser", from: "1.6.0")],
     targets: [
-        .target(name: "ReelCore", resources: [.copy("Resources/Screen")]),
+        // What a run says it is doing, as JSON lines: shared with whatever watches a run, the companion app.
+        .target(name: "ReelEvents"),
+        .target(name: "ReelCore", dependencies: ["ReelEvents"], resources: [.copy("Resources/Screen")]),
         .executableTarget(
             name: "reel",
             dependencies: ["ReelCore", .product(name: "ArgumentParser", package: "swift-argument-parser")]

@@ -62,9 +62,9 @@ public enum GifWriter {
         async throws -> Result
     {
         var look = look
-        var result = try await write(
-            from: movie, to: url, frameRate: look.frameRate, width: look.width, colors: look.colors
-        )
+        var result = try await Events.pass(.gif, attempt: 1) { [look] in
+            try await write(from: movie, to: url, frameRate: look.frameRate, width: look.width, colors: look.colors)
+        }
         guard let maxBytes else { return result }
         var writes = 1
         while result.bytes > maxBytes {
@@ -76,10 +76,10 @@ public enum GifWriter {
                 )
             }
             look = look.smaller(than: Double(result.bytes) / Double(maxBytes))
-            result = try await write(
-                from: movie, to: url, frameRate: look.frameRate, width: look.width, colors: look.colors
-            )
             writes += 1
+            result = try await Events.pass(.gif, attempt: writes) { [look] in
+                try await write(from: movie, to: url, frameRate: look.frameRate, width: look.width, colors: look.colors)
+            }
         }
         result.writes = writes
         return result
@@ -109,7 +109,11 @@ public enum GifWriter {
         // drift cannot add up unnoticed.
         var runs: [(image: CGImage, start: Double)] = []
         var kept: Data?
+        var sampled = 0
         for await result in generator.images(for: times) {
+            sampled += 1
+            // Sampling is most of the time a GIF takes; the palette and the writing are the rest.
+            Events.report(0.9 * Double(sampled) / Double(count))
             let image = try result.image
             let pixels = image.dataProvider?.data as Data?
             if let pixels, let kept, looksTheSame(pixels, kept) { continue }
