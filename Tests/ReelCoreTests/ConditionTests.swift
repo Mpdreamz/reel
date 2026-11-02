@@ -180,8 +180,9 @@ struct ConditionRenderTests {
         )
         var lines: [String] = []
         try await Renderer.render(tape: tape, from: location, log: { lines.append($0) })
-        #expect(lines.count == 2)
-        #expect(lines[0].contains("demo.mp4 (") && lines[0].contains("160x100"))
-        #expect(lines[1].contains("demo.gif ("))
+        let wrote = lines.filter { $0.hasPrefix("wrote ") }
+        #expect(wrote.count == 2)
+        #expect(wrote[0].contains("demo.mp4 (") && wrote[0].contains("160x100"))
+        #expect(wrote[1].contains("demo.gif ("))
     }
 }

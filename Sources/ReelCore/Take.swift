@@ -25,6 +25,9 @@ public struct Take: Codable, Equatable, Sendable {
     public var drawnCursor: Bool?
     /// The wall clock at the take's first frame, in milliseconds since 1970: how takes recorded at once line up.
     public var startedAt: Int?
+    /// Clicks another reel made in an attached app's window while it was recorded (`Attach`), each when it ended:
+    /// ripples are drawn for them as for the take's own.
+    public var clicks: [Sample]?
 
     /// A position at a moment: a point (zero size) or a frame, in points from the window's top left.
     public struct Sample: Codable, Equatable, Sendable {

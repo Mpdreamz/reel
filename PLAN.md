@@ -35,7 +35,7 @@
    Phase 3: tracks, several subjects recorded at once in one reel (indented or `With x.reel as name`) and drawn
    together. Phase 4: `Follow`, a code screen marking the line of the reel it shows as that reel runs. Phase 5:
    `Attach`, an app something else opens, as a track. Phase 6: the director's moves (`Set Layout`, `Layout`,
-   `Split`, `Spotlight`, `Fullscreen`, `Pip`). Next: the showcase; later, `Set Spotlight auto`.
+   `Split`, `Spotlight`, `Fullscreen`, `Pip`). The showcase, `demos/showcase.reel`, is the landing page's video. Later, `Set Spotlight auto`.
 16. **The companion app.** Reel Companion, in the menu bar: each run's scene, steps and render passes from its
    progress events, and a frame and a pill on the window being recorded, kept out of the take (see "Progress events").
 
@@ -163,9 +163,12 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 
 ## Narration
 
-- **Voiced before recording.** Every `Say` is voiced before the app opens, each piece of text between `[markers]`
-  on its own, and cached in `.reel/<reel>/voice/` by text, voice and seed. A marker's time is the length of the
-  pieces before it, exactly; no alignment or speech recognition. The cost is a seam in intonation at each marker.
+- **Voiced before recording.** Every `Say` is voiced before the app opens and cached in `.reel/<reel>/voice/` by text,
+  voice and seed. A line with `[markers]` is voiced whole, and each piece of text between them on its own: a marker
+  is the whole line's lead-in plus the speech of the pieces before it (each clip's padding trimmed, both ends),
+  moved to where speech resumes when a pause starts within 0.12 s of that. No speech recognition; voicebox gives no
+  word times. A piece said alone stretches its last word, so between words run together a marker can land up to a
+  syllable late (a hero line measured 0.15–0.2 s); before a pause it lands on the next word.
 - **The reel runs on a speech clock.** `Say` blocks for its line's length; `Say@over` starts it and carries on;
   `Wait [marker]` sleeps until the line reaches the marker. Lines never overlap: one starts when the line before
   ends. The take runs until the last line has been said. Nothing is played aloud while recording.
@@ -355,7 +358,9 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 - **Attach.** A track whose subject is an app something else opens: it polls the running apps for its bundle id or
   path (at least a minute), then records the window as an app track does, posting its own name on the channel at the
   first frame, so others `Wait for` it. After its steps it holds until a `Stop` fires, once every other track and the
-  director have finished (`Countdown`), or until the app quits.
+  director have finished (`Countdown`), or until the app quits. An app reel's `Click` posts where it landed, on the
+  screen, with its step's end; an attached take keeps those that landed in what it recorded (`Take.clicks`), and
+  render ripples them as the take's own.
 - **Follow.** A watcher reads the channel while the track plays on, and for each step of the reel the pane shows
   (by file name) that starts, adds a call to the log that highlights its line, timed by the event's own wall clock
   against the take's start; a step that started before `Follow` shows from it. The log is shared with the watcher
