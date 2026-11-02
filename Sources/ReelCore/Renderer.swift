@@ -17,13 +17,17 @@ public enum Renderer {
                     "skipped \(output.url.lastPathComponent): \(profile?.name ?? "the tape") writes no .\(output.format)"
                 )
             }
-            // A tape whose values differ by Output type is read once for each type it writes.
-            if read.conditionsOnFormat {
-                for format in Output.Format.allCases where read.outputs.contains(where: { $0.format == format }) {
-                    try await renderOnce(tape: tape.with(profile: profile, format: format), from: location, log: log)
+            try await Events.$profile.withValue(profile?.name) {
+                // A tape whose values differ by Output type is read once for each type it writes.
+                if read.conditionsOnFormat {
+                    for format in Output.Format.allCases where read.outputs.contains(where: { $0.format == format }) {
+                        try await renderOnce(
+                            tape: tape.with(profile: profile, format: format), from: location, log: log
+                        )
+                    }
+                } else {
+                    try await renderOnce(tape: read, from: location, log: log)
                 }
-            } else {
-                try await renderOnce(tape: read, from: location, log: log)
             }
         }
     }
@@ -173,17 +177,23 @@ public enum Renderer {
         var encoding = tape.encoding
         encoding.frameRate = tape.videoFrameRate
         for output in tape.outputs where output.format != .gif {
-            let result = try await Encoder.fit(
-                source(for: output), to: output, with: encoding, frameRate: frameRate, under: tape.maxSize
-            )
-            log("wrote \(output.url.path) (\(describe(result, frameRate: frameRate, under: tape.maxSize)))")
+            let result = try await Events.about(output: output) {
+                try await Encoder.fit(
+                    source(for: output), to: output, with: encoding, frameRate: frameRate, under: tape.maxSize
+                )
+            }
+            let summary = describe(result, frameRate: frameRate, under: tape.maxSize)
+            log("wrote \(output.url.path) (\(summary))")
+            Events.emit(.wrote(path: output.url.path, summary: summary))
         }
         for gif in tape.outputs where gif.format == .gif {
-            let result = try await GifWriter.fit(
-                from: source(for: gif), to: gif.url,
-                look: GifWriter.Look(frameRate: tape.gifFrameRate, width: tape.gifWidth, colors: tape.gifColors),
-                under: tape.maxSize
-            )
+            let result = try await Events.about(output: gif) {
+                try await GifWriter.fit(
+                    from: source(for: gif), to: gif.url,
+                    look: GifWriter.Look(frameRate: tape.gifFrameRate, width: tape.gifWidth, colors: tape.gifColors),
+                    under: tape.maxSize
+                )
+            }
             var notes = ["\(result.frames) frames of \(result.sampled) sampled", megabytes(result.bytes)]
             if result.writes > 1 {
                 notes.append(
@@ -192,6 +202,7 @@ public enum Renderer {
                 )
             }
             log("wrote \(gif.url.path) (\(notes.joined(separator: ", ")))")
+            Events.emit(.wrote(path: gif.url.path, summary: notes.joined(separator: ", ")))
         }
     }
 
@@ -376,7 +387,7 @@ public enum Renderer {
         case .mov: .mov
         case .gif: preconditionFailure()
         }
-        try await session.export(to: output.url, as: type)
+        try await session.exportReporting(to: output.url, as: type, pass: .render)
     }
 
     /// The zoom as transform ramps, sampled 30 times a second of the take and placed in the output's time.

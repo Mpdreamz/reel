@@ -92,7 +92,9 @@ public enum Encoder {
         _ movie: URL, to output: Output, with encoding: Encoding, frameRate: Int, under maxBytes: Int?,
         tries: Int = 4
     ) async throws -> Result {
-        var result = try await encode(movie, to: output, with: encoding, frameRate: frameRate)
+        var result = try await Events.pass(.encode, attempt: 1) {
+            try await encode(movie, to: output, with: encoding, frameRate: frameRate)
+        }
         guard let maxBytes, result.bytes > maxBytes else { return result }
         let asset = AVURLAsset(url: movie)
         let seconds = try await asset.load(.duration).seconds
@@ -130,7 +132,9 @@ public enum Encoder {
             // Below this the encoder refuses, and nothing worth watching is left anyway.
             guard bitrate >= 50000 else { break }
             fitted.bitrate = Int(bitrate)
-            result = try await encode(movie, to: output, with: fitted, frameRate: frameRate)
+            result = try await Events.pass(.encode, attempt: attempt) { [fitted] in
+                try await encode(movie, to: output, with: fitted, frameRate: frameRate)
+            }
             result.encodes = attempt
             if result.bytes <= maxBytes {
                 // Well under, with tries to spare: once more, richer, keeping this one should that not fit.
@@ -141,7 +145,9 @@ public enum Encoder {
             }
             if let roomy {
                 // The richer try went over: the one before it is the answer.
-                var kept = try await encode(movie, to: output, with: roomy.encoding, frameRate: frameRate)
+                var kept = try await Events.pass(.encode, attempt: attempt + 1) {
+                    try await encode(movie, to: output, with: roomy.encoding, frameRate: frameRate)
+                }
                 kept.encodes = attempt + 1
                 return kept
             }
@@ -300,7 +306,12 @@ public enum Encoder {
         writer.startSession(atSourceTime: .zero)
         // Fewer frames a second than the movie's: each kept frame lasts until the next one.
         let keep = encoding.frameRate.flatMap { $0 < frameRate ? $0 : nil }
-        let picturePump = Pump(output: frames, input: video, writer: writer, frameRate: keep)
+        // How far the picture is, for the pass this encode is: the last frame appended against the movie's length.
+        let length = try await asset.load(.duration).seconds
+        let progress = Events.current.map { reporter in
+            { @Sendable (time: Double) in reporter.say(length > 0 ? time / length : 0) }
+        }
+        let picturePump = Pump(output: frames, input: video, writer: writer, frameRate: keep, progress: progress)
         let soundPump = samples.flatMap { samples in audio.map { Pump(output: samples, input: $0, writer: writer) } }
         async let pictureDone: Void = picturePump.run()
         await soundPump?.run()
@@ -332,12 +343,18 @@ private final class Pump: @unchecked Sendable {
     /// With a frame rate, only the first frame in each of its slots is kept.
     private let frameRate: Int?
     private var lastSlot = Int.min
+    /// Told the time of each sample appended, in seconds.
+    private let progress: (@Sendable (Double) -> Void)?
 
-    init(output: AVAssetReaderOutput, input: AVAssetWriterInput, writer: AVAssetWriter, frameRate: Int? = nil) {
+    init(
+        output: AVAssetReaderOutput, input: AVAssetWriterInput, writer: AVAssetWriter, frameRate: Int? = nil,
+        progress: (@Sendable (Double) -> Void)? = nil
+    ) {
         self.output = output
         self.input = input
         self.writer = writer
         self.frameRate = frameRate
+        self.progress = progress
     }
 
     /// Feeds the output's samples into the input as fast as it takes them, and returns once they run out, the
@@ -382,6 +399,7 @@ private final class Pump: @unchecked Sendable {
                 finish(done)
                 return
             }
+            progress?(CMSampleBufferGetPresentationTimeStamp(buffer).seconds)
         }
     }
 }

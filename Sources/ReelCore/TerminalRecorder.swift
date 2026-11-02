@@ -30,6 +30,9 @@ extension Recorder {
         }
         session.startClock()
         let startedAt = Channel.now
+        // Drawn by reel itself, nowhere on the screen: there is no window to point at, and nothing to keep out.
+        Events.emit(.recording(phase: .start, window: nil, excluded: []))
+        defer { Events.emit(.recording(phase: .end, window: nil, excluded: [])) }
 
         var events: [Take.Event] = []
         /// What the drawing pass does besides printing: marks and callouts, at their times.
@@ -63,10 +66,12 @@ extension Recorder {
             }
         }
 
+        let steps = StepCount(tape)
         for step in tape.steps where !step.command.isRenderOnly {
             var begin = session.now
             var clip: String?
             channel.post(reel: location.reelName, line: step.line, name: step.name, phase: .start)
+            steps.start(step)
             do {
                 switch step.command {
                 case let .sleep(duration):
@@ -126,6 +131,7 @@ extension Recorder {
                 line: step.line, command: step.source, startMs: begin, endMs: session.now, clip: clip
             ))
             channel.post(reel: location.reelName, line: step.line, name: step.name, phase: .end)
+            steps.end(step)
         }
         try await sleep(until: Int((clock.speechEnd * 1000).rounded()))
         let end = session.now
@@ -166,6 +172,7 @@ extension Recorder {
         try await page.step("return reelScreen.layout()")
         let film = try ScreenFilm(page: page, size: size, into: location, frameRate: tape.frameRate)
         log("drawing the terminal, \(film.width)×\(film.height)")
+        film.end = end
         var marks = pointers[...]
         func point(_ next: (ms: Int, line: Int, step: Pointer)) async throws {
             try await film.advance(to: next.ms)
@@ -175,19 +182,21 @@ extension Recorder {
                 throw ReelError("line \(next.line): \(error.description)")
             }
         }
-        for piece in output {
-            while let next = marks.first, next.ms <= piece.ms {
-                try await point(next)
-                marks.removeFirst()
+        return try await Events.pass(.draw) {
+            for piece in output {
+                while let next = marks.first, next.ms <= piece.ms {
+                    try await point(next)
+                    marks.removeFirst()
+                }
+                try await film.advance(to: piece.ms)
+                try await page.step("await reelScreen.feed(t); return null", ["t": piece.text])
             }
-            try await film.advance(to: piece.ms)
-            try await page.step("await reelScreen.feed(t); return null", ["t": piece.text])
+            for next in marks {
+                try await point(next)
+            }
+            try await film.advance(to: end)
+            return try await film.finish(events: events, log: log)
         }
-        for next in marks {
-            try await point(next)
-        }
-        try await film.advance(to: end)
-        return try await film.finish(events: events, log: log)
     }
 }
 

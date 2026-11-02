@@ -52,22 +52,25 @@ struct Run: AsyncParsableCommand {
 
     @OptionGroup var tape: TapeArgument
     @OptionGroup var profiles: ProfileOption
+    @OptionGroup var events: EventsOption
 
     func run() async throws {
         let parsed = try tape.load()
-        // Refused before recording, not after: every profile is read, its settings checked.
-        for profile in try parsed.profilesToRender(chosen: profiles.chosen) {
-            _ = try parsed.with(profile: profile)
+        try await events.reporting("run", tape: parsed, at: tape.url, profiles: profiles.chosen) {
+            // Refused before recording, not after: every profile is read, its settings checked.
+            for profile in try parsed.profilesToRender(chosen: profiles.chosen) {
+                _ = try parsed.with(profile: profile)
+            }
+            let location = TakeLocation(tape: tape.url)
+            if parsed.launch.isSequence {
+                try await Scenes.record(parsed, log: say)
+            } else if parsed.launch.isTogether {
+                try await Tracks.record(parsed, into: location, log: say)
+            } else {
+                _ = try await Recorder.record(parsed, into: location, log: say)
+            }
+            try await Renderer.render(tape: parsed, from: location, profiles: profiles.chosen, log: say)
         }
-        let location = TakeLocation(tape: tape.url)
-        if parsed.launch.isSequence {
-            try await Scenes.record(parsed, log: say)
-        } else if parsed.launch.isTogether {
-            try await Tracks.record(parsed, into: location, log: say)
-        } else {
-            _ = try await Recorder.record(parsed, into: location, log: say)
-        }
-        try await Renderer.render(tape: parsed, from: location, profiles: profiles.chosen, log: say)
     }
 }
 
@@ -75,20 +78,23 @@ struct Record: AsyncParsableCommand {
     static let configuration = CommandConfiguration(abstract: "Only capture the take, into .reel/<reel name>/.")
 
     @OptionGroup var tape: TapeArgument
+    @OptionGroup var events: EventsOption
 
     func run() async throws {
         let location = TakeLocation(tape: tape.url)
         let parsed = try tape.load()
-        if parsed.launch.isSequence {
-            try await Scenes.record(parsed, log: say)
-            return
+        try await events.reporting("record", tape: parsed, at: tape.url, profiles: []) {
+            if parsed.launch.isSequence {
+                try await Scenes.record(parsed, log: say)
+                return
+            }
+            if parsed.launch.isTogether {
+                try await Tracks.record(parsed, into: location, log: say)
+                return
+            }
+            let take = try await Recorder.record(parsed, into: location, log: say)
+            say("take: \(location.directory.path) (\(take.width)×\(take.height), \(take.durationMs) ms)")
         }
-        if parsed.launch.isTogether {
-            try await Tracks.record(parsed, into: location, log: say)
-            return
-        }
-        let take = try await Recorder.record(parsed, into: location, log: say)
-        say("take: \(location.directory.path) (\(take.width)×\(take.height), \(take.durationMs) ms)")
     }
 }
 
@@ -97,11 +103,78 @@ struct Render: AsyncParsableCommand {
 
     @OptionGroup var tape: TapeArgument
     @OptionGroup var profiles: ProfileOption
+    @OptionGroup var events: EventsOption
 
     func run() async throws {
-        try await Renderer.render(
-            tape: tape.load(), from: TakeLocation(tape: tape.url), profiles: profiles.chosen, log: say
+        let parsed = try tape.load()
+        try await events.reporting("render", tape: parsed, at: tape.url, profiles: profiles.chosen) {
+            try await Renderer.render(
+                tape: parsed, from: TakeLocation(tape: tape.url), profiles: profiles.chosen, log: say
+            )
+        }
+    }
+}
+
+struct EventsOption: ParsableArguments {
+    @Option(
+        name: .customLong("events"),
+        help: ArgumentHelp(
+            "Also write what the run does, as JSON lines, to this file (- for standard error). Every run writes them "
+                + "to ~/Library/Application Support/reel/runs/<pid>.jsonl for the companion app.",
+            valueName: "path"
         )
+    )
+    var path: String?
+
+    /// Runs `body` with its events going to the runs folder and to `--events`: started first, then what it does,
+    /// then failed and ended, or ended.
+    func reporting(
+        _ command: String, tape: Tape, at url: URL, profiles chosen: [String], _ body: () async throws -> Void
+    ) async throws {
+        let pid = ProcessInfo.processInfo.processIdentifier
+        var sinks: [any EventSink] = []
+        if let run = Self.runFile(for: pid) { sinks.append(FileSink(url: run)) }
+        if let path {
+            let target = path == "-" ? "/dev/stderr" : (path as NSString).expandingTildeInPath
+            if path != "-" { FileManager.default.createFile(atPath: target, contents: nil) }
+            sinks.append(FileSink(url: URL(fileURLWithPath: target)))
+        }
+        let scenes = tape.launch.isSequence ? (try? Scenes.load(tape))?.map(\.0.url.lastPathComponent) ?? [] : []
+        let profiles = (try? tape.profilesToRender(chosen: chosen))?.compactMap { $0?.name } ?? []
+        try await Events.$sink.withValue(Sinks(sinks)) {
+            Events.emit(.started(
+                reel: url.path, command: command, scenes: scenes, profiles: profiles,
+                outputs: tape.outputs.map(\.url.lastPathComponent)
+            ))
+            do {
+                try await body()
+            } catch {
+                Events.emit(.failed((error as? CustomStringConvertible)?.description ?? error.localizedDescription))
+                Events.emit(.ended(ok: false))
+                throw error
+            }
+            Events.emit(.ended(ok: true))
+        }
+    }
+
+    /// This run's file in the runs folder, empty (a pid used before may have left one). Files of runs that have not
+    /// been running for a day go: the companion has shown them.
+    static func runFile(for pid: Int32) -> URL? {
+        let folder = Runs.folder
+        let files = FileManager.default
+        guard (try? files.createDirectory(at: folder, withIntermediateDirectories: true)) != nil else { return nil }
+        let old = Date().addingTimeInterval(-24 * 60 * 60)
+        for file in (try? files.contentsOfDirectory(
+            at: folder,
+            includingPropertiesForKeys: [.contentModificationDateKey]
+        )) ?? [] {
+            guard let other = Runs.pid(of: file), !Runs.isAlive(other) else { continue }
+            let modified = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            if let modified, modified < old { try? files.removeItem(at: file) }
+        }
+        let url = Runs.file(for: pid, in: folder)
+        guard files.createFile(atPath: url.path, contents: nil) else { return nil }
+        return url
     }
 }
 
@@ -253,6 +326,7 @@ private func describeSteps(of parsed: Tape) {
 
 private func say(_ line: String) {
     print(line)
+    Events.emit(.note(line))
 }
 
 private func warn(_ line: String) {

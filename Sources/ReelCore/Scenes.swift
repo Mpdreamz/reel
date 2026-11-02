@@ -60,6 +60,7 @@ public enum Scenes {
         let scenes = try load(tape)
         for (index, (scene, read)) in scenes.enumerated() {
             log("scene \(index + 1) of \(scenes.count): \(scene.url.lastPathComponent)")
+            Events.emit(.scene(index: index + 1, count: scenes.count, reel: scene.url.lastPathComponent))
             read.warnings.forEach { log("warning: \($0)") }
             if read.isTracks {
                 try await Tracks.record(read, into: TakeLocation(tape: scene.url), log: log)
@@ -102,6 +103,7 @@ extension Renderer {
         }
         for (index, (scene, read)) in scenes.enumerated() {
             let name = scene.url.lastPathComponent
+            let detail = "scene \(index + 1) of \(scenes.count)"
             let sceneTape = try Scenes.tape(read, for: tape.profile)
             let sceneLocation = TakeLocation(tape: scene.url)
             let taken = sceneTape.isTracks ? Tracks.director(in: sceneLocation) : sceneLocation.timeline
@@ -112,7 +114,9 @@ extension Renderer {
             if sceneTape.isTracks {
                 let rendered: RenderedTracks
                 do {
-                    rendered = try await renderTrackDemos(tape: sceneTape, from: sceneLocation, log: log)
+                    rendered = try await Events.$detail.withValue(detail) {
+                        try await renderTrackDemos(tape: sceneTape, from: sceneLocation, log: log)
+                    }
                 } catch {
                     throw ReelError("scene \(index + 1), \(name): \(error.localizedDescription)")
                 }
@@ -126,10 +130,13 @@ extension Renderer {
                 throw ReelError("scene \(index + 1), \(name): \(error.description)")
             }
             let url = directory.appending(path: "scene-\(index + 1).mov")
-            try await render(
-                sceneLocation.movie, take: prepared.take, overlays: prepared.overlays,
-                soundtrack: prepared.soundtrack, cut: prepared.cut, to: Output(url: url, format: .mov), lossless: true
-            )
+            try await Events.$detail.withValue(detail) {
+                try await render(
+                    sceneLocation.movie, take: prepared.take, overlays: prepared.overlays,
+                    soundtrack: prepared.soundtrack, cut: prepared.cut, to: Output(url: url, format: .mov),
+                    lossless: true
+                )
+            }
             demos.append((.take(url, prepared.take), scene.transition))
         }
         let frameRate = demos.map { demo in
