@@ -353,7 +353,9 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 - **Attach.** A track whose subject is an app something else opens: it polls the running apps for its bundle id or
   path (at least a minute), then records the window as an app track does, posting its own name on the channel at the
   first frame, so others `Wait for` it. After its steps it holds until a `Stop` fires, once every other track and the
-  director have finished (`Countdown`), or until the app quits.
+  director have finished (`Countdown`), or until the app quits. An app reel's `Click` posts where it landed, on the
+  screen, with its step's end; an attached take keeps those that landed in what it recorded (`Take.clicks`), and
+  render ripples them as the take's own.
 - **Follow.** A watcher reads the channel while the track plays on, and for each step of the reel the pane shows
   (by file name) that starts, adds a call to the log that highlights its line, timed by the event's own wall clock
   against the take's start; a step that started before `Follow` shows from it. The log is shared with the watcher
