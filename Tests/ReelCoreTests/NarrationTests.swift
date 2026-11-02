@@ -26,6 +26,36 @@ final class FakeVoice: Synthesizer, @unchecked Sendable {
     }
 }
 
+/// Speaks every word as 0.25 s of a tone with 0.1 s of silence between words, and trails 0.3 s of silence, as a
+/// voice pads what it says.
+final class PausingVoice: Synthesizer, @unchecked Sendable {
+    private(set) var spoken: [String] = []
+
+    var fingerprint: String {
+        "pausing"
+    }
+
+    var fileExtension: String {
+        "caf"
+    }
+
+    func speak(_ text: String, to url: URL) async throws {
+        spoken.append(text)
+        let words = text.split(separator: " ").count
+        let format = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1)!
+        let frames = AVAudioFrameCount((Double(words) * 0.35 + 0.2) * 48000)
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)!
+        buffer.frameLength = frames
+        for i in 0 ..< Int(frames) {
+            let at = Double(i) / 48000
+            let word = Int(at / 0.35)
+            let speaking = word < words && at - Double(word) * 0.35 < 0.25
+            buffer.floatChannelData![0][i] = speaking ? Float(0.5 * sin(2 * .pi * 440 * at)) : 0
+        }
+        try AVAudioFile(forWriting: url, settings: format.settings).write(from: buffer)
+    }
+}
+
 /// A mono 48 kHz sine at half amplitude.
 func writeTone(hertz: Double, seconds: Double, to url: URL) throws {
     let format = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1)!
@@ -52,10 +82,36 @@ struct NarrationTests {
             into: dir, with: voice, log: { _ in }
         )
         let line = try #require(narration.lines[3])
-        #expect(voice.spoken == ["Pick a track,", "then press", "space to play it."])
+        // The whole line too, to find the markers in; a voice with no pauses keeps the pieces.
+        #expect(voice.spoken == [
+            "Pick a track,", "then press", "space to play it.", "Pick a track, then press space to play it.",
+        ])
+        #expect(line.offsets == nil)
         #expect(line.lengths.map { ($0 * 100).rounded() / 100 } == [0.75, 0.5, 1])
         #expect(line.markerOffsets.mapValues { ($0 * 100).rounded() / 100 } == ["pick": 0.75, "play": 1.25])
         #expect(abs(line.duration - 2.25) < 0.01)
+    }
+
+    @Test func aLineIsVoicedWholeWithEachMarkerWhereTheNextWordStarts() async throws {
+        let dir = try TakeWriterTests().temporaryDirectory()
+        let voice = PausingVoice()
+        let narration = try await Narration.prepare(
+            tape("Say@over \"Pick a track, [pick] then press [play] space to play it.\""),
+            into: dir, with: voice, log: { _ in }
+        )
+        let line = try #require(narration.lines[3])
+        #expect(voice.spoken.last == "Pick a track, then press space to play it.")
+        // One clip, no seams: nine words, 0.35 s each, less the last word's pause, and its 0.3 s of padding.
+        #expect(line.pieces.count == 1)
+        #expect(abs(line.duration - (9 * 0.35 + 0.2)) < 0.01)
+        // "then" starts after three words, "space" after five; each piece's own padding is not counted.
+        #expect(line.markerOffsets.mapValues { ($0 * 100).rounded() / 100 } == ["pick": 1.05, "play": 1.75])
+        // Cached as voiced: render finds the same line without voicing it.
+        let again = try await Narration.prepare(
+            tape("Say@over \"Pick a track, [pick] then press [play] space to play it.\""),
+            into: dir, with: PausingVoice(), voicing: false, log: { _ in }
+        )
+        #expect(again.lines[3] == line)
     }
 
     @Test func aMarkerAtTheStartIsAnEmptyPiece() async throws {

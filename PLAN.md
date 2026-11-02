@@ -161,9 +161,11 @@ breadth first across the app's windows, so sheets and popovers count, and must b
 
 ## Narration
 
-- **Voiced before recording.** Every `Say` is voiced before the app opens, each piece of text between `[markers]`
-  on its own, and cached in `.reel/<reel>/voice/` by text, voice and seed. A marker's time is the length of the
-  pieces before it, exactly; no alignment or speech recognition. The cost is a seam in intonation at each marker.
+- **Voiced before recording.** Every `Say` is voiced before the app opens and cached in `.reel/<reel>/voice/` by text,
+  voice and seed. A line with `[markers]` is voiced whole, and each piece of text between them on its own: a marker
+  is where the pieces before it end (their trailing silence trimmed) snapped to the pause nearest that in the whole
+  line (within 0.35 s), as speech resumes. No speech recognition; voicebox gives no word times. When a marker has no
+  pause near, the line plays as its pieces, with a seam in intonation at each marker.
 - **The reel runs on a speech clock.** `Say` blocks for its line's length; `Say@over` starts it and carries on;
   `Wait [marker]` sleeps until the line reaches the marker. Lines never overlap: one starts when the line before
   ends. The take runs until the last line has been said. Nothing is played aloud while recording.

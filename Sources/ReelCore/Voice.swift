@@ -23,6 +23,8 @@ public struct Narration: Sendable {
         public var markers: [String]
         /// Names the voiced line: the take records it, and render refuses a take voiced differently.
         public var key: String
+        /// Where each marker falls, when the line was voiced whole (one piece) rather than split at its markers.
+        public var offsets: [Double]?
 
         public var duration: Double {
             lengths.reduce(0, +)
@@ -31,7 +33,7 @@ public struct Narration: Sendable {
         /// Where each marker falls, in seconds from the start of the line.
         public var markerOffsets: [String: Double] {
             Dictionary(uniqueKeysWithValues: markers.enumerated().map { index, name in
-                (name, lengths[...index].reduce(0, +))
+                (name, offsets?[index] ?? lengths[...index].reduce(0, +))
             })
         }
     }
@@ -60,15 +62,9 @@ public struct Narration: Sendable {
         for step in tape.steps {
             guard case let .say(speech, _) = step.command else { continue }
             let synthesizer = voices(speech.voice)
-            var urls: [URL?] = [], lengths: [Double] = [], keys: [String] = []
-            for piece in speech.pieces {
-                guard !piece.isEmpty else {
-                    urls.append(nil)
-                    lengths.append(0)
-                    keys.append("")
-                    continue
-                }
-                let key = digest("\(synthesizer.fingerprint)\n\(piece)")
+            /// The clip of `text`, voiced unless it is cached.
+            func clip(_ text: String) async throws -> (url: URL, key: String) {
+                let key = digest("\(synthesizer.fingerprint)\n\(text)")
                 let url = folder.appending(path: "\(key).\(synthesizer.fileExtension)")
                 if !FileManager.default.fileExists(atPath: url.path) {
                     guard voicing else {
@@ -77,19 +73,50 @@ public struct Narration: Sendable {
                                 + "record it again"
                         )
                     }
-                    log("voicing line \(step.line): \(piece)")
+                    log("voicing line \(step.line): \(text)")
                     let partial = folder.appending(path: "\(key).partial.\(synthesizer.fileExtension)")
-                    try await synthesizer.speak(piece, to: partial)
+                    try await synthesizer.speak(text, to: partial)
                     try FileManager.default.moveItem(at: partial, to: url)
                     voiced += 1
                 }
+                return (url, key)
+            }
+            var urls: [URL?] = [], lengths: [Double] = [], keys: [String] = []
+            for piece in speech.pieces {
+                guard !piece.isEmpty else {
+                    urls.append(nil)
+                    lengths.append(0)
+                    keys.append("")
+                    continue
+                }
+                let (url, key) = try await clip(piece)
                 urls.append(url)
                 try lengths.append(length(of: url))
                 keys.append(key)
             }
-            lines[step.line] = Line(
+            var line = Line(
                 pieces: urls, lengths: lengths, markers: speech.markers, key: digest(keys.joined(separator: "+"))
             )
+            // Voiced in pieces, a line has a seam at each marker. Voiced whole, each marker is found in it: where the
+            // speech before it ends (its pieces, their trailing silence trimmed), at the next pause, as speech resumes.
+            // When a marker has no pause near, the line stays in pieces.
+            if !speech.markers.isEmpty, speech.pieces.count(where: { !$0.isEmpty }) > 1 {
+                let (url, key) = try await clip(speech.text)
+                var spoken = 0.0
+                var offsets: [Double] = []
+                for (piece, url) in zip(speech.pieces, urls).dropLast() {
+                    if let url, !piece.isEmpty { spoken += try speechLength(of: url) }
+                    offsets.append(spoken)
+                }
+                let found = try offsets.map { try resumes(after: $0, in: url) }
+                if found.allSatisfy({ $0 != nil }) {
+                    line = try Line(
+                        pieces: [url], lengths: [length(of: url)], markers: speech.markers, key: key,
+                        offsets: found.compactMap(\.self)
+                    )
+                }
+            }
+            lines[step.line] = line
         }
         if !lines.isEmpty, voiced == 0 { log("narration: \(lines.count) lines, all cached") }
         return Narration(lines: lines)
@@ -99,6 +126,57 @@ public struct Narration: Sendable {
     static func length(of url: URL) throws -> Double {
         let file = try AVAudioFile(forReading: url)
         return Double(file.length) / file.processingFormat.sampleRate
+    }
+
+    /// How far a pause in speech may be from where a marker is expected and still be its.
+    static let pauseReach = 0.35
+
+    /// Loudness every 10 ms of the clip at `url`, and what counts as quiet in it: under an eighth of its loud parts.
+    private static func levels(of url: URL) throws -> (levels: [Float], quiet: Float) {
+        let file = try AVAudioFile(forReading: url)
+        let format = file.processingFormat
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(file.length)) else {
+            return ([], 0)
+        }
+        try file.read(into: buffer)
+        let window = Int(format.sampleRate / 100), frames = Int(buffer.frameLength)
+        guard let channel = buffer.floatChannelData?[0], window > 0 else { return ([], 0) }
+        let levels = stride(from: 0, to: frames, by: window).map { start in
+            let end = min(frames, start + window)
+            var sum: Float = 0
+            for i in start ..< end {
+                sum += channel[i] * channel[i]
+            }
+            return (sum / Float(end - start)).squareRoot()
+        }
+        let sorted = levels.sorted()
+        let loud = sorted.isEmpty ? 0 : sorted[Int(Double(sorted.count - 1) * 0.9)]
+        return (levels, loud / 8)
+    }
+
+    /// The clip's length up to the end of its speech: what it trails in silence left off.
+    static func speechLength(of url: URL) throws -> Double {
+        let (levels, quiet) = try levels(of: url)
+        guard let last = levels.lastIndex(where: { $0 >= quiet }) else { return 0 }
+        return Double(last + 1) / 100
+    }
+
+    /// Where speech resumes after the pause in the clip at `url` that starts nearest `time` (seconds), within
+    /// `pauseReach`; nil when there is none. A pause is at least 20 ms quiet.
+    static func resumes(after time: Double, in url: URL) throws -> Double? {
+        let (levels, quiet) = try levels(of: url)
+        var pauses: [(start: Double, end: Double)] = []
+        var start: Int?
+        for (index, level) in levels.enumerated() {
+            if level < quiet {
+                if start == nil { start = index }
+            } else if let from = start {
+                if index - from >= 2 { pauses.append((Double(from) / 100, Double(index) / 100)) }
+                start = nil
+            }
+        }
+        let near = pauses.filter { abs($0.start - time) <= pauseReach }
+        return near.min { abs($0.start - time) < abs($1.start - time) }?.end
     }
 
     static func digest(_ text: String) -> String {
