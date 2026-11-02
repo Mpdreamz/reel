@@ -167,6 +167,9 @@ play once it has. It records for as long as the rest of the reel plays, or until
 is attached at once; one that takes long to open has `WaitTimeout`, and at least a minute. Recording an app needs
 Screen Recording, as any app reel does.
 
+Clicks the reel in the terminal makes in that window ripple in the attached track, as a reel's own clicks do: each
+reel says on the channel where its clicks landed. `Set ClickRipples off` under the track leaves them out.
+
 ## Following a reel as it runs
 
 ```

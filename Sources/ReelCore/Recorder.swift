@@ -151,7 +151,16 @@ public enum Recorder {
                     w: landed.flatMap { $0.isEmpty ? nil : Double($0.width) },
                     h: landed.flatMap { $0.isEmpty ? nil : Double($0.height) }, clip: clip
                 ))
-                channel?.post(reel: reel, line: step.line, name: step.name, phase: .end)
+                // An app's click, on the screen: an attached recording of the same window draws its ripple.
+                let click: CGPoint? = if case .click = step.command, stage.web == nil, let landed {
+                    CGPoint(
+                        x: window.frame.minX + stage.crop.minX + landed.minX,
+                        y: window.frame.minY + stage.crop.minY + landed.minY
+                    )
+                } else {
+                    nil
+                }
+                channel?.post(reel: reel, line: step.line, name: step.name, phase: .end, click: click)
                 if let focus, let frame = await driver?.currentFrame(of: focus) {
                     focusTrack.append(Take.Sample(ms: milliseconds(since: start), frame: frame))
                 }
@@ -178,6 +187,16 @@ public enum Recorder {
             take.drawnCursor = stage.web != nil ? true : nil
             take.focus = focusTrack
             take.startedAt = startedAt
+            // What another reel clicked in an attached app's window while it was recorded: ripples, as its own.
+            if case .attach = tape.launch, let channel {
+                take.clicks = clicks(
+                    in: channel.events, from: startedAt, for: take.durationMs,
+                    on: CGRect(origin: CGPoint(
+                        x: window.frame.minX + stage.crop.minX,
+                        y: window.frame.minY + stage.crop.minY
+                    ), size: stage.crop.size)
+                )
+            }
             try location.write(take)
             return take
         } catch {
@@ -353,12 +372,14 @@ public enum Recorder {
         }
     }
 
-    /// The pid of a running app with `app`'s bundle id or at its path.
+    /// The pid of a running app with `app`'s bundle id or at its path. Asked of the system each time:
+    /// `NSWorkspace.shared.runningApplications` is only brought up to date on the main run loop, which a reel busy
+    /// recording does not turn, and missed an app opened by a reel in a terminal track until that reel was done.
     static func running(_ app: String) -> pid_t? {
         let url = app.contains("/") ? URL(fileURLWithPath: app).standardizedFileURL : nil
-        return NSWorkspace.shared.runningApplications.first { running in
-            !running.isTerminated
-                && (url.map { running.bundleURL?.standardizedFileURL == $0 } ?? (running.bundleIdentifier == app))
+        guard let id = url.map({ Bundle(url: $0)?.bundleIdentifier }) ?? app else { return nil }
+        return NSRunningApplication.runningApplications(withBundleIdentifier: id).first { running in
+            !running.isTerminated && (url.map { running.bundleURL?.standardizedFileURL == $0 } ?? true)
         }?.processIdentifier
     }
 
@@ -428,6 +449,21 @@ public enum Recorder {
                 "cannot list windows (\(error.localizedDescription)). Grant Screen Recording to this terminal: "
                     + "System Settings → Privacy & Security → Screen & System Audio Recording, then run reel again"
             )
+        }
+    }
+
+    /// The clicks among `events` from `startedAt` (milliseconds since 1970) for `durationMs` that landed in
+    /// `recorded`, the part of the screen a take records: each in points from its top left, at the moment it ended.
+    static func clicks(in events: [Channel.Event], from startedAt: Int, for durationMs: Int, on recorded: CGRect)
+        -> [Take.Sample]
+    {
+        events.compactMap { event in
+            guard event.phase == .end, let x = event.x, let y = event.y,
+                  recorded.contains(CGPoint(x: x, y: y))
+            else { return nil }
+            let ms = event.at - startedAt
+            guard ms >= 0, ms <= durationMs else { return nil }
+            return Take.Sample(ms: ms, frame: CGRect(x: x - recorded.minX, y: y - recorded.minY, width: 0, height: 0))
         }
     }
 

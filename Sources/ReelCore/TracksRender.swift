@@ -129,7 +129,7 @@ extension Renderer {
         for (shape, outputs) in shapes.sorted(by: { $0.key.description < $1.key.description }) {
             let cut = try await composeTracks(
                 rendered, of: tape, from: location, shape: shape, padding: tape.padding,
-                background: tape.background ?? .standard
+                background: tape.background ?? .standard, keeping: outputs, log: log
             )
             // The director's reel, its tracks already drawn: its Outputs of this shape, bare, on the canvas above.
             var reel = directorReel(of: tape)
@@ -164,6 +164,7 @@ extension Renderer {
                     throw ReelError("\(track.name): \(error.localizedDescription)")
                 }
                 let url = location.directory.appending(path: "track-\(track.name).mov")
+                log("rendering track \(track.name)")
                 try await render(
                     own.movie, take: prepared.take, overlays: prepared.overlays, soundtrack: prepared.soundtrack,
                     cut: prepared.cut, to: Output(url: url, format: .mov), lossless: true
@@ -184,10 +185,11 @@ extension Renderer {
     }
 
     /// The tracks drawn together on the canvas of `shape`, into a take of their own under `cuts/` next to the
-    /// reel's: the director's events over a movie of every track where the director has it.
+    /// reel's: the director's events over a movie of every track where the director has it. The canvas is no wider
+    /// than `outputs` keep (`Scenes.workingSize`), as every pass after this one goes over the whole movie.
     static func composeTracks(
         _ rendered: RenderedTracks, of tape: Tape, from location: TakeLocation, shape: Output.Shape,
-        padding: Double, background: Background
+        padding: Double, background: Background, keeping outputs: [Output] = [], log: (String) -> Void
     ) async throws -> TakeLocation {
         let (director, demos) = (rendered.director, rendered.demos)
         let cut = TakeLocation(directory: location.directory.appending(
@@ -201,7 +203,12 @@ extension Renderer {
                 at: voices, withDestinationURL: location.directory.appending(path: "voice")
             )
         }
-        let layout = rendered.layout(of: tape, shape: shape, padding: padding)
+        let full = rendered.layout(of: tape, shape: shape, padding: padding)
+        let canvas = Scenes.workingSize(
+            of: full.canvas, for: outputs, encoding: tape.encoding, gifWidth: tape.gifWidth
+        )
+        let layout = full.resized(to: canvas, padding: padding)
+        log("drawing the tracks together, \(Int(canvas.width))×\(Int(canvas.height))")
         let direction = Direction.make(
             layout: layout, start: tape.layout, starts: demos.map { Double($0.offset) / 1000 }, moves: rendered.moves
         )
@@ -211,7 +218,9 @@ extension Renderer {
         )
         var take = Take(
             width: Int(layout.canvas.width), height: Int(layout.canvas.height),
-            scale: demos.map(\.take.scale).max() ?? 2, frameRate: rendered.frameRate,
+            // Narration and captions drawn as large, for their share of the canvas, as on the full one.
+            scale: (demos.map(\.take.scale).max() ?? 2) * canvas.width / full.canvas.width,
+            frameRate: rendered.frameRate,
             audio: demos.contains(where: \.take.audio), durationMs: max(director.durationMs, length),
             events: director.events
         )

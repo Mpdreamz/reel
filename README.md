@@ -74,6 +74,8 @@ of reel's own. Neither needs anything installed or any permission, and a code sc
 
 Several subjects can also be recorded at once, as tracks: a terminal running the tests beside the code they test,
 each waiting on the other's named steps, with a director narrating over both and moving the spotlight between them.
+[reel's showcase](demos/showcase.reel) records three at once: a terminal recording a reel, a code screen following
+that reel's script, and the app it opens.
 
 ```
 Screen code as code

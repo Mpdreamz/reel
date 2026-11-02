@@ -12,6 +12,7 @@ public enum Renderer {
     ) async throws {
         for profile in try tape.profilesToRender(chosen: chosen) {
             let read = profile == nil ? tape : try tape.with(profile: profile)
+            if let profile { log("profile \(profile.name)") }
             for output in read.skipped {
                 log(
                     "skipped \(output.url.lastPathComponent): \(profile?.name ?? "the tape") writes no .\(output.format)"
@@ -91,6 +92,7 @@ public enum Renderer {
         let staged = sectioned || tape.outputs.contains { framing($0) != nil }
         let demo = location.directory.appending(path: "demo.mov")
         if staged {
+            log("rendering the take")
             try await render(
                 location.movie, take: take, overlays: overlays, soundtrack: soundtrack, cut: cut,
                 to: Output(url: demo, format: .mov), lossless: true
@@ -103,6 +105,7 @@ public enum Renderer {
             let lossless = Output(url: url, format: .mov, shape: output.shape)
             let framed = framing(output)
             guard staged, framed != nil || sectioned else {
+                log("rendering the take")
                 try await render(
                     location.movie, take: take, overlays: overlays, soundtrack: soundtrack, cut: cut, to: lossless,
                     lossless: true
@@ -111,6 +114,7 @@ public enum Renderer {
             }
             var main = demo
             if let framed {
+                log("framing it \(output.shape.map { "at \($0)" } ?? "on its background")")
                 guard sectioned else {
                     try await Framer.frame(demo, with: framed, frameRate: take.frameRate, to: lossless, lossless: true)
                     return
@@ -122,6 +126,7 @@ public enum Renderer {
                     demo, with: framed, frameRate: take.frameRate, to: Output(url: main, format: .mov), lossless: true
                 )
             }
+            log("adding the intro and outro")
             let arrangement = try await Assembler.assemble(
                 main: main, intro: tape.intro, outro: tape.outro, frameRate: take.frameRate,
                 in: location.directory, to: lossless, lossless: true
@@ -173,14 +178,18 @@ public enum Renderer {
         var encoding = tape.encoding
         encoding.frameRate = tape.videoFrameRate
         for output in tape.outputs where output.format != .gif {
+            let source = try await source(for: output)
+            log("encoding \(output.url.lastPathComponent)")
             let result = try await Encoder.fit(
-                source(for: output), to: output, with: encoding, frameRate: frameRate, under: tape.maxSize
+                source, to: output, with: encoding, frameRate: frameRate, under: tape.maxSize
             )
             log("wrote \(output.url.path) (\(describe(result, frameRate: frameRate, under: tape.maxSize)))")
         }
         for gif in tape.outputs where gif.format == .gif {
+            let source = try await source(for: gif)
+            log("drawing \(gif.url.lastPathComponent)")
             let result = try await GifWriter.fit(
-                from: source(for: gif), to: gif.url,
+                from: source, to: gif.url,
                 look: GifWriter.Look(frameRate: tape.gifFrameRate, width: tape.gifWidth, colors: tape.gifColors),
                 under: tape.maxSize
             )
@@ -617,13 +626,26 @@ enum OverlayLayers {
         return layer
     }
 
+    /// A white ring on a dark one, as the cursor is white on black: it reads on a light window as on a dark one.
     static func ripple(radius: CGFloat, line: CGFloat) -> CALayer {
+        let bounds = CGRect(x: 0, y: 0, width: radius * 2, height: radius * 2)
+        let path = CGPath(ellipseIn: bounds.insetBy(dx: line * 1.5, dy: line * 1.5), transform: nil)
+        let outline = CAShapeLayer()
+        outline.frame = bounds
+        outline.path = path
+        outline.fillColor = nil
+        outline.strokeColor = NSColor(white: 0, alpha: 0.45).cgColor
+        outline.lineWidth = line * 3
         let circle = CAShapeLayer()
-        circle.bounds = CGRect(x: 0, y: 0, width: radius * 2, height: radius * 2)
-        circle.path = CGPath(ellipseIn: circle.bounds.insetBy(dx: line, dy: line), transform: nil)
+        circle.frame = bounds
+        circle.path = path
         circle.fillColor = NSColor(white: 1, alpha: 0.35).cgColor
-        circle.strokeColor = NSColor(white: 1, alpha: 0.9).cgColor
+        circle.strokeColor = NSColor(white: 1, alpha: 0.95).cgColor
         circle.lineWidth = line
-        return circle
+        let ripple = CALayer()
+        ripple.bounds = bounds
+        ripple.addSublayer(outline)
+        ripple.addSublayer(circle)
+        return ripple
     }
 }

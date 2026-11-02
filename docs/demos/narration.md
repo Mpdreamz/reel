@@ -52,8 +52,10 @@ each profile names. For voicebox, `Set VoiceServer` is its address (`http://127.
 Every line is voiced before the app opens and cached in `.reel/<reel>/voice/`, by text, voice and seed, so an
 unchanged line isn't voiced again. Nothing is played aloud while recording. The voice is mixed in when rendering.
 
-Each stretch between markers is voiced on its own, which is how reel knows exactly when a marker is reached. The cost
-is a small seam in intonation at each marker.
+A line with markers is voiced whole, in one breath, and each marker found in it: where the words before it end (each
+stretch between markers is voiced on its own as well, to know how long it takes), moved to the pause there when the
+voice pauses before the next word. Where it runs the words together, a marker can land up to a syllable late: said
+alone, the words before it take a little longer than in the whole line.
 
 ## The mix
 

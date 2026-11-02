@@ -295,9 +295,15 @@ struct TrackLayout: Sendable {
         let framing = Framing.make(
             recording: layout.natural(start), scale: 1, shape: shape, padding: padding, background: .standard
         )
-        layout.canvas = framing.canvas
-        let pad = padding * min(framing.canvas.width, framing.canvas.height)
-        layout.room = CGRect(origin: .zero, size: framing.canvas).insetBy(dx: pad, dy: pad)
+        return layout.resized(to: framing.canvas, padding: padding)
+    }
+
+    /// The same layout on `canvas`, one of the same shape: every window where it was, in proportion.
+    func resized(to canvas: CGSize, padding: Double) -> TrackLayout {
+        var layout = self
+        layout.canvas = canvas
+        let pad = padding * min(canvas.width, canvas.height)
+        layout.room = CGRect(origin: .zero, size: canvas).insetBy(dx: pad, dy: pad)
         return layout
     }
 
