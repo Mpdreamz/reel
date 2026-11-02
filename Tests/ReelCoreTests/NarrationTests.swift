@@ -26,6 +26,50 @@ final class FakeVoice: Synthesizer, @unchecked Sendable {
     }
 }
 
+/// Speaks every word as 0.25 s of a tone, with `gap` of silence between words (`comma` after one that ends in a
+/// comma), and pads what it says with `lead` before and `tail` after, as a voice does.
+final class ShapedVoice: Synthesizer, @unchecked Sendable {
+    let lead: Double, gap: Double, comma: Double, tail: Double
+    private(set) var spoken: [String] = []
+
+    init(lead: Double = 0.2, gap: Double, comma: Double? = nil, tail: Double = 0.3) {
+        self.lead = lead
+        self.gap = gap
+        self.comma = comma ?? gap
+        self.tail = tail
+    }
+
+    var fingerprint: String {
+        "shaped \(lead) \(gap) \(comma) \(tail)"
+    }
+
+    var fileExtension: String {
+        "caf"
+    }
+
+    func speak(_ text: String, to url: URL) async throws {
+        spoken.append(text)
+        // Each word's start and end, in seconds.
+        var words: [(Double, Double)] = [], at = lead
+        let all = text.split(separator: " ")
+        for (index, word) in all.enumerated() {
+            words.append((at, at + 0.25))
+            at += 0.25
+            if index < all.count - 1 { at += word.hasSuffix(",") ? comma : gap }
+        }
+        let format = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1)!
+        let frames = AVAudioFrameCount((at + tail) * 48000)
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frames)!
+        buffer.frameLength = frames
+        for i in 0 ..< Int(frames) {
+            let time = Double(i) / 48000
+            let speaking = words.contains { time >= $0.0 && time < $0.1 }
+            buffer.floatChannelData![0][i] = speaking ? Float(0.5 * sin(2 * .pi * 440 * time)) : 0
+        }
+        try AVAudioFile(forWriting: url, settings: format.settings).write(from: buffer)
+    }
+}
+
 /// A mono 48 kHz sine at half amplitude.
 func writeTone(hertz: Double, seconds: Double, to url: URL) throws {
     let format = AVAudioFormat(standardFormatWithSampleRate: 48000, channels: 1)!
@@ -52,10 +96,48 @@ struct NarrationTests {
             into: dir, with: voice, log: { _ in }
         )
         let line = try #require(narration.lines[3])
-        #expect(voice.spoken == ["Pick a track,", "then press", "space to play it."])
-        #expect(line.lengths.map { ($0 * 100).rounded() / 100 } == [0.75, 0.5, 1])
+        // Each piece, to know how long the words before each marker take, and the whole line, which is what plays.
+        #expect(voice.spoken == [
+            "Pick a track,", "then press", "space to play it.", "Pick a track, then press space to play it.",
+        ])
+        #expect(line.pieces.count == 1)
+        // A voice that never pauses: each marker where the words before it end.
         #expect(line.markerOffsets.mapValues { ($0 * 100).rounded() / 100 } == ["pick": 0.75, "play": 1.25])
         #expect(abs(line.duration - 2.25) < 0.01)
+    }
+
+    @Test func aLineIsVoicedWholeWithEachMarkerWhereTheNextWordStarts() async throws {
+        let dir = try TakeWriterTests().temporaryDirectory()
+        let voice = ShapedVoice(gap: 0.1)
+        let narration = try await Narration.prepare(
+            tape("Say@over \"Pick a track, [pick] then press [play] space to play it.\""),
+            into: dir, with: voice, log: { _ in }
+        )
+        let line = try #require(narration.lines[3])
+        #expect(voice.spoken.last == "Pick a track, then press space to play it.")
+        // One clip, no seams: 0.2 s of lead-in, nine words 0.35 s apart, and 0.3 s of padding.
+        #expect(line.pieces.count == 1)
+        #expect(abs(line.duration - (0.2 + 9 * 0.25 + 8 * 0.1 + 0.3)) < 0.01)
+        // "then" starts after three words, "space" after five; each piece's own padding, both ends, is not counted.
+        #expect(line.markerOffsets.mapValues { ($0 * 100).rounded() / 100 } == ["pick": 1.25, "play": 1.95])
+        // Cached as voiced: render finds the same line without voicing it.
+        let again = try await Narration.prepare(
+            tape("Say@over \"Pick a track, [pick] then press [play] space to play it.\""),
+            into: dir, with: ShapedVoice(gap: 0.1), voicing: false, log: { _ in }
+        )
+        #expect(again.lines[3] == line)
+    }
+
+    @Test func aMarkerBetweenWordsSaidTogetherIsWhereTheyMeetNotAtTheNextPause() async throws {
+        let dir = try TakeWriterTests().temporaryDirectory()
+        // Runs its words together, and pauses 0.2 s at a comma: a word after the marker.
+        let narration = try await Narration.prepare(
+            tape("Say \"Clicking it [unmute] again, the beat is unmuted!\""),
+            into: dir, with: ShapedVoice(gap: 0, comma: 0.2), log: { _ in }
+        )
+        let line = try #require(narration.lines[3])
+        // "again" starts after the lead-in and two words, not where the comma's pause ends (1.15 s).
+        #expect(line.markerOffsets.mapValues { ($0 * 100).rounded() / 100 } == ["unmute": 0.7])
     }
 
     @Test func aMarkerAtTheStartIsAnEmptyPiece() async throws {

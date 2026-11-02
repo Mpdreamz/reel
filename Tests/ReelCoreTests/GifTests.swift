@@ -109,8 +109,9 @@ struct GifTests {
         // The caption fades in and out over the still take, so more than one frame, and still a second long.
         #expect(read.delays.count > 1)
         #expect(abs(read.delays.reduce(0, +) - 1) < 0.001)
-        #expect(lines.count == 1)
-        #expect(lines[0].contains("demo.gif (\(read.delays.count) frames of 15 sampled, "))
+        let wrote = lines.filter { $0.hasPrefix("wrote ") }
+        #expect(wrote.count == 1)
+        #expect(wrote[0].contains("demo.gif (\(read.delays.count) frames of 15 sampled, "))
     }
 }
 

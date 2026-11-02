@@ -30,6 +30,10 @@ public final class Channel: @unchecked Sendable {
         public var phase: Phase
         /// Milliseconds since 1970: one clock for every reel.
         public var at: Int
+        /// Where a click landed, in points on the screen (from the top left of the main display): an app recording
+        /// the same window (`Attach`) draws a ripple there. Only on the end of an app reel's `Click`.
+        public var x: Double?
+        public var y: Double?
     }
 
     public init(url: URL) {
@@ -50,9 +54,10 @@ public final class Channel: @unchecked Sendable {
     }
 
     /// Says that a step started or ended. One append each, which the file system keeps whole.
-    func post(reel: String, line: Int, name: String?, phase: Event.Phase) {
+    func post(reel: String, line: Int, name: String?, phase: Event.Phase, click: CGPoint? = nil) {
         let event = Event(
-            reel: reel, line: line, name: name, phase: phase, at: Int((Date().timeIntervalSince1970 * 1000).rounded())
+            reel: reel, line: line, name: name, phase: phase, at: Int((Date().timeIntervalSince1970 * 1000).rounded()),
+            x: click.map { Double($0.x) }, y: click.map { Double($0.y) }
         )
         guard var data = try? JSONEncoder().encode(event) else { return }
         data.append(0x0A)

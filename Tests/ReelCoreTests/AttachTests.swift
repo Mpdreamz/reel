@@ -54,6 +54,32 @@ struct AttachTests {
         #expect(NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == id)
     }
 
+    @Test func anAttachedTakeKeepsTheClicksOtherReelsMadeInItsWindow() throws {
+        let channel = try Channel.fresh(at: FileManager.default.temporaryDirectory
+            .appending(path: "reel-clicks-\(UUID().uuidString).jsonl"))
+        // The window was recorded from (100, 50), 400x300 points, for 5 s from 1000 ms.
+        let recorded = CGRect(x: 100, y: 50, width: 400, height: 300)
+        func click(at ms: Int, _ x: Double?, _ y: Double?, _ phase: Channel.Event.Phase = .end) -> Channel.Event {
+            Channel.Event(reel: "musicbox.reel", line: 9, name: nil, phase: phase, at: ms, x: x, y: y)
+        }
+        let events = [
+            click(at: 2500, 140, 80), // in the window, 1.5 s in
+            click(at: 2400, 140, 80, .start), // a step's start says nothing of where it landed
+            click(at: 3000, 20, 80), // left of the window
+            click(at: 900, 140, 80), // before the first frame
+            click(at: 7000, 140, 80), // after the take
+            click(at: 3500, nil, nil), // a step that is no click
+        ]
+        let clicks = Recorder.clicks(in: events, from: 1000, for: 5000, on: recorded)
+        #expect(clicks == [Take.Sample(ms: 1500, frame: CGRect(x: 40, y: 30, width: 0, height: 0))])
+
+        // Where a click landed goes on the channel with the end of its step, and is read back.
+        channel.post(reel: "musicbox.reel", line: 9, name: "mute", phase: .end, click: CGPoint(x: 140, y: 80))
+        channel.post(reel: "musicbox.reel", line: 10, name: nil, phase: .end)
+        #expect(channel.events.map(\.x) == [140, nil])
+        #expect(channel.events.map(\.y) == [80, nil])
+    }
+
     @Test func anAppThatNeverOpensSaysSo() async throws {
         let error = await #expect(throws: ReelError.self) {
             try await Recorder.attach("com.example.nothing.at.all", within: .milliseconds(250), log: { _ in })
