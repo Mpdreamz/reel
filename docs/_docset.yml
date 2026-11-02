@@ -18,6 +18,7 @@ toc:
       - file: installation.md
       - file: permissions.md
       - file: first-reel.md
+      - file: companion.md
   - folder: reels
     children:
       - file: index.md

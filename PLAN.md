@@ -36,6 +36,8 @@
    together. Phase 4: `Follow`, a code screen marking the line of the reel it shows as that reel runs. Phase 5:
    `Attach`, an app something else opens, as a track. Phase 6: the director's moves (`Set Layout`, `Layout`,
    `Split`, `Spotlight`, `Fullscreen`, `Pip`). Next: the showcase; later, `Set Spotlight auto`.
+16. **The companion app.** Reel Companion, in the menu bar: each run's scene, steps and render passes from its
+   progress events, and a frame and a pill on the window being recorded, kept out of the take (see "Progress events").
 
 ## The reel
 
@@ -504,7 +506,16 @@ it reached and what to lower, and leaves no file. A GIF over its size is drawn a
   a second, an encode by the time of the last frame it appended, a GIF by the frames it sampled, a screen by the
   take's clock; a pass never goes back and is said at most ten times a second, always at 0 and 1.
 - **Not the channel.** Nothing reads them back, and `REEL_CHANNEL` is untouched, so a `Wait for` does as it did. They
-  are for watching a run: the companion app (to come) shows them.
+  are for watching a run.
+- **The companion app** (`Sources/ReelCompanion`, `scripts/companion.sh` → `build/Reel Companion.app`, LSUIElement)
+  reads the runs folder four times a second (`RunFolder`: each file from where it was last read, a line once it is
+  whole) and folds the events into a `RunState` per run, the last five finished ones kept. Its menu bar symbol is the
+  brand's small cut drawn as a template, red while recording, with a ring while rendering; its panel is a
+  non-activating panel, not a popover, since an app that comes to the front mid-take stops it. While a capture with a
+  window runs, it draws a red frame round it and a pill with the step, in panels that ignore the mouse and never
+  activate, and only once its own pid is among the capture's `excluded` (at the start or later): never in the take. ScreenCaptureKit lists an app only once it has a window on screen, and a menu bar item does not count, so the
+  companion keeps one transparent point of a window on screen from launch (`Presence`): without it reel would never
+  see it to keep it out, and it would never draw.
 
 ## How a take is captured
 

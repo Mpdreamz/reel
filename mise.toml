@@ -37,6 +37,10 @@ run = [
 description = "Build build/ReelFixture.app, the app reels/fixture.reel records"
 run = "scripts/fixture.sh"
 
+[tasks.companion]
+description = "Build build/Reel Companion.app, the menu bar app that shows a run's progress, and open it"
+run = ["scripts/companion.sh", "open \"build/Reel Companion.app\""]
+
 [tasks.live]
 description = "Record reels/fixture.reel for real and check the take (needs Screen Recording and Accessibility)"
 run = "scripts/live.sh"

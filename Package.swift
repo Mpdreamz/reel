@@ -15,6 +15,9 @@ let package = Package(
             dependencies: ["ReelCore", .product(name: "ArgumentParser", package: "swift-argument-parser")]
         ),
         .testTarget(name: "ReelCoreTests", dependencies: ["ReelCore"]),
+        // The menu bar app that shows a run's progress (scripts/companion.sh bundles it as Reel Companion.app).
+        .executableTarget(name: "ReelCompanion", dependencies: ["ReelEvents"]),
+        .testTarget(name: "ReelEventsTests", dependencies: ["ReelEvents"]),
         // The app reels/fixture.reel records (scripts/fixture.sh bundles it): a ticking window and a tone.
         .executableTarget(name: "ReelFixture"),
     ]
