@@ -98,23 +98,22 @@ public struct Narration: Sendable {
                 pieces: urls, lengths: lengths, markers: speech.markers, key: digest(keys.joined(separator: "+"))
             )
             // Voiced in pieces, a line has a seam at each marker. Voiced whole, each marker is found in it: where the
-            // speech before it ends (its pieces, their trailing silence trimmed), at the next pause, as speech resumes.
-            // When a marker has no pause near, the line stays in pieces.
+            // speech before it ends (its pieces' speech, the silence a voice pads each clip with at both ends left
+            // off, after the whole line's own lead-in), moved to where speech resumes when a pause starts right there.
             if !speech.markers.isEmpty, speech.pieces.count(where: { !$0.isEmpty }) > 1 {
-                let (url, key) = try await clip(speech.text)
-                var spoken = 0.0
+                let (whole, key) = try await clip(speech.text)
+                var spoken = try speechSpan(of: whole).start
                 var offsets: [Double] = []
                 for (piece, url) in zip(speech.pieces, urls).dropLast() {
-                    if let url, !piece.isEmpty { spoken += try speechLength(of: url) }
-                    offsets.append(spoken)
+                    if let url, !piece.isEmpty {
+                        let span = try speechSpan(of: url)
+                        spoken += span.end - span.start
+                    }
+                    try offsets.append(resumes(after: spoken, in: whole) ?? spoken)
                 }
-                let found = try offsets.map { try resumes(after: $0, in: url) }
-                if found.allSatisfy({ $0 != nil }) {
-                    line = try Line(
-                        pieces: [url], lengths: [length(of: url)], markers: speech.markers, key: key,
-                        offsets: found.compactMap(\.self)
-                    )
-                }
+                line = try Line(
+                    pieces: [whole], lengths: [length(of: whole)], markers: speech.markers, key: key, offsets: offsets
+                )
             }
             lines[step.line] = line
         }
@@ -128,8 +127,9 @@ public struct Narration: Sendable {
         return Double(file.length) / file.processingFormat.sampleRate
     }
 
-    /// How far a pause in speech may be from where a marker is expected and still be its.
-    static let pauseReach = 0.35
+    /// How far from where a marker is expected a pause may start and still be the one before its word. A voice runs
+    /// some words together; the next pause along can be a word or more later.
+    static let pauseReach = 0.12
 
     /// Loudness every 10 ms of the clip at `url`, and what counts as quiet in it: under an eighth of its loud parts.
     private static func levels(of url: URL) throws -> (levels: [Float], quiet: Float) {
@@ -154,11 +154,13 @@ public struct Narration: Sendable {
         return (levels, loud / 8)
     }
 
-    /// The clip's length up to the end of its speech: what it trails in silence left off.
-    static func speechLength(of url: URL) throws -> Double {
+    /// Where the clip's speech starts and ends, in seconds: the silence a voice pads it with left off.
+    static func speechSpan(of url: URL) throws -> (start: Double, end: Double) {
         let (levels, quiet) = try levels(of: url)
-        guard let last = levels.lastIndex(where: { $0 >= quiet }) else { return 0 }
-        return Double(last + 1) / 100
+        guard let first = levels.firstIndex(where: { $0 >= quiet }),
+              let last = levels.lastIndex(where: { $0 >= quiet })
+        else { return (0, 0) }
+        return (Double(first) / 100, Double(last + 1) / 100)
     }
 
     /// Where speech resumes after the pause in the clip at `url` that starts nearest `time` (seconds), within
