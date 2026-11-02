@@ -626,13 +626,26 @@ enum OverlayLayers {
         return layer
     }
 
+    /// A white ring on a dark one, as the cursor is white on black: it reads on a light window as on a dark one.
     static func ripple(radius: CGFloat, line: CGFloat) -> CALayer {
+        let bounds = CGRect(x: 0, y: 0, width: radius * 2, height: radius * 2)
+        let path = CGPath(ellipseIn: bounds.insetBy(dx: line * 1.5, dy: line * 1.5), transform: nil)
+        let outline = CAShapeLayer()
+        outline.frame = bounds
+        outline.path = path
+        outline.fillColor = nil
+        outline.strokeColor = NSColor(white: 0, alpha: 0.45).cgColor
+        outline.lineWidth = line * 3
         let circle = CAShapeLayer()
-        circle.bounds = CGRect(x: 0, y: 0, width: radius * 2, height: radius * 2)
-        circle.path = CGPath(ellipseIn: circle.bounds.insetBy(dx: line, dy: line), transform: nil)
+        circle.frame = bounds
+        circle.path = path
         circle.fillColor = NSColor(white: 1, alpha: 0.35).cgColor
-        circle.strokeColor = NSColor(white: 1, alpha: 0.9).cgColor
+        circle.strokeColor = NSColor(white: 1, alpha: 0.95).cgColor
         circle.lineWidth = line
-        return circle
+        let ripple = CALayer()
+        ripple.bounds = bounds
+        ripple.addSublayer(outline)
+        ripple.addSublayer(circle)
+        return ripple
     }
 }
