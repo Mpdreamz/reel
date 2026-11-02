@@ -130,6 +130,7 @@ extension Renderer {
                 throw ReelError("scene \(index + 1), \(name): \(error.description)")
             }
             let url = directory.appending(path: "scene-\(index + 1).mov")
+            log("rendering scene \(index + 1) of \(scenes.count)")
             try await Events.$detail.withValue(detail) {
                 try await render(
                     sceneLocation.movie, take: prepared.take, overlays: prepared.overlays,
@@ -200,7 +201,7 @@ extension Renderer {
                     // the reel's director would have it, without its intro and outro.
                     let cut = try await composeTracks(
                         rendered, of: sceneTape, from: sceneLocation, shape: size, padding: tape.padding,
-                        background: background
+                        background: background, log: log
                     )
                     let prepared = try await prepare(tape: directorReel(of: sceneTape), from: cut, log: log)
                     try await render(
@@ -214,6 +215,7 @@ extension Renderer {
                 }
                 // The next scene comes in as the one before's outro would: its own sound, the transition between.
                 let next = directory.appending(path: "joined-\(tag)-\(index + 1).mov")
+                log("joining scene \(index + 1) of \(demos.count)")
                 made.append(next)
                 try await Assembler.assemble(
                     main: before, intro: nil,

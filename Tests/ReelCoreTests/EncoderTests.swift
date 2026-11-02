@@ -107,14 +107,36 @@ struct EncoderTests {
         let read = try await Movie(dir.appending(path: "demo.mp4"))
         #expect(read.codec == kCMVideoCodecType_HEVC)
         #expect(read.size == CGSize(width: 160, height: 100))
-        #expect(lines.first?.hasSuffix("demo.mp4 (0.0 MB, HEVC 160x100, quality 40)") == true)
-        #expect(lines.count == 2)
+        let wrote = lines.filter { $0.hasPrefix("wrote ") }
+        #expect(wrote.first?.hasSuffix("demo.mp4 (0.0 MB, HEVC 160x100, quality 40)") == true)
+        #expect(wrote.count == 2)
         // The GIF comes from the lossless movie, not the compressed one: it is as wide as the take.
         let gif = try #require(CGImageSourceCreateWithURL(dir.appending(path: "demo.gif") as CFURL, nil))
         #expect(try #require(CGImageSourceCreateImageAtIndex(gif, 0, nil)).width == 320)
         // And nothing lossless is left behind.
         let left = try FileManager.default.contentsOfDirectory(atPath: location.directory.path)
         #expect(!left.contains { $0.hasPrefix("lossless-") })
+    }
+
+    @Test func renderSaysWhatItIsDoingAsItGoes() async throws {
+        let dir = try writer.temporaryDirectory()
+        let location = TakeLocation(tape: dir.appending(path: "demo.reel"))
+        try FileManager.default.createDirectory(at: location.directory, withIntermediateDirectories: true)
+        try await writer.writeTake(to: location.movie, seconds: 1, audio: false)
+        try location.write(Take(
+            width: 320, height: 200, scale: 2, frameRate: 30, audio: false, durationMs: 1000,
+            events: [Take.Event(line: 5, command: "Sleep 1s", startMs: 0, endMs: 1000)]
+        ))
+        let tape = try Tape.parse(
+            "Launch x\nOutput@1:1 demo.mp4\nOutput@1:1 demo.gif\nIntro \"Hi\" 1s\nSleep 1s", relativeTo: dir
+        )
+        var lines: [String] = []
+        try await Renderer.render(tape: tape, from: location, log: { lines.append($0) })
+        // A line before each pass, so a long render shows it is getting on; the movie and the GIF share the framing.
+        #expect(lines.map { $0.hasPrefix("wrote ") ? "wrote" : $0 } == [
+            "rendering the take", "framing it at 1:1", "adding the intro and outro",
+            "encoding demo.mp4", "wrote", "drawing demo.gif", "wrote",
+        ])
     }
 
     @Test func lowerQualityIsASmallerFile() async throws {
