@@ -1,0 +1,85 @@
+# reel's hero demo: reel recording a demo of itself. Three tracks at once: a terminal that records musicbox.reel, a
+# code screen that follows that reel's script as it runs, and Musicbox, attached once the reel in the terminal opens
+# it, with its own sound. The director moves between them and narrates over the whole.
+# `mise run demos showcase` records it (Musicbox built in ~/Projects/musicbox, its drawer closed:
+# `defaults write dev.musicbox.app drawerOpen -bool false`). It plays music and takes the mouse and keyboard.
+Import //demos/reel.reelpreset
+
+Screen terminal as term
+  Set WorkingDirectory //demos
+  Set Columns 72
+  Set Rows 12
+  Set FontSize 18
+  Set Title "demos — zsh"
+  Set WaitTimeout 3m
+  Type@0ms "export PATH=$PWD/../.build/debug:$PATH; clear"
+  Key return
+  Wait exit as ready
+  Wait for hello to end
+  Type "reel record musicbox.reel"
+  Key return as run
+  Wait /take: / as recorded
+  Wait exit
+  Wait for rendering
+  Type "reel render musicbox.reel --profile github"
+  Key return
+  Wait /wrote .*musicbox-github.gif/ as rendered
+  Wait exit
+
+Screen code as script
+  Set Viewport 900x560
+  Set FontSize 16
+  Set WaitTimeout 3m
+  Code musicbox.reel
+  Follow
+  Wait for recorded to end
+
+Attach ~/Projects/musicbox/build/App/Musicbox.app as app
+
+Output //docs/media/showcase.mp4
+Output //docs/media/showcase.gif
+# The terminal and its script side by side; stacked beside Musicbox once it opens.
+Set Layout term | script
+# A second voice, as musicbox.reel has.
+Set Voice guest voicebox:Michael
+# The take in the terminal runs for minutes: every wait for it waits as long.
+Set WaitTimeout 3m
+Intro@crossfade,ease-out,600ms square ? "reel" "Demo videos from a script" : 2s
+Outro@fade,800ms square ? "Recorded with reel" "brew install --cask mpdreamz/tap/reel" : 2s
+
+Hide
+Wait for ready
+Show
+Say "Reel turns a plain text script into a finished demo video. To show how, it's recording a demo of itself." as hello
+Wait for run
+Say "A terminal runs one reel, while a code screen beneath it follows that reel's script, line by line."
+Wait for app
+Layout@smooth,1s (term / script) | app
+Say "Musicbox, a macOS app we record for this demo, sound and all."
+Spotlight@smooth,1s app
+Say "Every click, key press and zoom it receives comes from a single line of that script."
+Pip@smooth,1s script over app top-left
+# The reel in the terminal is silent while it records: its own lines are voiced when it renders.
+Say "The narration in that script stays silent while recording. Reel voices it, and mixes it in, during the render."
+# Musicbox's steps are named in musicbox.reel: the director speaks as each one happens.
+Wait for play
+Say "A press of the space bar starts the music."
+# Musicbox's clicks wait for these markers (Wait for muting, unmuting): each lands on its word.
+Say@guest,over "Reel finds the drums' mute button by its accessibility name, and [mute] clicks it."
+Wait [mute] as muting
+Wait for back to end
+Say@guest,over "Clicking it [unmute] again, the beat is unmuted!"
+Wait [unmute] as unmuting
+# recorded and rendered are Waits, which start as soon as they wait: these wait for them to end.
+Wait for recorded to end
+Pip off
+Layout@smooth,1s (term / script) | app
+Say "Once the take is done, reel renders it: voices, subtitles and zooms, with a cut for every place the video will go." as rendering
+Say "A render may take a few minutes in real time, so let's skip ahead."
+# The render shows nothing new until it writes: cut to its end.
+Hide
+Wait for rendered to end
+Show
+Say@guest "Mac apps, web pages, terminals and code walkthroughs, recorded together and directed from one script."
+Say "Write it once, and let reel do the takes. Have fun with it!"
+Sleep 1s
