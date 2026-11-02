@@ -1,7 +1,8 @@
 // Checks the take scripts/live.sh records of the fixture app: the window has the reel's size, the sound is silent
-// until `Click "Play"` and a 440 Hz tone after it, and the fixture logged the click, the typing and the scroll.
+// until `Click "Play"` and a 440 Hz tone after it, the fixture logged the click, the typing and the scroll, and an app
+// that opened over the window in the middle of the take (scripts/intruder.swift) is not in it.
 //
-// swift scripts/check-take.swift <take directory> <fixture-events.log> <rendered movie> <rendered gif>
+// swift scripts/check-take.swift <take directory> <fixture-events.log> <rendered movie> <rendered gif> <intruder.log>
 import AVFoundation
 import Foundation
 import ImageIO
@@ -23,6 +24,7 @@ struct Take: Decodable {
     var durationMs: Int
     var cursor: [Sample]?
     var focus: [Sample]?
+    var startedAt: Int?
 
     struct Sample: Decodable {
         var ms: Int
@@ -205,6 +207,39 @@ let zoomed = event("Zoom #list")
 check(zoomed?.w != nil, "Zoom #list found the list's frame while recording")
 check((take.focus?.count ?? 0) >= 2, "the locked list was sampled after each step (\(take.focus?.count ?? 0) samples)")
 check((take.cursor?.count ?? 0) > take.durationMs / 50, "the cursor was sampled through the take (\(take.cursor?.count ?? 0))")
+
+// The intruder's magenta square, shown over the window after the capture started: kept out once reel sees it (it
+// looks every 250 ms), so from a moment after it showed until it hid, no frame has it.
+let shown = (try? String(contentsOf: URL(fileURLWithPath: args[5]), encoding: .utf8))?
+    .split(whereSeparator: \.isWhitespace).compactMap { Int($0) } ?? []
+if shown.count == 2, let startedAt = take.startedAt {
+    let (from, to) = (shown[0] - startedAt, shown[1] - startedAt)
+    check(from > 0 && to < take.durationMs, "the intruder showed during the take (\(from)–\(to) ms)")
+    let generator = AVAssetImageGenerator(asset: AVURLAsset(url: dir.appending(path: "take.mov")))
+    generator.requestedTimeToleranceBefore = .zero
+    generator.requestedTimeToleranceAfter = .zero
+    var most = 0
+    for ms in stride(from: from + 600, to: to - 100, by: 200) {
+        let (image, _) = try await generator.image(at: CMTime(value: CMTimeValue(ms), timescale: 1000))
+        let width = image.width, height = image.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        let context = CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        )!
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        var magenta = 0
+        for index in stride(from: 0, to: pixels.count, by: 4)
+            where pixels[index] > 200 && pixels[index + 1] < 60 && pixels[index + 2] > 200
+        {
+            magenta += 1
+        }
+        most = max(most, magenta)
+    }
+    check(most < 100, "the intruder is not in the take (at most \(most) magenta pixels in a frame)")
+} else {
+    check(false, "the intruder logged when it showed (\(args[5]))")
+}
 
 check(log.contains("play"), "the fixture logged the click on Play")
 check(log.contains("submit Musicbox"), "cmd+a replaced the typed text, and return submitted it")

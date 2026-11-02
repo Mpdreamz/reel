@@ -23,8 +23,8 @@ or both. Read `PLAN.md` first.
 - `mise run test` and `mise run lint` before committing; `mise run fmt` fixes formatting.
 - Capturing needs Screen Recording for the terminal reel runs in, and driving an app needs Accessibility. `reel doctor` reports both without asking for them.
 - `mise run live` records `reels/fixture.reel` against the fixture app for real and checks the take
-  (`scripts/check-take.swift`): the window's size, silence before `Click "Play"` and 440 Hz after, and what the
-  fixture logged. CI cannot run it. It plays a quiet tone and takes the mouse and keyboard for a few seconds.
+  (`scripts/check-take.swift`): the window's size, silence before `Click "Play"` and 440 Hz after, what the
+  fixture logged, and that a square another app opens over the window mid-take (`scripts/intruder.swift`) is not in it. CI cannot run it. It plays a quiet tone and takes the mouse and keyboard for a few seconds.
 - `mise run live-web` records `reels/web.reel` against a local page twice, in WebKit and in a Chromium-based browser
   (Chrome, Chromium, Brave, Edge or Playwright's download), and checks both takes. It plays a quiet tone; the mouse
   stays yours.

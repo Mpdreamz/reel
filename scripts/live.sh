@@ -11,9 +11,15 @@ if pgrep -xq yabai; then
     trap 'yabai -m rule --remove reel-fixture' EXIT
 fi
 swift build -q
-rm -f build/fixture-events.log
+# An app that opens in the middle of the take, over the window: the take must not show it.
+swiftc -sdk "$(xcrun --show-sdk-path)" -o build/intruder scripts/intruder.swift 2>/dev/null
+rm -f build/fixture-events.log build/intruder.log
+build/intruder build/intruder.log &
+intruder=$!
 status=0
 .build/debug/reel reels/fixture.reel || status=$?
 pkill -x ReelFixture || true
+wait "$intruder" || true
 [ "$status" -eq 0 ] || exit "$status"
-swift scripts/check-take.swift reels/.reel/fixture build/fixture-events.log build/fixture.mp4 build/fixture.gif
+swift scripts/check-take.swift reels/.reel/fixture build/fixture-events.log build/fixture.mp4 build/fixture.gif \
+    build/intruder.log

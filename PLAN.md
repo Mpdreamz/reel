@@ -518,8 +518,15 @@ it reached and what to lower, and leaves no file. A GIF over its size is drawn a
   apps do not. Scoping it with `including: [app]` instead makes macOS draw a sharing indicator over the window's
   buttons, so the take would show it.
 - Audio is ScreenCaptureKit's own, scoped by the same filter to the app: no loopback driver.
+- An app that starts while the take is captured is kept out too: the capture looks at what is running every 250 ms
+  and makes its filter again with each newcomer excluded (`keepOut`), said as an `excluded` event. Until then, for at
+  most that long, a window it puts over the recorded one shows. `mise run live` checks it with an app that opens a
+  square over the fixture mid-take (`scripts/intruder.swift`).
+- Before it looks at what is running, an app or web reel opens the companion app (`io.github.mpdreamz.reel.companion`)
+  when it is installed and not running, without bringing it forward, so its overlay is kept out from the first frame.
+  `REEL_COMPANION=0` leaves it closed.
 - Known gaps: the window's rounded corners show what is behind them (the wallpaper), the window keeps the size and
-  place it opened with, and an app that starts after the first frame is not excluded.
+  place it opened with.
 - The take lives in `.reel/<reel name>/` next to the reel: `take.mov` (H.264 and AAC) and `take.json` (size, scale,
   and when each command ran, in milliseconds from the first frame).
 
