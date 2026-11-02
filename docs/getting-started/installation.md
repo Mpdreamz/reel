@@ -11,7 +11,8 @@ brew install --cask mpdreamz/tap/reel
 reel doctor
 ```
 
-`brew upgrade` updates it. Releases are signed with a Developer ID and notarized by Apple, so the binary runs without
+The cask installs `Reel Companion.app` beside it, a menu bar app that shows what a run is doing (see
+[the companion app](companion.md)). `brew upgrade` updates both. Releases are signed with a Developer ID and notarized by Apple, so the binary runs without
 a warning. The [releases](https://github.com/Mpdreamz/reel/releases) page has `reel-arm64.zip` and its checksum for
 scripts.
 

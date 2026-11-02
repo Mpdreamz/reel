@@ -18,9 +18,11 @@ cask "reel" do
   depends_on macos: :sequoia
 
   binary "reel"
+  app "Reel Companion.app"
 
   caveats <<~EOS
     reel records with Screen Recording and drives apps with Accessibility, both granted to the terminal it runs in:
     `reel doctor` says what is missing. Web pages need nothing more; WebKit is built in.
+    Reel Companion, in the menu bar, shows what a run is doing; reel opens it when it records (REEL_COMPANION=0 not).
   EOS
 end

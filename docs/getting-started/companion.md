@@ -20,8 +20,8 @@ reel's clicks and keys still reach the app.
 
 ## Running it
 
-reel opens it, out of sight, when an app or web reel starts recording and it is installed but not running. Set
-`REEL_COMPANION=0` to leave it closed. To build and open it from a checkout:
+The Homebrew cask installs it in Applications. reel opens it, out of sight, when an app or web reel starts recording
+and it is installed but not running. Set `REEL_COMPANION=0` to leave it closed. To build and open it from a checkout:
 
 ```
 mise run companion

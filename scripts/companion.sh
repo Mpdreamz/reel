@@ -1,15 +1,19 @@
 #!/bin/bash
 # Builds build/Reel Companion.app: the menu bar app that shows what reel runs are doing (Sources/ReelCompanion), its
-# icon from design/brand/icons/reel.iconset and the brand's line icons beside it. Debug unless CONFIGURATION=release.
+# icon from design/brand/icons/reel.iconset and the brand's line icons beside it. Debug unless CONFIGURATION=release;
+# ARCH=arm64 builds for that architecture alone, as the release does. Ad-hoc signed: scripts/sign.sh signs it for
+# distribution.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 configuration=${CONFIGURATION:-debug}
 version=${VERSION:-0.0.0}
-swift build -c "$configuration" --product ReelCompanion
+flags=(-c "$configuration")
+[ -n "${ARCH:-}" ] && flags+=(--arch "$ARCH")
+swift build "${flags[@]}" --product ReelCompanion
 app="build/Reel Companion.app"
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources/line-icons"
-cp "$(swift build -c "$configuration" --show-bin-path)/ReelCompanion" "$app/Contents/MacOS/ReelCompanion"
+cp "$(swift build "${flags[@]}" --show-bin-path)/ReelCompanion" "$app/Contents/MacOS/ReelCompanion"
 iconutil -c icns design/brand/icons/reel.iconset -o "$app/Contents/Resources/AppIcon.icns"
 for icon in design/brand/line-icons/*.svg; do
     case "$(basename "$icon")" in _* | sprite.svg) continue ;; esac
