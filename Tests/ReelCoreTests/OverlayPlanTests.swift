@@ -23,6 +23,29 @@ struct OverlayPlanTests {
         return try OverlayPlan.make(tape: tape, take: take)
     }
 
+    @Test func anAttachedTakeRipplesWhereOtherReelsClicked() throws {
+        func ripples(_ settings: String) throws -> [Overlay] {
+            let tape = try Tape.parse("Launch x\nOutput a.mp4\n\(settings)", relativeTo: URL(fileURLWithPath: "/tmp"))
+            var take = Take(
+                width: 100,
+                height: 100,
+                scale: 2,
+                frameRate: 30,
+                audio: false,
+                durationMs: 5000,
+                events: []
+            )
+            take.clicks = [Take.Sample(ms: 1500, frame: CGRect(x: 40, y: 30, width: 0, height: 0))]
+            return try OverlayPlan.make(tape: tape, take: take)
+        }
+        // As the take's own: from just before the click ended, for half a second.
+        let pressed = 1.5 - OverlayPlan.pressLead
+        #expect(try ripples("") == [Overlay(
+            kind: .ripple(CGPoint(x: 40, y: 30)), start: pressed, end: pressed + OverlayPlan.rippleDuration
+        )])
+        #expect(try ripples("Set ClickRipples off").isEmpty)
+    }
+
     @Test func captionsRunUntilTheNextOneAnchoredToTheActionBefore() throws {
         let overlays = try plan("""
         Caption "Hello"

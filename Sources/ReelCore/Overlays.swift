@@ -77,6 +77,15 @@ public enum OverlayPlan {
                 break
             }
         }
+        if tape.clickRipples {
+            for click in take.clicks ?? [] {
+                let pressed = max(0, Double(click.ms) / 1000 - pressLead)
+                overlays.append(Overlay(
+                    kind: .ripple(CGPoint(x: click.x, y: click.y)), start: pressed,
+                    end: min(end, pressed + rippleDuration)
+                ))
+            }
+        }
         return overlays.filter { $0.end > $0.start }.sorted { $0.start < $1.start }
     }
 }
