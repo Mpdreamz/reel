@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build reel for release into build/reel: arm64, optimised, the version written into it and checked. Beside it,
-# build/Reel_ReelCore.bundle holds what the code screen loads (Monaco, its page, the fonts); reel finds it there.
+# build/Reel_ReelCore.bundle holds what the code screen loads (Monaco, its page, the fonts); reel finds it there. And
+# build/Reel Companion.app, the menu bar app, at the same version.
 #
 #   scripts/build-release.sh 0.1.0
 set -euo pipefail
@@ -22,4 +23,8 @@ rm -rf build/Reel_ReelCore.bundle
 cp -R "$products/Reel_ReelCore.bundle" build/
 shown="$(build/reel --version)"
 [ "$shown" = "$version" ] || { echo "build-release: reel --version says $shown, not $version" >&2; exit 1; }
-echo "build-release: build/reel $shown"
+CONFIGURATION=release ARCH=arm64 VERSION="$version" scripts/companion.sh >/dev/null
+plist="build/Reel Companion.app/Contents/Info.plist"
+companion="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")"
+[ "$companion" = "$version" ] || { echo "build-release: Reel Companion.app says $companion, not $version" >&2; exit 1; }
+echo "build-release: build/reel $shown, build/Reel Companion.app $companion"

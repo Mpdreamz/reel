@@ -104,15 +104,18 @@ jobs:
             | grep -o '"Developer ID Application: [^"]*"' | tr -d '"' | head -1)"
           [ -n "$identity" ] || { echo "No Developer ID Application identity in DEVELOPER_ID_P12" >&2; exit 1; }
           scripts/sign.sh build/reel "$identity" "$keychain"
+          scripts/sign.sh "build/Reel Companion.app" "$identity" "$keychain"
 
       - name: Package the zip
         run: |
           mkdir -p dist
           # The binary at the zip's top, as the cask's `binary "reel"` expects it, and the code screen's bundle beside
-          # it: Homebrew links only the binary, and reel looks for the bundle next to where the link leads.
+          # it: Homebrew links only the binary, and reel looks for the bundle next to where the link leads. The
+          # companion app beside them, for the cask's `app "Reel Companion.app"`.
           mkdir -p build/package
           cp build/reel build/package/
           cp -R build/Reel_ReelCore.bundle build/package/
+          ditto "build/Reel Companion.app" "build/package/Reel Companion.app"
           ditto -c -k build/package dist/reel-arm64.zip
           unzip -l dist/reel-arm64.zip
 
