@@ -42,6 +42,8 @@ public enum Recorder {
             )
         case nil: break
         }
+        // Open before the first snapshot of what is running, so it is kept out from the first frame.
+        await Companion.open()
         let stage = if case let .web(url) = tape.launch {
             try await webStage(tape, opening: url, log: log)
         } else {
@@ -53,8 +55,8 @@ public enum Recorder {
 
         // The display without every other app, rather than `including: [app]`: scoped to the app, macOS draws a
         // sharing indicator over the window's buttons. Sound follows the same filter, so it is the app's alone (with
-        // its helpers, where a browser plays a page's sound). Apps that start after this are not excluded; the crop
-        // to the window keeps most of them out.
+        // its helpers, where a browser plays a page's sound). Apps that start after this are kept out as they appear
+        // (`keepOut`).
         let others = content.applications.filter { !stage.owns($0) }
         let filter = SCContentFilter(display: display, excludingApplications: others, exceptingWindows: [])
         let scale = Double(filter.pointPixelScale)
@@ -103,6 +105,13 @@ public enum Recorder {
             excluded: others.map(\.processID)
         ))
         defer { Events.emit(.recording(phase: .end, window: nil, excluded: [])) }
+        // SCStream is not marked Sendable; its filter is only changed there, and its capture only stopped here.
+        nonisolated(unsafe) let capturing = stream
+        let kept = Set(others.map(\.processID))
+        let keeping = Task { [owns = stage.owns, displayID = display.displayID] in
+            await keepOut(of: capturing, display: displayID, owns: owns, already: kept)
+        }
+        defer { keeping.cancel() }
         let start: CMTime
         do {
             start = try await firstFrame(of: writer, sink: sink)
@@ -215,7 +224,7 @@ public enum Recorder {
         var driver: (any Driving)?
         var web: WebDriver?
         /// Whether a running app is part of what is recorded (its sound kept).
-        var owns: (SCRunningApplication) -> Bool
+        var owns: @Sendable (SCRunningApplication) -> Bool
         var close: () -> Void = {}
         /// The app's process, for an app (not a page).
         var pid: pid_t?
@@ -432,6 +441,46 @@ public enum Recorder {
             }
             try await Task.sleep(for: .milliseconds(200))
         }
+    }
+
+    /// How often a capture looks for apps that started after it.
+    static let keepOutPoll: Duration = .milliseconds(250)
+
+    /// Keeps every app that starts while `stream` captures, and is not the stage's, out of it: the filter made again
+    /// with them excluded too, until the task is cancelled. Each is said as `excluded`, so the companion app knows its
+    /// overlay is not in the take before it draws one.
+    static func keepOut(
+        of stream: SCStream, display: CGDirectDisplayID, owns: @Sendable (SCRunningApplication) -> Bool,
+        already: Set<pid_t>
+    ) async {
+        var excluded = already
+        while !Task.isCancelled {
+            try? await Task.sleep(for: keepOutPoll)
+            guard let content = try? await SCShareableContent.excludingDesktopWindows(true, onScreenWindowsOnly: true)
+            else { continue }
+            let owned = Set(content.applications.filter(owns).map(\.processID))
+            let new = newcomers(content.applications.map(\.processID), already: excluded, owned: owned)
+            guard !new.isEmpty,
+                  let screen = content.displays.first(where: { $0.displayID == display }) else { continue }
+            let all = excluded.union(new)
+            let filter = SCContentFilter(
+                display: screen, excludingApplications: content.applications.filter { all.contains($0.processID) },
+                exceptingWindows: []
+            )
+            do {
+                try await stream.updateContentFilter(filter)
+            } catch {
+                continue
+            }
+            excluded = all
+            Events.emit(.excluded(new))
+        }
+    }
+
+    /// The running processes not yet kept out of a capture, and not part of what it records: in order, once each.
+    static func newcomers(_ running: [pid_t], already: Set<pid_t>, owned: Set<pid_t>) -> [pid_t] {
+        var seen = already.union(owned)
+        return running.filter { seen.insert($0).inserted }
     }
 
     private static func shareableContent() async throws -> SCShareableContent {
