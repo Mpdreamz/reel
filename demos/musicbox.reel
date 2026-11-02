@@ -1,5 +1,5 @@
-# reel's hero demo: reel showing itself off, on Musicbox (a sketchpad for chord progressions) playing its default song,
-# recorded with its own sound and narrated by two voices.
+# reel showing itself off, on Musicbox (a sketchpad for chord progressions) playing its default song,
+# recorded with its own sound and narrated by two voices. The landing page's video, demos/showcase.reel, records it.
 # `mise run demos` records it (Musicbox built in ~/Projects/musicbox: by path, since a bundle id can find another copy). It plays music and takes the mouse and keyboard.
 Import //demos/reel.reelpreset
 Launch ~/Projects/musicbox/build/App/Musicbox.app
