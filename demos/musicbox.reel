@@ -1,5 +1,5 @@
-# reel's hero demo: reel showing itself off, on Musicbox (a sketchpad for chord progressions) playing its default song,
-# recorded with its own sound and narrated by two voices.
+# reel showing itself off, on Musicbox (a sketchpad for chord progressions) playing its default song,
+# recorded with its own sound and narrated by two voices. The landing page's video, demos/showcase.reel, records it.
 # `mise run demos` records it (Musicbox built in ~/Projects/musicbox: by path, since a bundle id can find another copy). It plays music and takes the mouse and keyboard.
 Import //demos/reel.reelpreset
 Launch ~/Projects/musicbox/build/App/Musicbox.app
@@ -27,18 +27,21 @@ Say "Here we're recording a sneak peek at Musicbox, a fun new DAW that's still b
 Say@guest "Every click, key and zoom in this video is a line in a script."
 Say@over "Press space, [play] and Musicbox plays, with its own sound."
 Wait [play]
-Key space
+Key space as play
 Sleep 1.5s
 Zoom #lane.drums.mute 3x
 Say@guest,over "Mute the drums, [mute] and the chords and melody carry on alone."
 Wait [mute]
-Click #lane.drums.mute
+# Recorded by demos/showcase.reel, each click lands on a word of its narration; alone, these waits are skipped.
+Wait for muting
+Click #lane.drums.mute as mute
 Sleep 1s
 Zoom #timeline.melody 1.8x
 Say "Zooms find what they show by name, and follow it."
 Zoom #lane.drums.mute 3x
-Say@guest "Now, let's bring that beat back!"
-Click #lane.drums.mute
+Say@guest "Now, let's bring that beat back!" as back
+Wait for unmuting
+Click #lane.drums.mute as unmute
 Sleep 1.5s
 Zoom off
 Say "The music ducks under our voices, subtitles carry them to muted feeds, and one reel renders every cut."

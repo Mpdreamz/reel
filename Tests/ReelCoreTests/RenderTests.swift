@@ -55,6 +55,25 @@ struct RenderTests {
         #expect(late.allSatisfy(isPlain), "nothing left at 1.9 s")
     }
 
+    @Test func aRippleShowsOnALightWindow() async throws {
+        let writer = TakeWriterTests()
+        let dir = try writer.temporaryDirectory()
+        let movie = dir.appending(path: "take.mov")
+        // Nearly white, as many apps' windows are: a white ripple alone would not show on it.
+        try await writer.writeTake(to: movie, seconds: 2, audio: false, shade: 245)
+        let overlays = [Overlay(kind: .ripple(CGPoint(x: 50, y: 50)), start: 1.1, end: 1.6)]
+        let take = Take(width: 320, height: 200, scale: 2, frameRate: 30, audio: false, durationMs: 2000, events: [])
+        let output = Output(url: dir.appending(path: "out.mov"), format: .mov)
+        try await Renderer.render(movie, take: take, overlays: overlays, soundtrack: .none, to: output, lossless: true)
+
+        let video = AVURLAsset(url: output.url)
+        // Across the row through its centre (100, 100), wide enough for the ring as it grows.
+        let row = (40 ..< 160).map { (x: $0, y: 100) }
+        let before = try await pixels(video, at: 0.5, row)
+        let during = try await pixels(video, at: 1.2, row)
+        #expect(during.min()! < before.min()! - 40, "the ripple's ring darkens the light window at 1.2 s")
+    }
+
     @Test func withoutOverlaysTheTakeIsUntouched() async throws {
         let writer = TakeWriterTests()
         let dir = try writer.temporaryDirectory()
