@@ -12,7 +12,8 @@ Screen terminal as term
   Set FontSize 18
   Set Title "demos — zsh"
   Set WaitTimeout 3m
-  Type@0ms "export PATH=$PWD/../.build/debug:$PATH; clear"
+  # This checkout's reel, not an installed one; zsh looks commands up in no PATH entry with .. in it.
+  Type@0ms "export PATH=${PWD:h}/.build/debug:$PATH; clear"
   Key return
   Wait exit as ready
   Wait for hello to end
