@@ -1,13 +1,13 @@
 ---
 navigation_title: Home
-description: "reel records demo videos of Mac apps and web pages from a script, with the app's sound, captions, narration and zoom."
+description: "reel records demo videos of Mac apps, web pages, code and the command line from a script, with the app's sound, captions, narration and zoom."
 ---
 
 # reel
 
 Write a reel. Get the video.
 
-reel records demos of Mac apps and web pages from a script. A reel is a short `.reel` file: what to open, what to
+reel records demos of Mac apps, web pages, code and the command line from a script. A reel is a short `.reel` file: what to open, what to
 click and type, what to say. reel plays it against the real app, records the window with the app's own sound, and
 renders a finished movie or GIF with captions, narration, zooms and title cards. Run it again when the app changes
 and the demo is up to date.

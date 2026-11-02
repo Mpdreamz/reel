@@ -35,7 +35,7 @@
    Phase 3: tracks, several subjects recorded at once in one reel (indented or `With x.reel as name`) and drawn
    together. Phase 4: `Follow`, a code screen marking the line of the reel it shows as that reel runs. Phase 5:
    `Attach`, an app something else opens, as a track. Phase 6: the director's moves (`Set Layout`, `Layout`,
-   `Split`, `Spotlight`, `Fullscreen`, `Pip`). Next: the showcase; later, `Set Spotlight auto`.
+   `Split`, `Spotlight`, `Fullscreen`, `Pip`). The showcase, `demos/showcase.reel`, is the landing page's video. Later, `Set Spotlight auto`.
 
 ## The reel
 

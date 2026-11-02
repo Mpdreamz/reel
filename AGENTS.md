@@ -35,8 +35,9 @@ or both. Read `PLAN.md` first.
   mark and root links patched by `scripts/docs-pages.py`, and `docs/reel-landing.html` over its home page) and serves it on http://localhost:4000/reel/. The `docs` workflow publishes
   it to GitHub Pages, mpdreamz.github.io/reel, on every push to main. A change to the reel language or the command line
   updates `docs/` in the same pull request, as it does PLAN.md. The landing page's video, `docs/landing/reel-demo.mp4`,
-  and `reel-demo.gif` are the Musicbox demo's `web` cut: copy `docs/media/musicbox-web.mp4` and `.gif` over them
-  after `mise run demos`. Its web pages video, `docs/landing/web-demo.mp4`, is the Commons demo's `web` cut
+  and `reel-demo.gif` are the showcase's `web` cut (`demos/showcase.reel`, three tracks: a terminal recording
+  `demos/musicbox.reel`, a code screen following it, Musicbox attached): copy `docs/media/showcase-web.mp4` and
+  `.gif` over them after `mise run demos showcase`, with `poster.jpg` a frame of it. Its web pages video, `docs/landing/web-demo.mp4`, is the Commons demo's `web` cut
   (`docs/media/commons-web.mp4`), with `web-poster.jpg` a frame of it; its code video, `docs/landing/code-demo.mp4`,
   is the code demo's (`docs/media/code-web.mp4`), with `code-poster.jpg`; its command line video,
   `docs/landing/cli-demo.mp4`, is the terminal demo's (`docs/media/cli-web.mp4`), with `cli-poster.jpg`.

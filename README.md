@@ -3,7 +3,7 @@
   <img alt="reel: write a reel, get the video" src="design/social/png/readme-banner-light-1280x320.png">
 </picture>
 
-Demo videos of Mac apps and web pages, from a script. Like [VHS](https://github.com/charmbracelet/vhs), but for
+Demo videos of Mac apps, web pages, code and the command line, from a script. Like [VHS](https://github.com/charmbracelet/vhs), but for
 windows instead of terminals, and with the app's sound.
 
 **[Documentation](https://mpdreamz.github.io/reel/getting-started/)** ·
